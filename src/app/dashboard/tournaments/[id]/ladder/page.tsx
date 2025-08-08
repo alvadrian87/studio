@@ -22,7 +22,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Swords, UserPlus, DoorOpen, Play, Trophy, Loader2, Info } from "lucide-react"
+import { Swords, UserPlus, DoorOpen, Play, Trophy, Loader2, Info, Lock } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
 import type { Player, Tournament, TournamentEvent, Inscription, Challenge } from "@/hooks/use-firestore";
 import { useAuth } from "@/hooks/use-auth";
@@ -30,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format, add } from "date-fns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useRouter } from "next/navigation";
+import { Badge } from "@/components/ui/badge";
 
 
 export default function LadderPage({ params }: { params: { id: string } }) {
@@ -52,7 +53,6 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     if (tournament) {
       const fetchEvents = async () => {
         setLoadingEvents(true);
-        // Fetch Events (Categories/Divisions)
         const eventsQuery = query(collection(db, "eventos"), where("torneoId", "==", tournament.id));
         const eventsSnapshot = await getDocs(eventsQuery);
         const tournamentEvents = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TournamentEvent));
@@ -98,8 +98,6 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     const newPosition = eventInscriptions.length + 1;
     
     try {
-        const newInscriptionRef = doc(collection(db, `tournaments/${tournament.id}/inscriptions`));
-
         await addDoc(collection(db, `tournaments/${tournament.id}/inscriptions`), {
             torneoId: tournament.id,
             eventoId: eventId,
@@ -119,13 +117,18 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const hasPendingChallenge = (challengerInscription: Inscription | null | undefined) => {
+      if (!challengerInscription || !allChallenges) return false;
+      return allChallenges.some(c => 
+        (c.retadorId === challengerInscription.jugadorId || c.desafiadoId === challengerInscription.jugadorId) && c.estado === 'Pendiente'
+    );
+  }
+
   const canChallenge = (challengerInscription: Inscription | null | undefined, challengedInscription: Inscription) => {
     if (!challengerInscription || !tournament?.reglasLadder || !inscriptions) return false;
 
-    const hasPendingChallenge = allChallenges?.some(c => 
-        (c.retadorId === challengerInscription.jugadorId || c.desafiadoId === challengerInscription.jugadorId) && c.estado === 'Pendiente'
-    );
-    if (hasPendingChallenge) return false;
+    // A player cannot challenge if they already have a pending challenge
+    if (hasPendingChallenge(challengerInscription)) return false;
 
     const challengerPos = challengerInscription.posicionActual;
     const challengedPos = challengedInscription.posicionActual;
@@ -230,6 +233,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
            const eventParticipants = getEventInscriptions(event.id!);
            const enrolled = isUserEnrolledInEvent(event.id!);
            const currentUserInscription = userInscription(event.id!);
+           const userHasPendingChallenge = hasPendingChallenge(currentUserInscription);
 
             return (
                 <Card key={event.id} className="mb-6">
@@ -254,6 +258,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                 <AlertTitle>Reglas de Desafío</AlertTitle>
                                 <AlertDescription>
                                     Puedes desafiar a jugadores que estén hasta <span className="font-bold">{tournament.reglasLadder?.posicionesDesafioArriba}</span> posiciones por encima de ti. ¡Demuestra tu habilidad y sube en la clasificación!
+                                    {userHasPendingChallenge && <p className="font-semibold text-destructive mt-2">Tienes un desafío pendiente. No puedes desafiar a otros hasta que se resuelva.</p>}
                                 </AlertDescription>
                             </Alert>
                         )}
@@ -270,7 +275,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                 {eventParticipants.length > 0 ? (
                                   eventParticipants.map((inscription) => {
                                      const isSelf = user?.uid === inscription.jugadorId;
-                                     const canBeChallenged = enrolled && !isSelf && canChallenge(currentUserInscription, inscription);
+                                     const isChallengable = canChallenge(currentUserInscription, inscription);
                                      const isChallenging = challengingPlayerId === inscription.jugadorId;
 
                                       return (
@@ -287,20 +292,26 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                       </TableCell>
                                       <TableCell className="hidden md:table-cell">{inscription.playerDetails?.rankPoints || 'N/A'}</TableCell>
                                       <TableCell className="text-right">
-                                         {isLadderTournament && !isSelf && (
-                                            <Button 
-                                                variant="outline" 
-                                                size="sm"
-                                                disabled={!canBeChallenged || !!challengingPlayerId}
-                                                onClick={() => handleChallenge(inscription)}
-                                            >
-                                                {isChallenging ? (
-                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                                                ) : (
-                                                    <Swords className="mr-2 h-4 w-4"/>
-                                                )}
-                                                Desafiar
-                                            </Button>
+                                         {isLadderTournament && !isSelf && enrolled && (
+                                            isChallengable ? (
+                                                <Button 
+                                                    size="sm"
+                                                    disabled={isChallenging}
+                                                    onClick={() => handleChallenge(inscription)}
+                                                >
+                                                    {isChallenging ? (
+                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                                                    ) : (
+                                                        <Swords className="mr-2 h-4 w-4"/>
+                                                    )}
+                                                    Desafiar
+                                                </Button>
+                                            ) : (
+                                                 <Badge variant="secondary">
+                                                    <Lock className="mr-2 h-3 w-3"/>
+                                                    Bloqueado
+                                                 </Badge>
+                                            )
                                          )}
                                       </TableCell>
                                     </TableRow>
