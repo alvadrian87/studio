@@ -45,10 +45,6 @@ import type { Tournament } from "@/hooks/use-firestore"
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 
-const canManageTournament = (tournament: Tournament, user: any, userRole: string | null) => {
-    return userRole === 'admin' || tournament.creatorId === user?.uid;
-}
-
 export default function TournamentsPage() {
   const { data: tournaments, loading } = useCollection<Tournament>('tournaments');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -86,6 +82,10 @@ export default function TournamentsPage() {
   if (loading) {
     return <div>Cargando torneos...</div>
   }
+
+  const canManageTournament = (tournament: Tournament) => {
+    return userRole === 'admin' || tournament.creatorId === user?.uid;
+  };
 
   return (
     <>
@@ -153,7 +153,7 @@ export default function TournamentsPage() {
                          <DropdownMenuItem asChild>
                             <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>Ver Clasificación</Link>
                         </DropdownMenuItem>
-                        {canManageTournament(tournament, user, userRole) ? (
+                        {canManageTournament(tournament) && (
                           <>
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>Editar</Link>
@@ -162,7 +162,7 @@ export default function TournamentsPage() {
                               Eliminar
                             </DropdownMenuItem>
                           </>
-                        ) : null}
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
