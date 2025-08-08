@@ -78,7 +78,7 @@ export default function Dashboard() {
     { p1: '', p2: '' }, // Set 3
   ]);
   const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
-  const [isThirdSetDisabled, setIsThirdSetDisabled] = useState(false);
+  const [isThirdSetDisabled, setIsThirdSetDisabled] = useState(true);
   const [scoreError, setScoreError] = useState<string | null>(null);
   const [scoreInputErrors, setScoreInputErrors] = useState<boolean[][]>([
     [false, false],
@@ -316,7 +316,8 @@ export default function Dashboard() {
     setScoreError(null);
     setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
     setIsRetirement(false);
-    setIsThirdSetDisabled(false);
+    setIsThirdSetDisabled(true); // Disable by default
+    setIsWinnerRadioDisabled(false);
     setIsResultDialogOpen(true);
   }
   
