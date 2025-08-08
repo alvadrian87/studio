@@ -140,36 +140,38 @@ export default function Dashboard() {
              hasError(`Un marcador de ${tiebreakWinningScore} juegos solo es posible con ${tiebreakWinningScore}-5 o ${tiebreakWinningScore}-6.`);
              return null;
         }
+        
+        if (isSuperTiebreak) {
+            // Super Tiebreak validation
+            if ((score1 < winningScore && score2 < winningScore) || Math.abs(score1 - score2) < 2) {
+                // Not won yet or not won by 2
+                return null;
+            }
+             if ((score1 > winningScore || score2 > winningScore) && Math.abs(score1-score2) !== 2) {
+                hasError("En el Super Tiebreak, si se superan los 10 puntos, la diferencia debe ser de 2.");
+                return null;
+             }
+              if ((score1 === winningScore && Math.abs(score1 - score2) < 2) || (score2 === winningScore && Math.abs(score1 - score2) < 2)) {
+                 hasError("El Super Tiebreak debe ganarse por 2 puntos de diferencia.");
+                 return null;
+              }
 
-        if ((score1 >= winningScore || score2 >= winningScore)) {
-            if (isSuperTiebreak) {
-                if (score1 < winningScore && score2 < winningScore) return null; // Not won yet
-                if (Math.abs(score1 - score2) < 2) {
-                    hasError(`El super tie-break debe ganarse por 2 puntos de diferencia.`);
+        } else {
+            // Regular set validation
+            if ((score1 < winningScore && score2 < winningScore) && !(score1 === 5 && score2 === 6) && !(score1 === 6 && score2 === 5)) {
+                return null;
+            }
+            if (!((score1 >= winningScore && score1 >= score2 + 2) || (score2 >= winningScore && score2 >= score1 + 2) || (score1 === tiebreakWinningScore && (score2 === 5 || score2 === 6)) || (score2 === tiebreakWinningScore && (score1 === 5 || score1 === 6)) )) {
+                 if(score1 === 6 && score2 === 5 || score2 === 6 && score1 === 5) {
+                    hasError(`Un set no puede terminar 6-5. El siguiente marcador posible es 7-5 o 6-6.`);
                     return null;
-                }
-            } else {
-                 if (Math.abs(score1 - score2) < 2 && !(score1 === tiebreakWinningScore || score2 === tiebreakWinningScore)) {
-                    hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break).`);
-                    return null;
-                }
+                 }
+                return null;
             }
         }
         
-        if (!isSuperTiebreak && ((score1 === 6 && score2 === 5) || (score2 === 6 && score1 === 5))) {
-             hasError(`Un set no puede terminar 6-5. El siguiente marcador posible es 7-5 o 6-6.`);
-             return null;
-        }
-
-        if (isSuperTiebreak) {
-            if (score1 >= winningScore && score1 >= score2 + 2) return 'p1';
-            if (score2 >= winningScore && score2 >= score1 + 2) return 'p2';
-        } else {
-             if (score1 === tiebreakWinningScore) return 'p1';
-             if (score2 === tiebreakWinningScore) return 'p2';
-             if (score1 === winningScore && score2 <= winningScore - 2) return 'p1';
-             if (score2 === winningScore && score1 <= winningScore - 2) return 'p2';
-        }
+        if (score1 > score2) return 'p1';
+        if (score2 > score1) return 'p2';
         
         return null;
     }
@@ -379,12 +381,19 @@ export default function Dashboard() {
         const winnerRef = doc(db, "users", winnerId);
         const loserRef = doc(db, "users", loserId);
         const tournamentRef = doc(db, "tournaments", selectedMatch.tournamentId);
+        const challengeRef = selectedMatch.challengeId ? doc(db, "challenges", selectedMatch.challengeId) : null;
 
-        const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
+        const docs = await Promise.all([
           transaction.get(winnerRef),
           transaction.get(loserRef),
-          transaction.get(tournamentRef)
+          transaction.get(tournamentRef),
+          challengeRef ? transaction.get(challengeRef) : Promise.resolve(null),
         ]);
+        
+        const winnerDoc = docs[0];
+        const loserDoc = docs[1];
+        const tournamentDoc = docs[2];
+        const challengeDoc = docs[3];
         
 
         if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) throw new Error("No se encontraron los datos de los jugadores o del torneo.");
@@ -393,10 +402,7 @@ export default function Dashboard() {
         const loserData = loserDoc.data() as Player;
         const tournamentData = tournamentDoc.data() as Tournament;
         
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
-            const challengeRef = doc(db, "challenges", selectedMatch.challengeId);
-            const challengeDoc = await transaction.get(challengeRef);
-            if (!challengeDoc.exists()) throw new Error("Desafío no encontrado para la lógica de escalera");
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc && challengeRef && challengeDoc.exists()) {
             const challengeData = challengeDoc.data() as Challenge;
 
             if (challengeData.eventoId) {
