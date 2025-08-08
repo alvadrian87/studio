@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -53,17 +54,16 @@ export function AuthProvider({children}: {children: ReactNode}) {
     if (loading) return;
 
     const isAuthPage = pathname === '/login' || pathname === '/signup';
-    const isPublicPage = pathname === '/' || isAuthPage;
-    const isPublicDashboardPage = pathname === '/dashboard/tournaments' || /^\/dashboard\/tournaments\/[^/]+\/ladder$/.test(pathname);
 
     if (user && isAuthPage) {
       router.push('/dashboard');
       return;
     }
     
-    if (!user && !isPublicPage && !isPublicDashboardPage) {
-        router.push('/signup');
-    }
+    // NOTE: The automatic redirect for non-logged-in users has been removed.
+    // Firestore security rules will handle data protection. This prevents
+    // the "disappearing data" issue during development hot-reloads where
+    // the user state might be temporarily null.
 
   }, [user, loading, router, pathname]);
 
