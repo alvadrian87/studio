@@ -193,16 +193,34 @@ export default function Dashboard() {
     const finalScore = formatScoreString();
 
     try {
-      await runTransaction(db, async (transaction) => {
-        const matchRef = doc(db, "matches", selectedMatch.id);
-        const tournamentRef = doc(db, "tournaments", selectedMatch.tournamentId);
-        
-        const tournamentDoc = await transaction.get(tournamentRef);
-        if (!tournamentDoc.exists()) throw new Error("No se encontraron los datos del torneo.");
+        const loserId = selectedMatch.player1Id === winnerId ? selectedMatch.player2Id : selectedMatch.player1Id;
+        let winnerInscriptionRef: any, loserInscriptionRef: any;
+
+        // Pre-transaction: Get inscription documents if it's a ladder match
+        const tournamentDoc = await getDoc(doc(db, "tournaments", selectedMatch.tournamentId));
         const tournamentData = tournamentDoc.data() as Tournament;
 
-        const loserId = selectedMatch.player1Id === winnerId ? selectedMatch.player2Id : selectedMatch.player1Id;
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
+            const challengeDoc = await getDoc(doc(db, "challenges", selectedMatch.challengeId));
+            if (!challengeDoc.exists()) throw new Error("Challenge not found for ladder logic");
+            const challengeData = challengeDoc.data() as Challenge;
 
+            const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
+            
+            const winnerInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId));
+            const winnerInscriptionsSnap = await getDocs(winnerInscriptionQuery);
+            if (winnerInscriptionsSnap.empty) throw new Error("Winner inscription not found");
+            winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
+
+            const loserInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId));
+            const loserInscriptionsSnap = await getDocs(loserInscriptionQuery);
+            if (loserInscriptionsSnap.empty) throw new Error("Loser inscription not found");
+            loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
+        }
+
+
+      await runTransaction(db, async (transaction) => {
+        const matchRef = doc(db, "matches", selectedMatch.id);
         const winnerRef = doc(db, "users", winnerId);
         const loserRef = doc(db, "users", loserId);
         
@@ -215,39 +233,31 @@ export default function Dashboard() {
         const loserData = loserDoc.data() as Player;
         
         // --- Ladder Position Swap Logic ---
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId && winnerInscriptionRef && loserInscriptionRef) {
             const challengeRef = doc(db, "challenges", selectedMatch.challengeId);
             const challengeDoc = await transaction.get(challengeRef);
             if (!challengeDoc.exists()) throw new Error("Challenge not found for ladder logic");
             const challengeData = challengeDoc.data() as Challenge;
-
-            // Find inscriptions for both players in the specific event
-            const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
-            const winnerInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId));
-            const loserInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId));
             
-            const winnerInscriptionsSnap = await getDocs(winnerInscriptionQuery);
-            const loserInscriptionsSnap = await getDocs(loserInscriptionQuery);
+            const challengerIsWinner = winnerId === challengeData.retadorId;
 
-            if (!winnerInscriptionsSnap.empty && !loserInscriptionsSnap.empty) {
-                const winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
-                const winnerInscriptionData = winnerInscriptionsSnap.docs[0].data() as Inscription;
-                
-                const loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
-                const loserInscriptionData = loserInscriptionsSnap.docs[0].data() as Inscription;
-                
-                // Challenger is the one with the higher position number (lower rank)
-                const challengerIsWinner = winnerId === challengeData.retadorId;
+            if (challengerIsWinner) {
+                const winnerInscriptionDoc = await transaction.get(winnerInscriptionRef);
+                const loserInscriptionDoc = await transaction.get(loserInscriptionRef);
 
-                if (challengerIsWinner) {
-                    // Swap positions
-                    const winnerOldPosition = winnerInscriptionData.posicionActual;
-                    const loserOldPosition = loserInscriptionData.posicionActual;
-                    transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
-                    transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
+                if (winnerInscriptionDoc.exists() && loserInscriptionDoc.exists()) {
+                    const winnerInscriptionData = winnerInscriptionDoc.data() as Inscription;
+                    const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
+                    
+                    // Swap positions if challenger (winner) has a higher position number (is lower in rank)
+                    if(winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
+                        const winnerOldPosition = winnerInscriptionData.posicionActual;
+                        const loserOldPosition = loserInscriptionData.posicionActual;
+                        transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
+                        transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
+                    }
                 }
             }
-             // Update challenge status to 'Jugado'
              transaction.update(challengeRef, { estado: 'Jugado' });
         }
         
@@ -532,4 +542,5 @@ export default function Dashboard() {
   )
 }
 
+    
     
