@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useMemo, useState } from "react";
@@ -57,7 +58,7 @@ export default function Dashboard() {
 
   const pendingChallenges = useMemo(() => {
     if (!allChallenges || !user) return [];
-    return allChallenges.filter(c => c.challengedId === user.uid && c.status === 'Pendiente');
+    return allChallenges.filter(c => c.desafiadoId === user.uid && c.estado === 'Pendiente');
   }, [allChallenges, user]);
 
   const userMatches = useMemo(() => {
@@ -90,22 +91,22 @@ export default function Dashboard() {
         // Create the match
         const matchRef = doc(collection(db, "matches"));
         batch.set(matchRef, {
-          player1Id: challenge.challengerId,
-          player2Id: challenge.challengedId,
+          player1Id: challenge.retadorId,
+          player2Id: challenge.desafiadoId,
           winnerId: null,
           status: 'Pendiente',
           date: format(new Date(), "yyyy-MM-dd HH:mm"),
-          tournamentId: challenge.tournamentId,
+          tournamentId: challenge.torneoId,
         });
 
         // Update the challenge
-        batch.update(challengeRef, { status: "Aceptado" });
+        batch.update(challengeRef, { estado: "Aceptado" });
 
         await batch.commit();
 
         toast({ title: "¡Desafío Aceptado!", description: "La partida ha sido creada." });
       } else {
-        await updateDoc(challengeRef, { status: "Rechazado" });
+        await updateDoc(challengeRef, { estado: "Rechazado" });
         toast({ title: "Desafío Rechazado", variant: "default" });
       }
     } catch (error) {
@@ -320,7 +321,7 @@ export default function Dashboard() {
                 {pendingChallenges.map(challenge => (
                   <li key={challenge.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div>
-                      <p className="font-medium">{allPlayers?.find(p => p.uid === challenge.challengerId)?.displayName}</p>
+                      <p className="font-medium">{allPlayers?.find(p => p.uid === challenge.retadorId)?.displayName}</p>
                       <p className="text-sm text-muted-foreground">Te ha desafiado en: <span className="font-semibold text-primary">{challenge.tournamentName}</span></p>
                     </div>
                     <div className="flex gap-2">

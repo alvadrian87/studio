@@ -1,4 +1,5 @@
 
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -23,8 +24,7 @@ export interface Player {
   role: 'player' | 'admin';
   globalWins: number;
   globalLosses: number;
-  eloSingles: number;
-  eloDobles: number;
+  rankPoints: number;
   lesionado: boolean;
   fechaFinLesion?: string; // Timestamp
 }
@@ -52,6 +52,8 @@ export interface Tournament {
   fechaFin: string;
   ubicacion: string;
   imagenBannerUrl?: string;
+
+  isRanked?: boolean;
 
   // Key-based tournament fields
   metodoOrdenInicial?: 'Ordenar por ELO' | 'Ordenar manualmente';
@@ -92,8 +94,8 @@ export interface TournamentEvent {
     // Individual
     tipoDeJuego?: 'Singles' | 'Dobles';
     sexo?: 'Femenino' | 'Masculino' | 'Mixto' | 'Abierto';
-    eloMinimo?: number;
-    eloMaximo?: number;
+    ELOminimo?: number;
+    ELOmaximo?: number;
     tarifaInscripcion?: number;
     
     // Equipos
@@ -108,7 +110,7 @@ export interface TournamentEvent {
 export interface Challenge {
     id: string;
     torneoId: string;
-    categoriaId: string;
+    eventoId: string;
     retadorId: string; // player or team id
     desafiadoId: string; // player or team id
     fechaDesafio: string;
@@ -116,6 +118,7 @@ export interface Challenge {
     fechaLimitePartido?: string;
     estado: 'Pendiente' | 'Aceptado' | 'Rechazado' | 'Jugado' | 'Walkover' | 'No Jugado' | 'Cancelado';
     resultadoId?: string;
+    tournamentName: string; // denormalized
 }
 
 export interface Result {
