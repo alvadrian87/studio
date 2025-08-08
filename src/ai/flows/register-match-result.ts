@@ -4,7 +4,7 @@
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import admin from 'firebase-admin';
-import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
+import type { Player, Match, Tournament, Challenge } from '@/types';
 
 // Initialize Firebase Admin SDK if not already initialized
 if (!admin.apps.length) {
@@ -39,102 +39,68 @@ export const registerMatchResult = ai.defineFlow(
     outputSchema: RegisterMatchResultOutputSchema,
   },
   async ({ matchId, winnerId, score, isRetirement }) => {
-    console.log('registerMatchResultFlow invoked with input:', { matchId, winnerId, score, isRetirement });
     try {
-      await db.runTransaction(async (transaction) => {
-        console.log('Starting database transaction...');
         const matchRef = db.collection("matches").doc(matchId);
-        const matchDoc = await transaction.get(matchRef);
-        console.log('Match document fetched.');
+        const matchDoc = await matchRef.get();
 
         if (!matchDoc.exists) {
-            console.error("Match not found in transaction.");
-            throw new Error("Match not found.");
+            return { success: false, message: "La partida no fue encontrada." };
         }
 
         const matchData = matchDoc.data() as Match;
         if(matchData.status === 'Completado') {
-          console.log("Match status is already 'Completado'. Aborting.");
-          return;
+            return { success: false, message: "Este resultado ya ha sido registrado." };
         }
-
+        
         const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
-        console.log(`Winner: ${winnerId}, Loser: ${loserId}`);
-
+        
         const winnerRef = db.collection("users").doc(winnerId);
         const loserRef = db.collection("users").doc(loserId);
         const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
-        
-        console.log('Fetching winner, loser, and tournament documents.');
+
         const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
-          transaction.get(winnerRef),
-          transaction.get(loserRef),
-          transaction.get(tournamentRef)
+            winnerRef.get(),
+            loserRef.get(),
+            tournamentRef.get()
         ]);
-        console.log('Winner, loser, and tournament documents fetched.');
-        
+
         if (!winnerDoc.exists || !loserDoc.exists || !tournamentDoc.exists) {
-            console.error("Player or tournament data not found in transaction.");
-            throw new Error("Player or tournament data not found.");
+            return { success: false, message: "No se pudieron encontrar los datos del jugador o del torneo." };
         }
-        
+
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
         const tournamentData = tournamentDoc.data() as Tournament;
-        
-        // Ladder logic - SIMPLIFIED TO AVOID TIMEOUT
-        // The original logic with queries inside the transaction was too slow.
-        // This should be handled by a more efficient mechanism, like a Cloud Function
-        // triggered on match completion, or by passing inscription IDs to the flow.
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
-            console.log('Executing simplified ladder logic for challenge ID:', matchData.challengeId);
-            const challengeRef = db.collection("challenges").doc(matchData.challengeId);
-            const challengeDoc = await transaction.get(challengeRef);
 
-            if (challengeDoc.exists) {
-                const challengeData = challengeDoc.data() as Challenge;
-                const challengerIsWinner = winnerId === challengeData.retadorId;
+        await db.runTransaction(async (transaction) => {
+            // Write operations only inside the transaction
+            transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
+            
+            const newWinnerWins = (winnerData.globalWins || 0) + 1;
+            const newLoserLosses = (loserData.globalLosses || 0) + 1;
+            
+            transaction.update(winnerRef, { globalWins: newWinnerWins });
+            transaction.update(loserRef, { globalLosses: newLoserLosses });
 
-                // TODO: Implement efficient position swap using a Cloud Function.
-                // The logic to swap positions is removed from this transaction to prevent timeouts.
-                // A Cloud Function should listen for match completions and handle the ladder update.
-                if (challengerIsWinner) {
-                    console.log('Challenger won. Position swap logic needs to be implemented efficiently in a separate process.');
-                }
+            if (tournamentData.isRanked) {
+                const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
+                const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
                 
-                transaction.update(challengeRef, { estado: 'Jugado' });
-                console.log('Challenge status updated to "Jugado".');
+                transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
+                transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
             }
-        }
-        
-        // Update stats
-        console.log('Updating player stats.');
-        const newWinnerWins = (winnerData.globalWins || 0) + 1;
-        const newLoserLosses = (loserData.globalLosses || 0) + 1;
-        
-        transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
-        transaction.update(winnerRef, { globalWins: newWinnerWins });
-        transaction.update(loserRef, { globalLosses: newLoserLosses });
-        console.log('Player stats updated in transaction.');
 
-
-        // Update ELO if ranked
-        if (tournamentData.isRanked) {
-          console.log('Tournament is ranked. Calculating and updating ELO.');
-          const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
-          const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
-          
-          transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
-          transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
-          console.log('ELO points updated in transaction.');
-        }
-
-        console.log('Transaction updates prepared. Committing...');
+            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
+                const challengeRef = db.collection("challenges").doc(matchData.challengeId);
+                // We just update the state. The complex ladder logic is now out of the transaction.
+                // TODO: Implement efficient position swap using a Cloud Function triggered by this update.
+                transaction.update(challengeRef, { estado: 'Jugado' });
+            }
       });
-      console.log('Transaction successfully committed.');
+      
       return { success: true, message: "Resultado guardado exitosamente." };
     } catch (error: any) {
-      console.error("Error in registerMatchResultFlow transaction: ", error);
+      console.error("Error in registerMatchResultFlow: ", error);
       return { success: false, message: error.message || "No se pudo guardar el resultado." };
     }
   }
