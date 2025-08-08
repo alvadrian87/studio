@@ -5,7 +5,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { db } from '@/lib/firebase-admin'; // Use server-side admin DB
 import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
-import * as admin from 'firebase-admin';
+import type * as admin from 'firebase-admin';
 
 
 const RegisterMatchResultInputSchema = z.object({
