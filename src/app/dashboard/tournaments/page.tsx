@@ -153,7 +153,7 @@ export default function TournamentsPage() {
                          <DropdownMenuItem asChild>
                             <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>Ver Clasificación</Link>
                         </DropdownMenuItem>
-                        {canManageTournament(tournament, user, userRole) && (
+                        {canManageTournament(tournament, user, userRole) ? (
                           <>
                             <DropdownMenuItem asChild>
                               <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>Editar</Link>
@@ -162,7 +162,7 @@ export default function TournamentsPage() {
                               Eliminar
                             </DropdownMenuItem>
                           </>
-                        )}
+                        ) : null}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
