@@ -23,7 +23,10 @@ export interface Player {
   role: 'player' | 'admin';
   globalWins: number;
   globalLosses: number;
-  rankPoints: number; // ELO-like ranking points
+  eloSingles: number;
+  eloDobles: number;
+  lesionado: boolean;
+  fechaFinLesion?: string; // Timestamp
 }
 
 export interface Match {
@@ -41,7 +44,7 @@ export interface Tournament {
   creatorId: string;
   status: 'Próximo' | 'En Curso' | 'Completado' | 'Borrador';
   // Step 1
-  tipoTorneo: 'Individual' | 'Por Equipos';
+  tipoTorneo: 'Evento por Llaves' | 'Evento tipo Escalera';
   nombreTorneo: string;
   descripcion?: string;
   organizacion: string;
@@ -49,7 +52,22 @@ export interface Tournament {
   fechaFin: string;
   ubicacion: string;
   imagenBannerUrl?: string;
-  // Step 3
+
+  // Key-based tournament fields
+  metodoOrdenInicial?: 'Ordenar por ELO' | 'Ordenar manualmente';
+  formatoScore?: '2 Sets + Super Tiebreak' | '3 Sets Completos';
+  reglasLadder?: {
+    posicionesDesafioArriba: number;
+    posicionesDesafioAbajoPrimerPuesto: number;
+    posicionesDesafioArribaUltimoPuesto: number;
+  };
+  tiempos?: {
+    tiempoLimiteAceptarDesafio: number; // en horas
+    tiempoLimiteJugarPartido: number; // en días
+    fechaCierreDesafios: string;
+  };
+  
+  // Step 3 (shared)
   fechaInicioInscripciones: string;
   fechaCierreInscripciones: string;
   maximoInscripciones?: number;
@@ -58,19 +76,26 @@ export interface Tournament {
   contactoTelefono?: string;
 }
 
+// Represents both a category in an individual tournament and a division in a team tournament.
 export interface TournamentEvent {
-    id?: string; // ID is optional because it might not exist on creation
-    torneoId?: string; 
-    nombre: string; 
-    formatoTorneo: 'Single Elimination' | 'Round Robin' | 'First Match Backdraw' | 'Ladder' | '';
+    id?: string;
+    torneoId?: string;
+    nombre: string;
+    
+    // Shared for Ladder
+    valorIndiceClasificacion?: number;
+    reglasEspecíficas?: string;
+
+    // Key-based tournament fields
+    formatoTorneo?: 'Single Elimination' | 'Round Robin' | 'First Match Backdraw' | 'Ladder';
+    
     // Individual
     tipoDeJuego?: 'Singles' | 'Dobles';
     sexo?: 'Femenino' | 'Masculino' | 'Mixto' | 'Abierto';
-    edadMinima?: number;
-    edadMaxima?: number;
     eloMinimo?: number;
     eloMaximo?: number;
     tarifaInscripcion?: number;
+    
     // Equipos
     numJugadoresPorEquipo?: number;
     configuracionRonda?: string;
@@ -82,13 +107,28 @@ export interface TournamentEvent {
 
 export interface Challenge {
     id: string;
-    challengerId: string;
-    challengedId: string;
-    tournamentId: string;
-    tournamentName: string;
-    status: 'Pendiente' | 'Aceptado' | 'Rechazado';
-    date: string;
+    torneoId: string;
+    categoriaId: string;
+    retadorId: string; // player or team id
+    desafiadoId: string; // player or team id
+    fechaDesafio: string;
+    fechaLimiteAceptacion: string;
+    fechaLimitePartido?: string;
+    estado: 'Pendiente' | 'Aceptado' | 'Rechazado' | 'Jugado' | 'Walkover' | 'No Jugado' | 'Cancelado';
+    resultadoId?: string;
 }
+
+export interface Result {
+    id: string;
+    desafioId: string;
+    ganadorId: string;
+    perdedorId: string;
+    scores: Array<{ set: number, scoreGanador: number, scorePerdedor: number, esTiebreak: boolean }>;
+    fechaValidacionGanador?: string;
+    fechaValidacionPerdedor?: string;
+    validadoPorAdmin: boolean;
+}
+
 
 export interface Team {
   id: string;
@@ -97,16 +137,21 @@ export interface Team {
   nombreEquipo: string;
   capitanId: string; // player uid
   jugadoresIds: string[]; // array of player uids
+  eloPromedioEquipo: number;
 }
 
 export interface Inscription {
   id: string;
   torneoId: string;
-  eventoId: string;
-  jugadorId: string; // player uid
-  equipoId?: string; // if team tournament
+  eventoId: string; // category or division
+  jugadorId?: string; // for singles
+  equipoId?: string; // for doubles
   fechaInscripcion: string;
   status: 'Confirmado' | 'En Espera';
+  posicionInicial: number;
+  posicionActual: number;
+  indiceActividad: number;
+  desafioPendienteId: string | null;
 }
 
 

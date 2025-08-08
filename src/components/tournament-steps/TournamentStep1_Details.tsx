@@ -1,5 +1,5 @@
 
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import {
   FormControl,
   FormField,
@@ -9,11 +9,12 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CardDescription, CardTitle } from "../ui/card";
+import { Label } from "../ui/label";
 
 export default function TournamentStep1Details() {
   const { control } = useFormContext();
+  const tipoTorneo = useWatch({ control, name: "tipoTorneo" });
 
   return (
     <div className="space-y-6">
@@ -22,27 +23,10 @@ export default function TournamentStep1Details() {
             <CardDescription>Información general sobre tu nuevo torneo.</CardDescription>
         </div>
         <div className="grid md:grid-cols-2 gap-6">
-             <FormField
-                control={control}
-                name="tipoTorneo"
-                render={({ field }) => (
-                <FormItem>
-                    <FormLabel>Tipo de Torneo</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                        <SelectTrigger>
-                        <SelectValue placeholder="Selecciona el tipo de torneo" />
-                        </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                        <SelectItem value="Individual">Individual</SelectItem>
-                        <SelectItem value="Por Equipos">Por Equipos</SelectItem>
-                    </SelectContent>
-                    </Select>
-                    <FormMessage />
-                </FormItem>
-                )}
-            />
+            <div>
+                <Label>Tipo de Torneo</Label>
+                <Input value={tipoTorneo} disabled className="mt-2"/>
+            </div>
             <FormField
                 control={control}
                 name="nombreTorneo"
@@ -104,7 +88,7 @@ export default function TournamentStep1Details() {
                     name="descripcion"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Descripción</FormLabel>
+                            <FormLabel>Descripción (Opcional)</FormLabel>
                             <FormControl><Textarea placeholder="Describe tu torneo..." {...field} /></FormControl>
                             <FormMessage />
                         </FormItem>
@@ -117,7 +101,7 @@ export default function TournamentStep1Details() {
                     name="imagenBannerUrl"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>URL de la Imagen del Banner</FormLabel>
+                            <FormLabel>URL de la Imagen del Banner (Opcional)</FormLabel>
                             <FormControl><Input placeholder="https://ejemplo.com/imagen.png" {...field} /></FormControl>
                             <FormMessage />
                         </FormItem>
