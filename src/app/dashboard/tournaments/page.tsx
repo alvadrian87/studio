@@ -83,10 +83,6 @@ export default function TournamentsPage() {
     return <div>Cargando torneos...</div>
   }
 
-  const canManageTournament = (tournament: Tournament) => {
-    return userRole === 'admin' || tournament.creatorId === user?.uid;
-  };
-
   return (
     <>
       <div className="flex items-center">
@@ -126,48 +122,51 @@ export default function TournamentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tournaments?.map((tournament) => (
-                <TableRow key={tournament.id}>
-                  <TableCell className="font-medium">{tournament.name}</TableCell>
-                  <TableCell>
-                    <Badge variant={tournament.status === 'En Curso' ? 'default' : 'secondary'}>
-                      {tournament.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">{tournament.format}</TableCell>
-                  <TableCell className="hidden md:table-cell">{tournament.location}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          aria-haspopup="true"
-                          size="icon"
-                          variant="ghost"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Alternar menú</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                         <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>Ver Clasificación</Link>
-                        </DropdownMenuItem>
-                        {canManageTournament(tournament) && (
-                          <>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>Editar</Link>
-                            </DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClick(tournament.id)}>
-                              Eliminar
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {tournaments?.map((tournament) => {
+                const canManage = userRole === 'admin' || tournament.creatorId === user?.uid;
+                return (
+                  <TableRow key={tournament.id}>
+                    <TableCell className="font-medium">{tournament.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={tournament.status === 'En Curso' ? 'default' : 'secondary'}>
+                        {tournament.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">{tournament.format}</TableCell>
+                    <TableCell className="hidden md:table-cell">{tournament.location}</TableCell>
+                    <TableCell>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            aria-haspopup="true"
+                            size="icon"
+                            variant="ghost"
+                          >
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Alternar menú</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>Ver Clasificación</Link>
+                          </DropdownMenuItem>
+                          {canManage && (
+                            <>
+                              <DropdownMenuItem asChild>
+                                <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>Editar</Link>
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClick(tournament.id)}>
+                                Eliminar
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </CardContent>

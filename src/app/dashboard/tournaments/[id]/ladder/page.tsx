@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Swords, UserPlus, DoorOpen } from "lucide-react"
+import { Swords, UserPlus, DoorOpen, Play } from "lucide-react"
 import { useDocument } from "@/hooks/use-firestore";
 import type { Player, Tournament } from "@/hooks/use-firestore";
 import { useAuth } from "@/hooks/use-auth";
@@ -31,12 +31,11 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${params.id}`);
   const [participants, setParticipants] = useState<Player[]>([]);
   const [loadingParticipants, setLoadingParticipants] = useState(true);
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
     const fetchParticipants = async () => {
-      // We wait until the tournament data is loaded and has participants
       if (!tournament || tournament.participants.length === 0) {
         setParticipants([]);
         setLoadingParticipants(false);
@@ -46,21 +45,29 @@ export default function LadderPage({ params }: { params: { id: string } }) {
       try {
         setLoadingParticipants(true);
         const usersRef = collection(db, "users");
-        // Firestore 'in' query is limited to 30 elements. For more participants, pagination or a different approach would be needed.
-        const q = query(usersRef, where('uid', 'in', tournament.participants.slice(0, 30)));
-        const querySnapshot = await getDocs(q);
+        const participantChunks: string[][] = [];
+        // Firestore 'in' query is limited to 30 elements, so we chunk the participants array.
+        for (let i = 0; i < tournament.participants.length; i += 30) {
+            participantChunks.push(tournament.participants.slice(i, i + 30));
+        }
+
         const participantData: Player[] = [];
-        querySnapshot.forEach(doc => {
-            const data = doc.data();
-            participantData.push({
-                id: doc.id,
-                uid: data.uid,
-                displayName: data.displayName,
-                email: data.email,
-                globalWins: data.globalWins || 0,
-                globalLosses: data.globalLosses || 0,
-            } as Player);
-        });
+        for (const chunk of participantChunks) {
+            const q = query(usersRef, where('uid', 'in', chunk));
+            const querySnapshot = await getDocs(q);
+            querySnapshot.forEach(doc => {
+                const data = doc.data();
+                participantData.push({
+                    id: doc.id,
+                    uid: data.uid,
+                    displayName: data.displayName,
+                    email: data.email,
+                    globalWins: data.globalWins || 0,
+                    globalLosses: data.globalLosses || 0,
+                } as Player);
+            });
+        }
+        
         setParticipants(participantData);
       } catch (error) {
         console.error("Error fetching participants:", error);
@@ -70,7 +77,6 @@ export default function LadderPage({ params }: { params: { id: string } }) {
       }
     };
 
-    // Only fetch if tournament is loaded
     if(!loadingTournament && tournament){
         fetchParticipants();
     }
@@ -86,6 +92,11 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     if (!tournament) return false;
     return tournament.status === 'Próximo' && tournament.participants.length < tournament.numberOfPlayers;
   }, [tournament]);
+
+  const canManageTournament = useMemo(() => {
+    if (!user || !userRole || !tournament) return false;
+    return userRole === 'admin' || tournament.creatorId === user.uid;
+  }, [user, userRole, tournament]);
 
 
   const handleEnrollment = async (enroll: boolean) => {
@@ -107,6 +118,37 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         variant: "destructive",
         title: "Error",
         description: "No se pudo procesar tu solicitud. Inténtalo de nuevo.",
+      });
+    }
+  };
+  
+  const handleStartTournament = async () => {
+    if (!tournament || !canManageTournament) return;
+    
+    if (tournament.participants.length < 2) {
+      toast({
+        variant: "destructive",
+        title: "No se puede iniciar el torneo",
+        description: "Se necesitan al menos 2 jugadores para iniciar el torneo.",
+      });
+      return;
+    }
+
+    const tournamentRef = doc(db, "tournaments", tournament.id);
+    try {
+      await updateDoc(tournamentRef, {
+        status: "En Curso",
+      });
+      toast({
+        title: "¡Torneo Iniciado!",
+        description: "El torneo ha comenzado. ¡Que empiecen las partidas!",
+      });
+    } catch (error) {
+      console.error("Error al iniciar el torneo:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo iniciar el torneo. Inténtalo de nuevo.",
       });
     }
   };
@@ -133,9 +175,14 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                     <UserPlus className="mr-2 h-4 w-4" /> Inscribirse
                 </Button>
             )}
-            {isEnrolled && tournament.status === 'Próximo' &&(
+            {isEnrolled && tournament.status === 'Próximo' && (
                  <Button variant="outline" onClick={() => handleEnrollment(false)}>
                     <DoorOpen className="mr-2 h-4 w-4" /> Abandonar
+                </Button>
+            )}
+            {canManageTournament && tournament.status === 'Próximo' && (
+                <Button onClick={handleStartTournament} disabled={participants.length < 2}>
+                    <Play className="mr-2 h-4 w-4" /> Iniciar Torneo
                 </Button>
             )}
         </div>
@@ -143,7 +190,12 @@ export default function LadderPage({ params }: { params: { id: string } }) {
        <Card>
         <CardHeader>
           <CardTitle>Jugadores Inscritos ({participants.length}/{tournament.numberOfPlayers})</CardTitle>
-          <CardDescription>La lista oficial de jugadores para el {tournament.name}. El ranking se generará cuando comience el torneo.</CardDescription>
+          <CardDescription>
+            {tournament.status === 'Próximo' 
+              ? `La lista oficial de jugadores para el ${tournament.name}. El ranking se generará cuando comience el torneo.`
+              : `El torneo ${tournament.name} está en curso.`
+            }
+            </CardDescription>
         </CardHeader>
         <CardContent>
           {loadingParticipants ? (
@@ -173,7 +225,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                     <TableCell className="hidden md:table-cell text-green-500 font-medium">{player.globalWins}</TableCell>
                     <TableCell className="hidden md:table-cell text-red-500 font-medium">{player.globalLosses}</TableCell>
                     <TableCell className="text-right">
-                        <Button variant="outline" size="sm" disabled={tournament.status !== 'En Curso' || player.id === user?.uid}>
+                        <Button variant="outline" size="sm" disabled={tournament.status !== 'En Curso' || player.uid === user?.uid}>
                             <Swords className="h-4 w-4 mr-2" />
                             Desafiar
                         </Button>
@@ -185,7 +237,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
           ) : (
             <div className="text-center py-8 text-muted-foreground">
                 <p>Aún no hay jugadores inscritos en este torneo.</p>
-                <p className="text-sm">¡Sé el primero en unirte!</p>
+                {tournament.status === 'Próximo' && <p className="text-sm">¡Sé el primero en unirte!</p>}
             </div>
           )}
         </CardContent>
