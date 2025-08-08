@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { doc, updateDoc, arrayUnion, arrayRemove, getDocs, collection, query, where } from "firebase/firestore";
 import { db } from "@/lib/firebase";
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -37,6 +36,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
 
   useEffect(() => {
     const fetchParticipants = async () => {
+      // We wait until the tournament data is loaded and has participants
       if (!tournament || tournament.participants.length === 0) {
         setParticipants([]);
         setLoadingParticipants(false);
@@ -54,6 +54,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
             const data = doc.data();
             participantData.push({
                 id: doc.id,
+                uid: data.uid,
                 displayName: data.displayName,
                 email: data.email,
                 globalWins: data.globalWins || 0,
@@ -69,8 +70,11 @@ export default function LadderPage({ params }: { params: { id: string } }) {
       }
     };
 
-    fetchParticipants();
-  }, [tournament, toast]);
+    // Only fetch if tournament is loaded
+    if(!loadingTournament && tournament){
+        fetchParticipants();
+    }
+  }, [tournament, loadingTournament, toast]);
   
 
   const isEnrolled = useMemo(() => {
