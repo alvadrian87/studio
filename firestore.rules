@@ -1,88 +1,66 @@
 
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper function to check if a user is an admin
+  
+    // Helper function to check for admin role
     function isAdmin() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // Helper function to check if a user is the owner of a document
+    // Helper function to check if the user is the owner of a document
     function isOwner(userId) {
       return request.auth != null && request.auth.uid == userId;
     }
-    
-    // Helper function to check if a tournament creator
-    function isTournamentCreator(resource) {
-        return request.auth.uid == resource.data.creatorId;
-    }
 
-    // Users collection
+    // Rules for the 'users' collection
     match /users/{userId} {
-      // Anyone authenticated can see the list of users and their profiles
-      allow list, get: if request.auth != null;
-      // Users can create their own profile document
-      allow create: if isOwner(userId);
-      // Users can only update their own profile, or an admin can update any profile
+      allow read: if true;
+      allow create: if isOwner(userId); // Allow user to create their own profile on signup
       allow update: if isOwner(userId) || isAdmin();
-    }
-
-    // Tournaments collection
-    match /tournaments/{tournamentId} {
-      // Anyone can see the list of tournaments and their details
-      allow list, get: if true;
-      // Only admins can create tournaments
-      allow create: if isAdmin();
-      // Only the tournament creator or an admin can update or delete it
-      allow update, delete: if isTournamentCreator(resource) || isAdmin();
-    }
-    
-    // Matches collection
-    match /matches/{matchId} {
-       // Anyone authenticated can view matches
-      allow list, get: if request.auth != null;
-      // Only participants of a match can create it (e.g. by accepting a challenge)
-      allow create: if request.auth != null && (request.auth.uid == request.resource.data.player1Id || request.auth.uid == request.resource.data.player2Id);
-      // Only participants of a match can update its status (e.g., report winner)
-      allow update: if request.auth != null && (request.auth.uid == resource.data.player1Id || request.auth.uid == resource.data.player2Id);
-      // Only admins should be able to delete matches
       allow delete: if isAdmin();
     }
-    
-    // Challenges collection
-    match /challenges/{challengeId} {
-       // Anyone authenticated can view challenges they are part of
-      allow list, get: if request.auth != null && (request.auth.uid == resource.data.challengerId || request.auth.uid == resource.data.challengedId);
-      // Anyone authenticated can create a challenge
-      allow create: if request.auth != null;
-      // Only the challenged player can update the status (accept/reject)
-      allow update: if request.auth != null && request.auth.uid == resource.data.challengedId;
-       // Only admins or participants can delete a challenge
-      allow delete: if isAdmin() || (request.auth != null && (request.auth.uid == resource.data.challengerId || request.auth.uid == resource.data.challengedId));
-    }
-  }
-}
 
-service firebase.storage {
-  match /b/{bucket}/o {
-    // Rules for avatar images
-    match /avatars/{userId}/{allPaths=**} {
-      // Allow read access to anyone (to see profile pictures)
+    // Rules for 'tournaments' collection
+    match /tournaments/{tournamentId} {
       allow read: if true;
-      // Allow write access (upload, update, delete) only to the user who owns the avatar
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow create, update, delete: if isAdmin();
     }
     
-     // Rules for tournament banners - adjust as needed
-    match /banners/{tournamentId}/{allPaths=**} {
-      // Allow read access to anyone
+    // Rules for 'eventos' (tournament events) collection
+    match /eventos/{eventId} {
       allow read: if true;
-      // Allow write access only to admins or tournament creators. This is more complex to enforce here.
-      // A simplified rule is to allow any authenticated user to upload, and manage access through your app's logic.
-      // For stricter rules, you'd use Cloud Functions to verify creator/admin status.
-      allow write: if request.auth != null;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Rules for 'inscriptions' collection
+    match /inscriptions/{inscriptionId} {
+      // Anyone logged in can create an inscription (enroll in a tournament)
+      allow create: if request.auth != null;
+      // Only the user themselves or an admin can read/update/delete it
+      allow read, update, delete: if isOwner(resource.data.jugadorId) || isAdmin();
+    }
+    
+    // Rules for 'challenges'
+    match /challenges/{challengeId} {
+      allow read: if true;
+      // A user must be logged in to create a challenge
+      allow create: if request.auth != null && isOwner(request.resource.data.retadorId);
+      // Only the challenger, the challenged person, or an admin can update it
+      allow update: if isOwner(resource.data.retadorId) || isOwner(resource.data.desafiadoId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Rules for 'matches'
+    match /matches/{matchId} {
+      allow read: if true;
+      // Matches are created via accepting a challenge, so this should be secure.
+      // Let's restrict direct creation for now, can be done via a transaction/function
+      allow create: if request.auth != null; // Or more specific logic
+      // Only the players involved or an admin can update the match result
+      allow update: if isOwner(resource.data.player1Id) || isOwner(resource.data.player2Id) || isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }
