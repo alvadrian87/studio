@@ -59,6 +59,7 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   
+  // All hooks are now at the top
   const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
   const { data: allMatches, loading: loadingMatches } = useCollection<Match>('matches');
   const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
@@ -85,6 +86,7 @@ export default function Dashboard() {
   const [isRetirement, setIsRetirement] = useState(false);
 
   const getPlayerById = useCallback((id: string | undefined) => {
+    if (!id) return null;
     return allPlayers?.find(p => p.uid === id);
   }, [allPlayers]);
 
@@ -95,14 +97,12 @@ export default function Dashboard() {
     return { player1, player2 };
   }, [allPlayers, getPlayerById]);
 
-  // Call all hooks unconditionally at the top level
   useEffect(() => {
     if (!isResultDialogOpen) return;
 
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
     
-    // Bypass validation if it's a retirement case
     if (isRetirement) {
         setScoreError(null);
         setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
@@ -143,29 +143,28 @@ export default function Dashboard() {
         
         if (isSuperTiebreak) {
             // Super Tiebreak validation
-            if ((score1 < winningScore && score2 < winningScore) || Math.abs(score1 - score2) < 2) {
-                // Not won yet or not won by 2
+            if ((score1 < winningScore && score2 < winningScore) || (score1 >= winningScore && score2 >= winningScore && Math.abs(score1 - score2) < 2)) {
                 return null;
             }
              if ((score1 > winningScore || score2 > winningScore) && Math.abs(score1-score2) !== 2) {
                 hasError("En el Super Tiebreak, si se superan los 10 puntos, la diferencia debe ser de 2.");
                 return null;
              }
-              if ((score1 === winningScore && Math.abs(score1 - score2) < 2) || (score2 === winningScore && Math.abs(score1 - score2) < 2)) {
-                 hasError("El Super Tiebreak debe ganarse por 2 puntos de diferencia.");
-                 return null;
-              }
+            if ((score1 === winningScore && Math.abs(score1 - score2) < 2) || (score2 === winningScore && Math.abs(score1 - score2) < 2)) {
+                hasError("El Super Tiebreak debe ganarse por al menos 2 puntos de diferencia.");
+                return null;
+            }
 
         } else {
             // Regular set validation
             if ((score1 < winningScore && score2 < winningScore) && !(score1 === 5 && score2 === 6) && !(score1 === 6 && score2 === 5)) {
                 return null;
             }
-            if (!((score1 >= winningScore && score1 >= score2 + 2) || (score2 >= winningScore && score2 >= score1 + 2) || (score1 === tiebreakWinningScore && (score2 === 5 || score2 === 6)) || (score2 === tiebreakWinningScore && (score1 === 5 || score1 === 6)) )) {
-                 if(score1 === 6 && score2 === 5 || score2 === 6 && score1 === 5) {
-                    hasError(`Un set no puede terminar 6-5. El siguiente marcador posible es 7-5 o 6-6.`);
-                    return null;
-                 }
+             if(score1 === 6 && score2 === 5 || score2 === 6 && score1 === 5) {
+                hasError(`Un set no puede terminar 6-5. El siguiente marcador posible es 7-5 o 6-6.`);
+                return null;
+             }
+             if (!((score1 >= winningScore && score1 >= score2 + 2) || (score2 >= winningScore && score2 >= score1 + 2) || (score1 === tiebreakWinningScore && (score2 === 5 || score2 === 6)) || (score2 === tiebreakWinningScore && (score1 === 5 || score1 === 6)) )) {
                 return null;
             }
         }
@@ -211,7 +210,7 @@ export default function Dashboard() {
         setIsWinnerRadioDisabled(false);
     }
 
-}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch, isRetirement]);
+}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch, isRetirement, getPlayerById]);
 
 
   const pendingChallenges = useMemo(() => {
@@ -726,14 +725,14 @@ export default function Dashboard() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                     <AlertDialogHeader>
-                    <AlertDialogTitle>Confirmar Resultado</AlertDialogTitle>
-                    <AlertDialogDescription>
-                        <div>¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.</div>
-                        <div className="py-4 font-medium text-foreground">
-                            <div>Ganador: {getPlayerById(winnerId)?.displayName}</div>
-                            <div>Marcador: {formatScoreString()}</div>
+                        <AlertDialogTitle>Confirmar Resultado</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            ¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                        <div className="py-4 font-medium text-foreground text-sm">
+                            <div><strong>Ganador:</strong> {getPlayerById(winnerId)?.displayName}</div>
+                            <div><strong>Marcador:</strong> {formatScoreString()}</div>
                         </div>
-                    </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
@@ -750,3 +749,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
