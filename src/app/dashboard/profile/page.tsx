@@ -1,4 +1,16 @@
+
 'use client';
+
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/hooks/use-auth";
+import { useDocument } from "@/hooks/use-firestore";
+import type { Player } from "@/hooks/use-firestore";
+import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button"
 import {
@@ -12,22 +24,130 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useAuth } from "@/hooks/use-auth";
-import { useDocument } from "@/hooks/use-firestore";
-import type { Player } from "@/hooks/use-firestore";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
+
+
+const profileFormSchema = z.object({
+  firstName: z.string().min(2, { message: "El nombre es obligatorio." }),
+  lastName: z.string().min(2, { message: "El apellido es obligatorio." }),
+  phoneNumber: z.string().optional(),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  residence: z.string().optional(),
+  dominantHand: z.string().optional(),
+  club: z.string().optional(),
+});
+
+type ProfileFormValues = z.infer<typeof profileFormSchema>;
+
+const avatarFormSchema = z.object({
+  avatarUrl: z.string().url({ message: "Por favor, introduce una URL válida." }).or(z.literal('')),
+});
+
 
 export default function ProfilePage() {
   const { user } = useAuth();
-  const { data: player, loading } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
+  const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
+  const { toast } = useToast();
   
-  if (loading) {
+  const [loading, setLoading] = useState(false);
+  const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
+
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileFormSchema),
+    defaultValues: {
+      firstName: "",
+      lastName: "",
+      phoneNumber: "",
+      dateOfBirth: "",
+      gender: "",
+      residence: "",
+      dominantHand: "",
+      club: "",
+    }
+  });
+
+  const avatarForm = useForm<{avatarUrl: string}>({
+     resolver: zodResolver(avatarFormSchema),
+     defaultValues: {
+        avatarUrl: player?.avatar || ""
+     }
+  });
+
+  useState(() => {
+    if (player) {
+      form.reset({
+        firstName: player.firstName || "",
+        lastName: player.lastName || "",
+        phoneNumber: player.phoneNumber || "",
+        dateOfBirth: player.dateOfBirth || "",
+        gender: player.gender || "",
+        residence: player.residence || "",
+        dominantHand: player.dominantHand || "",
+        club: player.club || "",
+      });
+      avatarForm.reset({
+        avatarUrl: player.avatar || ""
+      })
+    }
+  });
+
+  async function onSubmit(data: ProfileFormValues) {
+    if (!user) return;
+    setLoading(true);
+
+    try {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+            ...data,
+            displayName: `${data.firstName} ${data.lastName}`.trim(),
+        });
+        toast({ title: "¡Éxito!", description: "Tu perfil ha sido actualizado." });
+    } catch (error) {
+        console.error("Error al actualizar el perfil:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar tu perfil." });
+    } finally {
+        setLoading(false);
+    }
+  }
+
+  async function onAvatarSubmit(data: {avatarUrl: string}) {
+    if (!user) return;
+    setLoading(true);
+    
+    try {
+        const userRef = doc(db, "users", user.uid);
+        await updateDoc(userRef, {
+            avatar: data.avatarUrl
+        });
+        toast({ title: "¡Éxito!", description: "Tu avatar ha sido actualizado." });
+        setIsAvatarDialogOpen(false);
+    } catch(error) {
+        console.error("Error al actualizar el avatar:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar tu avatar." });
+    } finally {
+        setLoading(false);
+    }
+  }
+  
+  if (loadingPlayer) {
       return <div>Cargando perfil...</div>
   }
 
   if (!user || !player) {
     return null;
   }
+  
+  const getAvatarFallback = () => {
+    if (!player) return user?.email?.substring(0, 1).toUpperCase() || 'U';
+    const first = player.firstName ? player.firstName.substring(0, 1) : '';
+    const last = player.lastName ? player.lastName.substring(0, 1) : '';
+    return `${first}${last}`;
+  }
+
 
   return (
     <>
@@ -37,117 +157,239 @@ export default function ProfilePage() {
           <p className="text-muted-foreground">Gestiona la configuración de tu cuenta y tu información personal.</p>
         </div>
       </div>
-      <div className="grid gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle>Información Personal</CardTitle>
-            <CardDescription>Actualiza aquí la información de tu perfil público.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-6">
-            <div className="flex items-center gap-4">
-              <Avatar className="h-20 w-20">
-                <AvatarImage src={player.avatar || 'https://placehold.co/80x80.png'} />
-                <AvatarFallback>{player.firstName?.substring(0, 1) || 'U'}{player.lastName?.substring(0, 1) || ''}</AvatarFallback>
-              </Avatar>
-              <Button>Cambiar Foto</Button>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6">
+            <Card>
+            <CardHeader>
+                <CardTitle>Información Personal</CardTitle>
+                <CardDescription>Actualiza aquí la información de tu perfil público.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6">
+                <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20">
+                    <AvatarImage src={player.avatar || 'https://placehold.co/80x80.png'} />
+                    <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
+                </Avatar>
+                <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
+                    <DialogTrigger asChild>
+                        <Button type="button">Cambiar Foto</Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Cambiar Foto de Perfil</DialogTitle>
+                            <DialogDescription>
+                                Pega la URL de una nueva imagen para tu avatar.
+                            </DialogDescription>
+                        </DialogHeader>
+                         <Form {...avatarForm}>
+                            <form onSubmit={avatarForm.handleSubmit(onAvatarSubmit)} className="space-y-4">
+                                <FormField
+                                    control={avatarForm.control}
+                                    name="avatarUrl"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                        <FormLabel>URL de la Imagen</FormLabel>
+                                        <FormControl>
+                                            <Input placeholder="https://example.com/image.png" {...field} />
+                                        </FormControl>
+                                        <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" onClick={() => setIsAvatarDialogOpen(false)}>Cancelar</Button>
+                                    <Button type="submit" disabled={loading}>
+                                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Guardar Avatar
+                                    </Button>
+                                </DialogFooter>
+                            </form>
+                        </Form>
+                    </DialogContent>
+                </Dialog>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField
+                        control={form.control}
+                        name="firstName"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Nombre</FormLabel>
+                            <FormControl>
+                                <Input placeholder="Tu nombre" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="lastName"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Apellido</FormLabel>
+                            <FormControl>
+                                <Input placeholder="Tu apellido" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <div className="grid gap-2">
+                        <Label htmlFor="email">Correo electrónico</Label>
+                        <Input id="email" type="email" defaultValue={user.email || ""} disabled />
+                    </div>
+                     <FormField
+                        control={form.control}
+                        name="phoneNumber"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Celular</FormLabel>
+                            <FormControl>
+                                <Input type="tel" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                     <FormField
+                        control={form.control}
+                        name="dateOfBirth"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Fecha de Nacimiento</FormLabel>
+                            <FormControl>
+                                <Input type="date" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="gender"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Género</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona tu género" />
+                                </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="masculino">Masculino</SelectItem>
+                                    <SelectItem value="femenino">Femenino</SelectItem>
+                                    <SelectItem value="otro">Otro</SelectItem>
+                                    <SelectItem value="prefiero-no-decir">Prefiero no decir</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                        />
+                    <div className="grid gap-2 md:col-span-2">
+                        <FormField
+                            control={form.control}
+                            name="residence"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Lugar de Residencia</FormLabel>
+                                <FormControl>
+                                    <Input {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    </div>
+                </div>
+            </CardContent>
+            </Card>
+            <Card>
+            <CardHeader>
+                <CardTitle>Información del Jugador (Opcional)</CardTitle>
+                <CardDescription>Detalles adicionales sobre tu estilo de juego.</CardDescription>
+            </CardHeader>
+            <CardContent className="grid md:grid-cols-2 gap-6">
+                 <FormField
+                    control={form.control}
+                    name="dominantHand"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Mano Hábil</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                           <FormControl>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Selecciona tu mano hábil" />
+                            </SelectTrigger>
+                           </FormControl>
+                            <SelectContent>
+                                <SelectItem value="diestro">Diestro/a</SelectItem>
+                                <SelectItem value="zurdo">Zurdo/a</SelectItem>
+                                <SelectItem value="ambidiestro">Ambidiestro/a</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="club"
+                    render={({ field }) => (
+                        <FormItem>
+                        <FormLabel>Club donde Juegas</FormLabel>
+                        <FormControl>
+                            <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                        </FormItem>
+                    )}
+                />
+            </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Guardar todo</CardTitle>
+                    <CardDescription>Haz clic a continuación para guardar todos los cambios realizados en tu perfil.</CardDescription>
+                </CardHeader>
+                <CardFooter className="border-t px-6 py-4">
+                    <Button type="submit" disabled={loading}>
+                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Guardar Cambios
+                    </Button>
+                </CardFooter>
+            </Card>
+
+            <Card>
+            <CardHeader>
+                <CardTitle>Contraseña</CardTitle>
+                <CardDescription>Cambia tu contraseña aquí. Es una buena idea usar una contraseña segura que no estés usando en otro lugar. (Funcionalidad no implementada aún).</CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-6">
                 <div className="grid gap-2">
-                    <Label htmlFor="firstName">Nombre</Label>
-                    <Input id="firstName" defaultValue={player.firstName || ""} />
+                    <Label htmlFor="current-password">Contraseña Actual</Label>
+                    <Input id="current-password" type="password" disabled />
                 </div>
                 <div className="grid gap-2">
-                    <Label htmlFor="lastName">Apellido</Label>
-                    <Input id="lastName" defaultValue={player.lastName || ""} />
+                    <Label htmlFor="new-password">Nueva Contraseña</Label>
+                    <Input id="new-password" type="password" disabled />
                 </div>
-                 <div className="grid gap-2">
-                    <Label htmlFor="email">Correo electrónico</Label>
-                    <Input id="email" type="email" defaultValue={user.email || ""} disabled />
+                <div className="grid gap-2">
+                    <Label htmlFor="confirm-password">Confirmar Nueva Contraseña</Label>
+                    <Input id="confirm-password" type="password" disabled />
                 </div>
-                 <div className="grid gap-2">
-                    <Label htmlFor="phoneNumber">Celular</Label>
-                    <Input id="phoneNumber" type="tel" defaultValue={player.phoneNumber || ""} />
-                </div>
-                 <div className="grid gap-2">
-                    <Label htmlFor="dateOfBirth">Fecha de Nacimiento</Label>
-                    <Input id="dateOfBirth" type="date" defaultValue={player.dateOfBirth || ""} />
-                </div>
-                 <div className="grid gap-2">
-                    <Label htmlFor="gender">Género</Label>
-                     <Select defaultValue={player.gender}>
-                        <SelectTrigger id="gender">
-                            <SelectValue placeholder="Selecciona tu género" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="masculino">Masculino</SelectItem>
-                            <SelectItem value="femenino">Femenino</SelectItem>
-                            <SelectItem value="otro">Otro</SelectItem>
-                            <SelectItem value="prefiero-no-decir">Prefiero no decir</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-                 <div className="grid gap-2 md:col-span-2">
-                    <Label htmlFor="residence">Lugar de Residencia</Label>
-                    <Input id="residence" defaultValue={player.residence || ""} />
-                </div>
-            </div>
-          </CardContent>
-          <CardFooter className="border-t px-6 py-4">
-            <Button>Guardar Cambios</Button>
-          </CardFooter>
-        </Card>
-         <Card>
-          <CardHeader>
-            <CardTitle>Información del Jugador (Opcional)</CardTitle>
-            <CardDescription>Detalles adicionales sobre tu estilo de juego.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid md:grid-cols-2 gap-6">
-            <div className="grid gap-2">
-                <Label htmlFor="dominantHand">Mano Hábil</Label>
-                 <Select defaultValue={player.dominantHand}>
-                    <SelectTrigger id="dominantHand">
-                        <SelectValue placeholder="Selecciona tu mano hábil" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="diestro">Diestro/a</SelectItem>
-                        <SelectItem value="zurdo">Zurdo/a</SelectItem>
-                        <SelectItem value="ambidiestro">Ambidiestro/a</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="grid gap-2">
-                <Label htmlFor="club">Club donde Juegas</Label>
-                <Input id="club" defaultValue={player.club || ""} />
-            </div>
-          </CardContent>
-          <CardFooter className="border-t px-6 py-4">
-            <Button>Guardar Cambios</Button>
-          </CardFooter>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Contraseña</CardTitle>
-            <CardDescription>Cambia tu contraseña aquí. Es una buena idea usar una contraseña segura que no estés usando en otro lugar.</CardDescription>
-          </CardHeader>
-          <CardContent className="grid gap-6">
-            <div className="grid gap-2">
-                <Label htmlFor="current-password">Contraseña Actual</Label>
-                <Input id="current-password" type="password" />
-            </div>
-            <div className="grid gap-2">
-                <Label htmlFor="new-password">Nueva Contraseña</Label>
-                <Input id="new-password" type="password" />
-            </div>
-            <div className="grid gap-2">
-                <Label htmlFor="confirm-password">Confirmar Nueva Contraseña</Label>
-                <Input id="confirm-password" type="password" />
-            </div>
-          </CardContent>
-          <CardFooter className="border-t px-6 py-4">
-            <Button>Actualizar Contraseña</Button>
-          </CardFooter>
-        </Card>
-      </div>
+            </CardContent>
+            <CardFooter className="border-t px-6 py-4">
+                <Button disabled>Actualizar Contraseña</Button>
+            </CardFooter>
+            </Card>
+        </form>
+      </Form>
     </>
   )
 }
+
+    
