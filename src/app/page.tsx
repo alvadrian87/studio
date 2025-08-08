@@ -70,14 +70,11 @@ export default function Home() {
               <Link href="#features" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
                 Características
               </Link>
-              <Link href="#ai-management" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
-                Gestión con IA
-              </Link>
               <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
                 Iniciar Sesión
               </Link>
               <Button asChild>
-                <Link href="/signup">Comenzar</Link>
+                <Link href="/signup">Registrarse</Link>
               </Button>
             </>
           )}
@@ -185,40 +182,6 @@ export default function Home() {
             </div>
           </div>
         </section>
-        <section id="ai-management" className="w-full py-12 md:py-24 lg:py-32">
-          <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
-            <div className="space-y-3">
-              <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                Organización de Torneos más Inteligente con <span className="text-primary">IA</span>
-              </h2>
-              <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Nuestros administradores de torneos utilizan un asistente de IA para validar las configuraciones, detectar desequilibrios y sugerir mejoras para un evento perfectamente equilibrado.
-              </p>
-            </div>
-            <div className="mx-auto w-full max-w-4xl">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BrainCircuit className="h-6 w-6 text-primary" />
-                    Sugerencias Impulsadas por IA
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-left space-y-4">
-                      <p className="text-muted-foreground">La IA analiza la configuración de cada torneo en busca de equidad, equilibrio y solidez logística. Es como tener un organizador de torneos profesional garantizando la calidad de cada evento.</p>
-                      <div className="flex items-start space-x-4 rounded-md bg-secondary p-4">
-                        <CheckCircle className="h-5 w-5 text-green-500 mt-1" />
-                        <div>
-                          <p className="font-semibold">Ejemplo de Sugerencia</p>
-                          <p className="text-sm text-muted-foreground">"Considera cambiar el formato a Doble Eliminación para un torneo de este tamaño para aumentar la participación de los jugadores."</p>
-                        </div>
-                      </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        </section>
       </main>
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
         <p className="text-xs text-muted-foreground">&copy; 2024 Gestor EvoLadder. Todos los derechos reservados.</p>
@@ -234,5 +197,3 @@ export default function Home() {
     </div>
   );
 }
-
-    
