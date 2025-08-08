@@ -7,15 +7,14 @@ import { db } from '@/lib/firebase';
 
 // Type definitions based on your data structure
 export interface Player {
-  id: string; // This will be the user's UID from auth
-  uid: string;
+  id: string; // This will be the document's ID
+  uid: string; // This is the user's UID from auth
   displayName: string;
   email: string;
   avatar?: string;
-  // Tournament-specific stats could be stored in a subcollection or another document
-  // For simplicity, we can add some top-level stats if they are general
-  globalWins: number;
-  globalLosses: number;
+  role: 'player' | 'admin';
+  globalWins?: number;
+  globalLosses?: number;
 }
 
 export interface Match {
@@ -47,9 +46,7 @@ export interface Tournament {
 export interface Challenge {
     id: string;
     challengerId: string;
-    challengerName: string;
     challengedId: string;
-    challengedName: string;
     tournamentId: string;
     tournamentName: string;
     status: 'Pendiente' | 'Aceptado' | 'Rechazado';
@@ -113,3 +110,5 @@ export function useDocument<T extends DocumentData>(docPath: string) {
 
   return { data, loading, error };
 }
+
+    

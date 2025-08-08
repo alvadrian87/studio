@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,12 +19,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion } from "lucide-react"
+import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge } from "@/hooks/use-firestore";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import { doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -38,6 +49,11 @@ export default function Dashboard() {
   const { data: allMatches, loading: loadingMatches } = useCollection<Match>('matches');
   const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
   const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
+  
+  const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [isSubmittingResult, setIsSubmittingResult] = useState(false);
 
   const pendingChallenges = useMemo(() => {
     if (!allChallenges || !user) return [];
@@ -63,7 +79,11 @@ export default function Dashboard() {
         const challenge = allChallenges?.find(c => c.id === challengeId);
         if (!challenge) throw new Error("Desafío no encontrado");
 
-        await addDoc(collection(db, "matches"), {
+        const batch = writeBatch(db);
+
+        // Create the match
+        const matchRef = doc(collection(db, "matches"));
+        batch.set(matchRef, {
           player1Id: challenge.challengerId,
           player2Id: challenge.challengedId,
           winnerId: null,
@@ -72,7 +92,11 @@ export default function Dashboard() {
           tournamentId: challenge.tournamentId,
         });
 
-        await updateDoc(challengeRef, { status: "Aceptado" });
+        // Update the challenge
+        batch.update(challengeRef, { status: "Aceptado" });
+
+        await batch.commit();
+
         toast({ title: "¡Desafío Aceptado!", description: "La partida ha sido creada." });
       } else {
         await updateDoc(challengeRef, { status: "Rechazado" });
@@ -84,6 +108,56 @@ export default function Dashboard() {
     }
   };
 
+  const handleOpenResultDialog = (match: Match) => {
+    setSelectedMatch(match);
+    setWinnerId(null);
+    setIsResultDialogOpen(true);
+  }
+
+  const handleSaveResult = async () => {
+    if (!selectedMatch || !winnerId) {
+        toast({ variant: "destructive", title: "Error", description: "Debes seleccionar un ganador." });
+        return;
+    }
+    setIsSubmittingResult(true);
+
+    try {
+      await runTransaction(db, async (transaction) => {
+        const matchRef = doc(db, "matches", selectedMatch.id);
+        const loserId = selectedMatch.player1Id === winnerId ? selectedMatch.player2Id : selectedMatch.player1Id;
+
+        const winnerRef = doc(db, "users", winnerId);
+        const loserRef = doc(db, "users", loserId);
+        
+        const winnerDoc = await transaction.get(winnerRef);
+        const loserDoc = await transaction.get(loserRef);
+
+        if (!winnerDoc.exists() || !loserDoc.exists()) {
+          throw new Error("No se encontraron los datos de uno de los jugadores.");
+        }
+
+        const newWinnerWins = (winnerDoc.data().globalWins || 0) + 1;
+        const newLoserLosses = (loserDoc.data().globalLosses || 0) + 1;
+
+        // Update match
+        transaction.update(matchRef, { winnerId: winnerId, status: "Completado" });
+        // Update winner
+        transaction.update(winnerRef, { globalWins: newWinnerWins });
+        // Update loser
+        transaction.update(loserRef, { globalLosses: newLoserLosses });
+      });
+
+      toast({ title: "¡Resultado Guardado!", description: "La partida y las estadísticas han sido actualizadas." });
+      setIsResultDialogOpen(false);
+      setSelectedMatch(null);
+
+    } catch (error) {
+      console.error("Error al guardar el resultado: ", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo guardar el resultado." });
+    } finally {
+        setIsSubmittingResult(false);
+    }
+  };
 
   if (loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers) {
     return <div>Cargando...</div>
@@ -93,7 +167,10 @@ export default function Dashboard() {
     return <div>No se encontraron datos del jugador.</div>
   }
 
-  const totalGames = player.globalWins + player.globalLosses;
+  const totalGames = (player.globalWins || 0) + (player.globalLosses || 0);
+  const playerInSelectedMatch = allPlayers?.find(p => p.uid === selectedMatch?.player1Id);
+  const opponentInSelectedMatch = allPlayers?.find(p => p.uid === selectedMatch?.player2Id);
+
 
   return (
     <>
@@ -117,7 +194,7 @@ export default function Dashboard() {
             <Check className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{player.globalWins}</div>
+            <div className="text-2xl font-bold">{player.globalWins || 0}</div>
             <p className="text-xs text-muted-foreground">Totales en todos los torneos</p>
           </CardContent>
         </Card>
@@ -127,7 +204,7 @@ export default function Dashboard() {
             <X className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{player.globalLosses}</div>
+            <div className="text-2xl font-bold">{player.globalLosses || 0}</div>
             <p className="text-xs text-muted-foreground">Tu historial de rendimiento</p>
           </CardContent>
         </Card>
@@ -138,7 +215,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {totalGames > 0 ? ((player.globalWins / totalGames) * 100).toFixed(1) : 0}%
+              {totalGames > 0 ? (((player.globalWins || 0) / totalGames) * 100).toFixed(1) : 0}%
             </div>
             <p className="text-xs text-muted-foreground">Rendimiento general</p>
           </CardContent>
@@ -180,9 +257,9 @@ export default function Dashboard() {
                       <TableCell className="hidden md:table-cell">{format(new Date(match.date), 'dd/MM/yyyy')}</TableCell>
                       <TableCell className="text-right">
                          {match.status === 'Completado' ? (
-                            match.winnerId === user.uid ? <span className="text-green-500 font-bold">Victoria</span> : <span className="text-red-500 font-bold">Derrota</span>
+                            match.winnerId === user?.uid ? <span className="text-green-500 font-bold">Victoria</span> : <span className="text-red-500 font-bold">Derrota</span>
                           ) : (
-                            <Button variant="outline" size="sm" disabled>Registrar</Button>
+                            <Button variant="outline" size="sm" onClick={() => handleOpenResultDialog(match)}>Registrar</Button>
                           )}
                       </TableCell>
                     </TableRow>
@@ -209,7 +286,7 @@ export default function Dashboard() {
                 {pendingChallenges.map(challenge => (
                   <li key={challenge.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
                     <div>
-                      <p className="font-medium">{challenge.challengerName}</p>
+                      <p className="font-medium">{allPlayers?.find(p => p.uid === challenge.challengerId)?.displayName}</p>
                       <p className="text-sm text-muted-foreground">Te ha desafiado en: <span className="font-semibold text-primary">{challenge.tournamentName}</span></p>
                     </div>
                     <div className="flex gap-2">
@@ -228,6 +305,38 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+       <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
+            <DialogDescription>
+              Selecciona el ganador de la partida entre {playerInSelectedMatch?.displayName} y {opponentInSelectedMatch?.displayName}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+             <RadioGroup onValueChange={setWinnerId}>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value={selectedMatch?.player1Id || ''} id={`r1-${selectedMatch?.id}`} />
+                <Label htmlFor={`r1-${selectedMatch?.id}`}>{allPlayers?.find(p => p.uid === selectedMatch?.player1Id)?.displayName}</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value={selectedMatch?.player2Id || ''} id={`r2-${selectedMatch?.id}`} />
+                <Label htmlFor={`r2-${selectedMatch?.id}`}>{allPlayers?.find(p => p.uid === selectedMatch?.player2Id)?.displayName}</Label>
+              </div>
+            </RadioGroup>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveResult} disabled={isSubmittingResult}>
+              {isSubmittingResult && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Guardar Resultado
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
+
+    
