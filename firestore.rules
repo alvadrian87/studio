@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Reglas para la colección de Usuarios
+    match /users/{userId} {
+      // Cualquiera puede leer perfiles de usuario (necesario para ver oponentes, etc.)
+      allow read: if request.auth != null;
+      
+      // Un usuario solo puede crear su propio documento.
+      allow create: if request.auth != null && request.auth.uid == userId;
+
+      // Un usuario puede actualizar su propio documento.
+      // Un admin también puede actualizar cualquier documento de usuario (para cambiar roles).
+      allow update: if request.auth != null && (request.auth.uid == userId || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+      
+      // La eliminación de usuarios no se permite desde el cliente por seguridad.
+      allow delete: if false;
+    }
+
+    // Reglas para la colección de Torneos
+    match /tournaments/{tournamentId} {
+      // Cualquiera puede leer la información de los torneos.
+      allow read: if true;
+      
+      // Solo los administradores pueden crear torneos.
+      allow create: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+      // Solo el creador original o un admin pueden actualizar un torneo.
+      allow update: if request.auth != null && (resource.data.creatorId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+
+      // Solo el creador original o un admin pueden eliminar un torneo.
+      allow delete: if request.auth != null && (resource.data.creatorId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
+    }
+
+    // Reglas para la colección de Partidas
+    match /matches/{matchId} {
+        // Los jugadores autenticados pueden leer los detalles de las partidas.
+        allow read: if request.auth != null;
+
+        // Las partidas se crean a través de desafíos aceptados.
+        allow create: if request.auth != null;
+
+        // Solo los jugadores involucrados en la partida pueden actualizarla (registrar resultado).
+        allow update: if request.auth != null && (request.auth.uid == resource.data.player1Id || request.auth.uid == resource.data.player2Id);
+
+        // La eliminación de partidas no se permite.
+        allow delete: if false;
+    }
+
+    // Reglas para la colección de Desafíos
+    match /challenges/{challengeId} {
+        // Los jugadores autenticados pueden leer los desafíos.
+        allow read: if request.auth != null;
+
+        // Un jugador autenticado puede crear un desafío.
+        allow create: if request.auth != null && request.auth.uid == request.resource.data.challengerId;
+        
+        // Solo el jugador desafiado puede actualizar el desafío (aceptar/rechazar).
+        allow update: if request.auth != null && request.auth.uid == resource.data.challengedId;
+
+        // La eliminación no se permite.
+        allow delete: if false;
+    }
+  }
+}
