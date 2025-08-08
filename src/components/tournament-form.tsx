@@ -68,13 +68,14 @@ const baseTournamentSchema = z.object({
     contactoNombre: z.string().min(2, "Requerido"),
     contactoEmail: z.string().email("Email inválido."),
     contactoTelefono: z.string().optional(),
-}).refine(data => new Date(data.fechaFin) >= new Date(data.fechaInicio), {
-    message: "La fecha de fin no puede ser anterior a la de inicio.",
-    path: ["fechaFin"],
 });
+
 
 const KeyedTournamentSchema = baseTournamentSchema.extend({
     events: z.array(eventSchema).min(1, "Debes agregar al menos una categoría o división."),
+}).refine(data => new Date(data.fechaFin) >= new Date(data.fechaInicio), {
+    message: "La fecha de fin no puede ser anterior a la de inicio.",
+    path: ["fechaFin"],
 });
 
 const LadderTournamentSchema = baseTournamentSchema.extend({
@@ -89,6 +90,9 @@ const LadderTournamentSchema = baseTournamentSchema.extend({
     fechaCierreDesafios: z.string().optional(),
     tiempoLimiteAceptarDesafio: z.coerce.number().int().positive().optional(),
     tiempoLimiteJugarPartido: z.coerce.number().int().positive().optional(),
+}).refine(data => new Date(data.fechaFin) >= new Date(data.fechaInicio), {
+    message: "La fecha de fin no puede ser anterior a la de inicio.",
+    path: ["fechaFin"],
 });
 
 type FullFormValues = z.infer<typeof KeyedTournamentSchema> | z.infer<typeof LadderTournamentSchema>;
@@ -110,6 +114,7 @@ export function TournamentForm() {
             return zodResolver(schema)(data, context, options);
         },
         defaultValues: {
+            tipoTorneo: undefined,
             nombreTorneo: "",
             organizacion: "",
             ubicacion: "",
@@ -123,6 +128,9 @@ export function TournamentForm() {
             contactoNombre: "",
             contactoEmail: "",
             contactoTelefono: "",
+            maximoInscripciones: undefined,
+            metodoOrdenInicial: undefined,
+            formatoScore: undefined,
             reglasLadder: {
                 posicionesDesafioArriba: 3,
                 posicionesDesafioAbajoPrimerPuesto: 5,
@@ -131,9 +139,6 @@ export function TournamentForm() {
             fechaCierreDesafios: "", 
             tiempoLimiteAceptarDesafio: 48,
             tiempoLimiteJugarPartido: 7,
-            maximoInscripciones: undefined,
-            formatoScore: undefined,
-            metodoOrdenInicial: undefined,
         },
     });
 
@@ -145,10 +150,11 @@ export function TournamentForm() {
         }
     }, [watchedTorneoType]);
     
+    const isLadder = methods.getValues("tipoTorneo") === 'Evento tipo Escalera';
+    const finalStep = isLadder ? 5 : 4;
+
 
     const handleNext = async () => {
-        const isLadder = methods.getValues("tipoTorneo") === 'Evento tipo Escalera';
-        
         const fieldMap: any = {
             0: ['tipoTorneo'],
             1: ['nombreTorneo', 'organizacion', 'ubicacion', 'fechaInicio', 'fechaFin'],
@@ -170,7 +176,6 @@ export function TournamentForm() {
             return;
         }
         
-        const finalStep = isLadder ? 5 : 4;
         if (currentStep < finalStep) {
              setCurrentStep(prev => prev + 1);
         }
@@ -231,9 +236,6 @@ export function TournamentForm() {
         }
     }
     
-    const isLadder = methods.getValues("tipoTorneo") === 'Evento tipo Escalera';
-    const finalStep = isLadder ? 5 : 4;
-
     const steps = [
         <TournamentStep0Type key="step0" />,
         <TournamentStep1Details key="step1" />,
@@ -278,5 +280,7 @@ export function TournamentForm() {
         </FormProvider>
     );
 }
+
+    
 
     
