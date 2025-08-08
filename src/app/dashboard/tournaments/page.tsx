@@ -2,6 +2,9 @@
 
 import Link from "next/link"
 import { PlusCircle, MoreHorizontal } from "lucide-react"
+import { useState } from "react";
+import { doc, deleteDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -27,11 +30,52 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { useCollection } from "@/hooks/use-firestore"
 import type { Tournament } from "@/hooks/use-firestore"
+import { useToast } from "@/hooks/use-toast";
 
 export default function TournamentsPage() {
   const { data: tournaments, loading } = useCollection<Tournament>('tournaments');
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  const handleDeleteClick = (tournamentId: string) => {
+    setSelectedTournamentId(tournamentId);
+    setIsDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedTournamentId) return;
+    try {
+      await deleteDoc(doc(db, "tournaments", selectedTournamentId));
+      toast({
+        title: "Torneo Eliminado",
+        description: "El torneo ha sido eliminado exitosamente.",
+      });
+    } catch (error) {
+       toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo eliminar el torneo. Por favor, inténtalo de nuevo.",
+      });
+      console.error("Error al eliminar el torneo: ", error);
+    } finally {
+      setIsDeleteDialogOpen(false);
+      setSelectedTournamentId(null);
+    }
+  };
+
 
   if (loading) {
     return <div>Cargando torneos...</div>
@@ -101,8 +145,12 @@ export default function TournamentsPage() {
                          <DropdownMenuItem asChild>
                             <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>Ver Clasificación</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>Editar</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                           <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>Editar</Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClick(tournament.id)}>
+                          Eliminar
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -112,6 +160,21 @@ export default function TournamentsPage() {
           </Table>
         </CardContent>
       </Card>
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta acción no se puede deshacer. Esto eliminará permanentemente el torneo
+              y todos sus datos asociados de nuestros servidores.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>Continuar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

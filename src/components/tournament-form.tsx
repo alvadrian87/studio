@@ -3,11 +3,12 @@
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import type { SuggestTournamentSettingsOutput } from "@/ai/flows/suggest-tournament-settings"
-import { addDoc, collection } from "firebase/firestore"
+import { addDoc, collection, doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
+import type { Tournament } from "@/hooks/use-firestore"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -57,12 +58,19 @@ const formSchema = z.object({
   }),
 })
 
-export function TournamentForm() {
+interface TournamentFormProps {
+  tournament?: Tournament;
+}
+
+
+export function TournamentForm({ tournament }: TournamentFormProps) {
   const [loading, setLoading] = useState(false)
   const [submitLoading, setSubmitLoading] = useState(false);
   const [aiResult, setAiResult] = useState<SuggestTournamentSettingsOutput | null>(null)
   const router = useRouter();
   const { toast } = useToast();
+
+  const isEditMode = !!tournament;
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -79,6 +87,22 @@ export function TournamentForm() {
     },
   })
 
+   useEffect(() => {
+    if (isEditMode) {
+      form.reset({
+        tournamentName: tournament.name,
+        startDate: tournament.startDate,
+        endDate: tournament.endDate,
+        location: tournament.location,
+        format: tournament.format,
+        numberOfPlayers: tournament.numberOfPlayers,
+        entryFee: tournament.entryFee,
+        prizePoolDistribution: tournament.prizePoolDistribution,
+        rules: tournament.rules,
+      });
+    }
+  }, [isEditMode, tournament, form]);
+
   async function onSuggest() {
     const values = form.getValues()
     const validation = formSchema.safeParse(values)
@@ -92,15 +116,6 @@ export function TournamentForm() {
     try {
       const result = await suggestTournamentSettings({
         ...validation.data,
-        tournamentName: values.tournamentName,
-        startDate: values.startDate,
-        endDate: values.endDate,
-        location: values.location,
-        format: values.format as 'Eliminación Simple' | 'Doble Eliminación' | 'Round Robin',
-        numberOfPlayers: values.numberOfPlayers,
-        entryFee: values.entryFee,
-        prizePoolDistribution: values.prizePoolDistribution,
-        rules: values.rules,
       })
       setAiResult(result)
     } catch (error) {
@@ -118,27 +133,37 @@ export function TournamentForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setSubmitLoading(true);
     try {
-      const newTournament = {
-        name: values.tournamentName,
-        ...values,
-        status: 'Próximo',
-      };
+      if (isEditMode) {
+        const tournamentRef = doc(db, "tournaments", tournament.id);
+        await updateDoc(tournamentRef, {
+            name: values.tournamentName,
+            ...values,
+        });
+        toast({
+            title: "¡Torneo Actualizado!",
+            description: "El torneo ha sido actualizado exitosamente.",
+        });
+      } else {
+         const newTournament = {
+            name: values.tournamentName,
+            ...values,
+            status: 'Próximo',
+        };
+        await addDoc(collection(db, "tournaments"), newTournament);
+        toast({
+            title: "¡Torneo Creado!",
+            description: "El torneo ha sido creado exitosamente.",
+        });
+      }
       
-      const docRef = await addDoc(collection(db, "tournaments"), newTournament);
-      
-      toast({
-        title: "¡Torneo Creado!",
-        description: "El torneo ha sido creado exitosamente.",
-      });
-
       router.push('/dashboard/tournaments');
 
     } catch (error) {
-      console.error("Error al crear el torneo: ", error);
+      console.error("Error al procesar el torneo: ", error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo crear el torneo. Por favor, inténtalo de nuevo.",
+        description: "No se pudo procesar el torneo. Por favor, inténtalo de nuevo.",
       });
     } finally {
       setSubmitLoading(false);
@@ -306,7 +331,7 @@ export function TournamentForm() {
             </Button>
             <Button type="submit" disabled={submitLoading}>
                {submitLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-               Crear Torneo
+               {isEditMode ? 'Guardar Cambios' : 'Crear Torneo'}
             </Button>
           </div>
         </form>

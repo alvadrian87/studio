@@ -30,6 +30,11 @@ export interface Tournament {
   location: string;
   status: 'Próximo' | 'En Curso' | 'Completado';
   startDate: string;
+  endDate: string;
+  numberOfPlayers: number;
+  entryFee: number;
+  prizePoolDistribution: string;
+  rules: string;
 }
 
 export interface Challenge {
