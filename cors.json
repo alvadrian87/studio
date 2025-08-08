@@ -1,7 +1,7 @@
 
 [
   {
-    "origin": ["https://studio--evoladder-manager.us-central1.hosted.app", "http://localhost:9002"],
+    "origin": ["https://studio--evoladder-manager.us-central1.hosted.app", "http://localhost:9002", "https://evolutiontenis.com", "https://www.evolutiontenis.com"],
     "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     "responseHeader": [
       "Content-Type",
