@@ -24,27 +24,72 @@ import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion } from "lucid
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge } from "@/hooks/use-firestore";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
+import { doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 
 export default function Dashboard() {
   const { user } = useAuth();
-  // Fetch the current user's player data from the 'users' collection
-  const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
-  const { data: matches, loading: loadingMatches } = useCollection<Match>('matches');
-  const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
+  const { toast } = useToast();
   
+  const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
+  const { data: allMatches, loading: loadingMatches } = useCollection<Match>('matches');
+  const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
+  const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
+
   const pendingChallenges = useMemo(() => {
     if (!allChallenges || !user) return [];
     return allChallenges.filter(c => c.challengedId === user.uid && c.status === 'Pendiente');
   }, [allChallenges, user]);
 
-  if (loadingPlayer || loadingMatches || loadingChallenges) {
+  const userMatches = useMemo(() => {
+    if (!allMatches || !user) return [];
+    return allMatches.filter(m => m.player1Id === user.uid || m.player2Id === user.uid)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [allMatches, user]);
+
+  const getOpponent = (match: Match) => {
+    if (!user || !allPlayers) return null;
+    const opponentId = match.player1Id === user.uid ? match.player2Id : match.player1Id;
+    return allPlayers.find(p => p.uid === opponentId);
+  }
+  
+  const handleChallengeResponse = async (challengeId: string, accepted: boolean) => {
+    const challengeRef = doc(db, "challenges", challengeId);
+    try {
+      if (accepted) {
+        const challenge = allChallenges?.find(c => c.id === challengeId);
+        if (!challenge) throw new Error("Desafío no encontrado");
+
+        await addDoc(collection(db, "matches"), {
+          player1Id: challenge.challengerId,
+          player2Id: challenge.challengedId,
+          winnerId: null,
+          status: 'Pendiente',
+          date: format(new Date(), "yyyy-MM-dd HH:mm"),
+          tournamentId: challenge.tournamentId,
+        });
+
+        await updateDoc(challengeRef, { status: "Aceptado" });
+        toast({ title: "¡Desafío Aceptado!", description: "La partida ha sido creada." });
+      } else {
+        await updateDoc(challengeRef, { status: "Rechazado" });
+        toast({ title: "Desafío Rechazado", variant: "default" });
+      }
+    } catch (error) {
+      console.error("Error al responder al desafío:", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo procesar tu respuesta." });
+    }
+  };
+
+
+  if (loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers) {
     return <div>Cargando...</div>
   }
   
   if (!player) {
-    // This can happen if the user doc hasn't been created yet.
-    // You might want to show a different message or guide them.
     return <div>No se encontraron datos del jugador.</div>
   }
 
@@ -116,12 +161,39 @@ export default function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {/* Matches need to be fetched and filtered for the current user */}
-                <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
-                    No hay partidas recientes.
-                  </TableCell>
-                </TableRow>
+                {userMatches.length > 0 ? userMatches.map(match => {
+                  const opponent = getOpponent(match);
+                  return (
+                    <TableRow key={match.id}>
+                      <TableCell>
+                        <div className="flex items-center gap-3">
+                           <Avatar>
+                              <AvatarImage src={opponent?.avatar} alt={opponent?.displayName} />
+                              <AvatarFallback>{opponent?.displayName?.substring(0, 2) || 'O'}</AvatarFallback>
+                           </Avatar>
+                           <span className="font-medium">{opponent?.displayName || 'Desconocido'}</span>
+                        </div>
+                      </TableCell>
+                       <TableCell className="hidden md:table-cell">
+                        <Badge variant={match.status === 'Completado' ? 'secondary' : 'default'}>{match.status}</Badge>
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">{format(new Date(match.date), 'dd/MM/yyyy')}</TableCell>
+                      <TableCell className="text-right">
+                         {match.status === 'Completado' ? (
+                            match.winnerId === user.uid ? <span className="text-green-500 font-bold">Victoria</span> : <span className="text-red-500 font-bold">Derrota</span>
+                          ) : (
+                            <Button variant="outline" size="sm" disabled>Registrar</Button>
+                          )}
+                      </TableCell>
+                    </TableRow>
+                  )
+                }) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center text-muted-foreground">
+                        No hay partidas recientes.
+                      </TableCell>
+                    </TableRow>
+                )}
               </TableBody>
             </Table>
           </CardContent>
@@ -141,8 +213,8 @@ export default function Dashboard() {
                       <p className="text-sm text-muted-foreground">Te ha desafiado en: <span className="font-semibold text-primary">{challenge.tournamentName}</span></p>
                     </div>
                     <div className="flex gap-2">
-                       <Button size="sm" variant="outline">Rechazar</Button>
-                       <Button size="sm">Aceptar</Button>
+                       <Button size="sm" variant="outline" onClick={() => handleChallengeResponse(challenge.id, false)}>Rechazar</Button>
+                       <Button size="sm" onClick={() => handleChallengeResponse(challenge.id, true)}>Aceptar</Button>
                     </div>
                   </li>
                 ))}
