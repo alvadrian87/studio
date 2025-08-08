@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { doc, updateDoc, arrayUnion, arrayRemove, getDocs, collection, query, where, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button"
+import Image from "next/image";
 import {
   Card,
   CardContent,
@@ -203,12 +204,23 @@ export default function LadderPage({ params }: { params: { id: string } }) {
 
   return (
     <>
-      <div className="flex items-center justify-between space-y-2">
-        <div className="flex flex-col w-full">
-            <h1 className="text-3xl font-bold tracking-tight">Clasificación de {tournament.name}</h1>
-            <p className="text-muted-foreground">Clasificación de jugadores y estado de los desafíos.</p>
+      <div className="relative mb-6">
+        <Image
+            src={tournament.bannerUrl || "https://placehold.co/1200x400.png"}
+            alt={tournament.name}
+            data-ai-hint="tournament banner"
+            width={1200}
+            height={400}
+            className="w-full h-48 md:h-64 object-cover rounded-lg"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent rounded-lg" />
+        <div className="absolute bottom-4 left-4 text-white">
+            <h1 className="text-3xl md:text-5xl font-bold tracking-tight">{tournament.name}</h1>
+            <p className="text-lg text-muted-foreground text-white/90">Clasificación de jugadores y estado de los desafíos.</p>
         </div>
-         <div className="ml-auto flex items-center gap-2">
+      </div>
+      <div className="flex items-center justify-between space-y-2 mb-6">
+         <div className="flex items-center gap-2">
             {canEnroll && !isEnrolled && (
                 <Button onClick={() => handleEnrollment(true)}>
                     <UserPlus className="mr-2 h-4 w-4" /> Inscribirse

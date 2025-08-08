@@ -60,6 +60,7 @@ const formSchema = z.object({
     message: "Las reglas deben tener al menos 20 caracteres.",
   }),
   isRanked: z.boolean(),
+  bannerUrl: z.string().url({ message: "Por favor, introduce una URL válida." }).optional().or(z.literal('')),
 })
 
 interface TournamentFormProps {
@@ -90,6 +91,7 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
       prizePoolDistribution: "1er: 60%, 2do: 30%, 3er: 10%",
       rules: "Se aplican las reglas estándar del torneo. Todas las partidas son al mejor de 3.",
       isRanked: true,
+      bannerUrl: "",
     },
   })
 
@@ -106,13 +108,17 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
         prizePoolDistribution: tournament.prizePoolDistribution,
         rules: tournament.rules,
         isRanked: tournament.isRanked ?? true,
+        bannerUrl: tournament.bannerUrl || "",
       });
     }
   }, [isEditMode, tournament, form]);
 
   async function onSuggest() {
     const values = form.getValues()
-    const validation = formSchema.safeParse(values)
+    // Exclude bannerUrl from AI suggestion logic as it's not part of the AI model
+    const { bannerUrl, ...valuesForAI } = values;
+    const validation = formSchema.partial().safeParse(valuesForAI);
+    
     if (!validation.success) {
       form.trigger()
       return
@@ -123,7 +129,15 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
     try {
       const result = await suggestTournamentSettings({
         ...validation.data,
-        tournamentName: validation.data.tournamentName,
+        tournamentName: validation.data.tournamentName!,
+        startDate: validation.data.startDate!,
+        endDate: validation.data.endDate!,
+        location: validation.data.location!,
+        format: validation.data.format!,
+        numberOfPlayers: validation.data.numberOfPlayers!,
+        entryFee: validation.data.entryFee!,
+        prizePoolDistribution: validation.data.prizePoolDistribution!,
+        rules: validation.data.rules!,
       })
       setAiResult(result)
     } catch (error) {
@@ -316,6 +330,24 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
                 </FormItem>
               )}
             />
+             <div className="md:col-span-2">
+                <FormField
+                control={form.control}
+                name="bannerUrl"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>URL del Banner del Torneo</FormLabel>
+                    <FormControl>
+                        <Input placeholder="https://example.com/banner.png" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                        Pega la URL de una imagen para que sirva como banner para la página del torneo.
+                    </FormDescription>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+            </div>
           </div>
           <FormField
             control={form.control}

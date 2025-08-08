@@ -43,6 +43,7 @@ export interface Tournament {
   creatorId: string; // To track who created the tournament
   participants: string[]; // Array of player UIDs
   isRanked: boolean; // Determines if matches affect global ELO rating
+  bannerUrl?: string;
 }
 
 export interface Challenge {
