@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -159,25 +159,46 @@ export default function Dashboard() {
     let p1SetsWon = 0;
     let p2SetsWon = 0;
     let validSets = 0;
+    
+    const tournamentDoc = await getDoc(doc(db, "tournaments", selectedMatch.tournamentId));
+    const tournamentData = tournamentDoc.data() as Tournament;
+    const isSuperTiebreakFormat = tournamentData.formatoScore === '2 Sets + Super Tiebreak';
 
-    for (const set of scores) {
+    for (let i = 0; i < scores.length; i++) {
+        const set = scores[i];
         const score1 = parseInt(set.p1, 10);
         const score2 = parseInt(set.p2, 10);
 
         if (!isNaN(score1) && !isNaN(score2)) {
             validSets++;
-            if (score1 > score2) p1SetsWon++;
-            else if (score2 > score1) p2SetsWon++;
+            
+            const isTiebreakSet = i === 2 && isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1;
+            const winPoints = isTiebreakSet ? 10 : 7;
+            const gamePoints = isTiebreakSet ? 0 : 6;
+
+            if (score1 >= gamePoints && score1 > score2 + 1) {
+                 if(!isTiebreakSet) p1SetsWon++;
+            } else if (score2 >= gamePoints && score2 > score1 + 1) {
+                 if(!isTiebreakSet) p2SetsWon++;
+            } else if (score1 === 7 && score2 === 6) {
+                 if(!isTiebreakSet) p1SetsWon++;
+            } else if (score2 === 7 && score1 === 6) {
+                 if(!isTiebreakSet) p2SetsWon++;
+            } else if (isTiebreakSet && score1 >= winPoints && score1 >= score2 + 2) {
+                p1SetsWon++;
+            } else if (isTiebreakSet && score2 >= winPoints && score2 >= score1 + 2) {
+                p2SetsWon++;
+            }
         }
     }
     
-    if (validSets < 2) {
-        toast({ variant: "destructive", title: "Marcador Incompleto", description: "Debes registrar al menos dos sets." });
+    if (validSets < 2 || (p1SetsWon < 2 && p2SetsWon < 2)) {
+        toast({ variant: "destructive", title: "Marcador Incompleto", description: "El partido no ha concluido. Registra al menos dos sets ganados por un jugador." });
         return;
     }
 
     const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : p2.uid;
-    if (p1SetsWon !== p2SetsWon && calculatedWinnerId !== winnerId) {
+    if (calculatedWinnerId !== winnerId) {
         toast({
             variant: "destructive",
             title: "Error de Validación",
@@ -192,10 +213,6 @@ export default function Dashboard() {
     try {
         const loserId = selectedMatch.player1Id === winnerId ? selectedMatch.player2Id : selectedMatch.player1Id;
         let winnerInscriptionRef: any, loserInscriptionRef: any;
-
-        // Pre-transaction: Get inscription documents if it's a ladder match
-        const tournamentDoc = await getDoc(doc(db, "tournaments", selectedMatch.tournamentId));
-        const tournamentData = tournamentDoc.data() as Tournament;
 
         if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
             const challengeDoc = await getDoc(doc(db, "challenges", selectedMatch.challengeId));
@@ -229,7 +246,6 @@ export default function Dashboard() {
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
         
-        // --- Ladder Position Swap Logic ---
         if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId && winnerInscriptionRef && loserInscriptionRef) {
             const challengeRef = doc(db, "challenges", selectedMatch.challengeId);
             const challengeDoc = await transaction.get(challengeRef);
@@ -246,7 +262,6 @@ export default function Dashboard() {
                     const winnerInscriptionData = winnerInscriptionDoc.data() as Inscription;
                     const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
                     
-                    // Swap positions if challenger (winner) has a higher position number (is lower in rank)
                     if(winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
                         const winnerOldPosition = winnerInscriptionData.posicionActual;
                         const loserOldPosition = loserInscriptionData.posicionActual;
@@ -258,7 +273,6 @@ export default function Dashboard() {
              transaction.update(challengeRef, { estado: 'Jugado' });
         }
         
-        // --- Stat Updates ---
         const newWinnerWins = (winnerData.globalWins || 0) + 1;
         const newLoserLosses = (loserData.globalLosses || 0) + 1;
         
@@ -266,7 +280,6 @@ export default function Dashboard() {
         transaction.update(winnerRef, { globalWins: newWinnerWins });
         transaction.update(loserRef, { globalLosses: newLoserLosses });
 
-        // Calculate and update ELO if the tournament is ranked
         if (tournamentData.isRanked) {
           const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
           const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
@@ -311,9 +324,83 @@ export default function Dashboard() {
 
   const handleScoreChange = (setIndex: number, playerKey: 'p1' | 'p2', value: string) => {
     const newScores = [...scores];
-    newScores[setIndex][playerKey] = value;
+    newScores[setIndex][playerKey] = value.replace(/[^0-9]/g, '');
     setScores(newScores);
   };
+
+  const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
+
+    useEffect(() => {
+        if (!isResultDialogOpen) return;
+
+        const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
+        if (!p1 || !p2) return;
+        
+        const tournamentId = selectedMatch?.tournamentId;
+        const tournament = allTournaments?.find(t => t.id === tournamentId);
+        const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
+
+        let p1SetsWon = 0;
+        let p2SetsWon = 0;
+
+        for (let i = 0; i < 2; i++) { // Only check first two sets for match winner
+            const set = scores[i];
+            const score1 = parseInt(set.p1, 10);
+            const score2 = parseInt(set.p2, 10);
+
+            if (isNaN(score1) || isNaN(score2)) continue;
+
+            if (score1 >= 6 && score1 >= score2 + 2) {
+                p1SetsWon++;
+            } else if (score2 >= 6 && score2 >= score1 + 2) {
+                p2SetsWon++;
+            } else if (score1 === 7 && score2 === 6) {
+                p1SetsWon++;
+            } else if (score2 === 7 && score1 === 6) {
+                p2SetsWon++;
+            }
+        }
+
+        if (p1SetsWon === 2) {
+            setWinnerId(p1.uid);
+            setIsWinnerRadioDisabled(true);
+            return;
+        }
+        if (p2SetsWon === 2) {
+            setWinnerId(p2.uid);
+            setIsWinnerRadioDisabled(true);
+            return;
+        }
+
+        // Check for match tiebreak
+        if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
+            const tiebreak = scores[2];
+            const score1 = parseInt(tiebreak.p1, 10);
+            const score2 = parseInt(tiebreak.p2, 10);
+
+            if (isNaN(score1) || isNaN(score2)) {
+                 setIsWinnerRadioDisabled(false);
+                 setWinnerId(null);
+                 return;
+            };
+
+            if (score1 >= 10 && score1 >= score2 + 2) {
+                setWinnerId(p1.uid);
+                setIsWinnerRadioDisabled(true);
+                return;
+            }
+            if (score2 >= 10 && score2 >= score1 + 2) {
+                setWinnerId(p2.uid);
+                setIsWinnerRadioDisabled(true);
+                return;
+            }
+        }
+
+        // Default case if no winner is determined
+        setIsWinnerRadioDisabled(false);
+        setWinnerId(null);
+
+    }, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen]);
 
 
   return (
@@ -464,13 +551,13 @@ export default function Dashboard() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-             <RadioGroup onValueChange={setWinnerId} value={winnerId || ""} className="grid grid-cols-2 gap-4">
+             <RadioGroup onValueChange={setWinnerId} value={winnerId || ""} className="grid grid-cols-2 gap-4" disabled={isWinnerRadioDisabled}>
                 {selectedMatch && playerInSelectedMatch && (
                     <div>
-                        <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-${selectedMatch.id}`} className="sr-only" />
+                        <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
                         <Label 
                             htmlFor={`r1-${selectedMatch.id}`}
-                            className={`flex flex-col items-center justify-center rounded-md border-2 p-4 hover:bg-accent hover:text-accent-foreground ${winnerId === playerInSelectedMatch.uid ? 'border-primary' : ''}`}
+                            className={`flex flex-col items-center justify-center rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground ${winnerId === playerInSelectedMatch.uid ? 'border-primary' : ''} ${isWinnerRadioDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
                         >
                             <Avatar className="mb-2">
                                 <AvatarImage src={playerInSelectedMatch.avatar} />
@@ -482,10 +569,10 @@ export default function Dashboard() {
                 )}
                 {selectedMatch && opponentInSelectedMatch && (
                      <div>
-                        <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-${selectedMatch.id}`} className="sr-only" />
+                        <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
                         <Label 
                             htmlFor={`r2-${selectedMatch.id}`}
-                            className={`flex flex-col items-center justify-center rounded-md border-2 p-4 hover:bg-accent hover:text-accent-foreground ${winnerId === opponentInSelectedMatch.uid ? 'border-primary' : ''}`}
+                            className={`flex flex-col items-center justify-center rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground ${winnerId === opponentInSelectedMatch.uid ? 'border-primary' : ''} ${isWinnerRadioDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
                         >
                              <Avatar className="mb-2">
                                 <AvatarImage src={opponentInSelectedMatch.avatar} />
@@ -540,6 +627,8 @@ export default function Dashboard() {
 }
 
     
+    
+
     
 
     
