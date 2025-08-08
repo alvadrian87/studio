@@ -29,7 +29,7 @@ const step0Schema = z.object({
     tipoTorneo: z.enum(['Evento por Llaves', 'Evento tipo Escalera'], { required_error: "Debes seleccionar un tipo de torneo." }),
 });
 
-const step1Schema = z.object({
+const step1Schema = z.object({}).extend({
     nombreTorneo: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
     descripcion: z.string().optional(),
     organizacion: z.string().min(2, "La organización es requerida."),
@@ -87,7 +87,7 @@ const step3LadderSchema = z.object({
     formatoScore: z.enum(['2 Sets + Super Tiebreak', '3 Sets Completos']),
 });
 
-const step4Schema = z.object({
+const step4Schema = z.object({}).extend({
     fechaInicioInscripciones: z.string().min(1, "Requerido"),
     fechaCierreInscripciones: z.string().min(1, "Requerido"),
     fechaCierreDesafios: z.string().optional(),
@@ -101,19 +101,20 @@ const step4Schema = z.object({
 
 
 const getFullFormSchema = (torneoType: string) => {
-    let baseSchema = step0Schema.merge(step1Schema);
+    let schema = step0Schema.merge(step1Schema);
 
     if (torneoType === 'Evento tipo Escalera') {
-        return baseSchema
+        schema = schema
             .merge(step2LadderSchema)
             .merge(step3LadderSchema)
             .merge(step4Schema);
-    } 
-    
-    // Default to 'Evento por Llaves' if type is not ladder or not set
-    return baseSchema
-        .merge(step2KeyedSchema)
-        .merge(step4Schema);
+    } else {
+        // Default to 'Evento por Llaves' if type is not ladder or not set
+        schema = schema
+            .merge(step2KeyedSchema)
+            .merge(step4Schema);
+    }
+    return schema;
 }
 
 type FullFormValues = z.infer<ReturnType<typeof getFullFormSchema>>;
@@ -154,6 +155,7 @@ export function TournamentForm() {
             tiempos: {
                 tiempoLimiteAceptarDesafio: 48,
                 tiempoLimiteJugarPartido: 7,
+                fechaCierreDesafios: "",
             },
             maximoInscripciones: undefined,
             tiempoLimiteAceptarDesafio: 48,
