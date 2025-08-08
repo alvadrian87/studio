@@ -3,7 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { db } from '@/lib/firebase-admin'; // Usar la instancia centralizada
+import { getFirestore } from 'firebase-admin/firestore';
 import type { Player, Match, Tournament, Challenge } from '@/types';
 
 
@@ -34,6 +34,7 @@ export const registerMatchResult = ai.defineFlow(
   },
   async ({ matchId, winnerId, score, isRetirement }) => {
     try {
+        const db = getFirestore();
         const matchRef = db.collection("matches").doc(matchId);
         const matchDoc = await matchRef.get();
 

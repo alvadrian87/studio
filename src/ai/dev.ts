@@ -2,8 +2,7 @@
 import { config } from 'dotenv';
 config();
 
-// Initialize Firebase Admin first
-import '../lib/firebase-admin';
+// No separate admin initialization needed. Genkit handles it.
 
 import '@/ai/flows/suggest-tournament-settings.ts';
 import { registerMatchResult } from '@/ai/flows/register-match-result.ts';
