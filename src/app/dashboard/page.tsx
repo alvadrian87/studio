@@ -26,7 +26,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -168,8 +167,10 @@ export default function Dashboard() {
   }
 
   const totalGames = (player.globalWins || 0) + (player.globalLosses || 0);
-  const playerInSelectedMatch = allPlayers?.find(p => p.uid === selectedMatch?.player1Id);
-  const opponentInSelectedMatch = allPlayers?.find(p => p.uid === selectedMatch?.player2Id);
+  
+  const getPlayerById = (id: string | undefined) => allPlayers?.find(p => p.uid === id);
+  const playerInSelectedMatch = getPlayerById(selectedMatch?.player1Id);
+  const opponentInSelectedMatch = getPlayerById(selectedMatch?.player2Id);
 
 
   return (
@@ -257,7 +258,7 @@ export default function Dashboard() {
                       <TableCell className="hidden md:table-cell">{format(new Date(match.date), 'dd/MM/yyyy')}</TableCell>
                       <TableCell className="text-right">
                          {match.status === 'Completado' ? (
-                            match.winnerId === user?.uid ? <span className="text-green-500 font-bold">Victoria</span> : <span className="text-red-500 font-bold">Derrota</span>
+                            match.winnerId === user?.uid ? <span className="font-bold text-primary">Victoria</span> : <span className="font-bold text-destructive">Derrota</span>
                           ) : (
                             <Button variant="outline" size="sm" onClick={() => handleOpenResultDialog(match)}>Registrar</Button>
                           )}
@@ -315,20 +316,24 @@ export default function Dashboard() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-             <RadioGroup onValueChange={setWinnerId}>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value={selectedMatch?.player1Id || ''} id={`r1-${selectedMatch?.id}`} />
-                <Label htmlFor={`r1-${selectedMatch?.id}`}>{allPlayers?.find(p => p.uid === selectedMatch?.player1Id)?.displayName}</Label>
-              </div>
-              <div className="flex items-center space-x-2">
-                <RadioGroupItem value={selectedMatch?.player2Id || ''} id={`r2-${selectedMatch?.id}`} />
-                <Label htmlFor={`r2-${selectedMatch?.id}`}>{allPlayers?.find(p => p.uid === selectedMatch?.player2Id)?.displayName}</Label>
-              </div>
+             <RadioGroup onValueChange={setWinnerId} value={winnerId || ""}>
+              {selectedMatch && playerInSelectedMatch && (
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-${selectedMatch.id}`} />
+                  <Label htmlFor={`r1-${selectedMatch.id}`}>{playerInSelectedMatch.displayName}</Label>
+                </div>
+              )}
+              {selectedMatch && opponentInSelectedMatch && (
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-${selectedMatch.id}`} />
+                  <Label htmlFor={`r2-${selectedMatch.id}`}>{opponentInSelectedMatch.displayName}</Label>
+                </div>
+              )}
             </RadioGroup>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveResult} disabled={isSubmittingResult}>
+            <Button onClick={handleSaveResult} disabled={isSubmittingResult || !winnerId}>
               {isSubmittingResult && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Guardar Resultado
             </Button>

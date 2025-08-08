@@ -13,8 +13,8 @@ export interface Player {
   email: string;
   avatar?: string;
   role: 'player' | 'admin';
-  globalWins?: number;
-  globalLosses?: number;
+  globalWins: number;
+  globalLosses: number;
 }
 
 export interface Match {
