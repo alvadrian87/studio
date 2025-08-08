@@ -1,6 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BrainCircuit, ListOrdered, Shield, Swords, Trophy, Users } from 'lucide-react';
+import { BarChart, BrainCircuit, CheckCircle, ListOrdered, Shield, Swords, Trophy, Users } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { TennisBallIcon } from '@/components/icons';
