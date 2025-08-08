@@ -177,10 +177,7 @@ export default function Dashboard() {
     }
 
     const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : p2.uid;
-    if (p1SetsWon === p2SetsWon) {
-      // In case of a draw in sets (e.g., 1-1 after 2 sets), we trust the user selection for now.
-      // More complex logic could be added for tie-breaks.
-    } else if (calculatedWinnerId !== winnerId) {
+    if (p1SetsWon !== p2SetsWon && calculatedWinnerId !== winnerId) {
         toast({
             variant: "destructive",
             title: "Error de Validación",
@@ -205,14 +202,14 @@ export default function Dashboard() {
             if (!challengeDoc.exists()) throw new Error("Challenge not found for ladder logic");
             const challengeData = challengeDoc.data() as Challenge;
 
-            const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
+            const inscriptionsRef = collection(db, `inscriptions`);
             
-            const winnerInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId));
+            const winnerInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId), where("torneoId", "==", tournamentData.id));
             const winnerInscriptionsSnap = await getDocs(winnerInscriptionQuery);
             if (winnerInscriptionsSnap.empty) throw new Error("Winner inscription not found");
             winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
 
-            const loserInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId));
+            const loserInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId), where("torneoId", "==", tournamentData.id));
             const loserInscriptionsSnap = await getDocs(loserInscriptionQuery);
             if (loserInscriptionsSnap.empty) throw new Error("Loser inscription not found");
             loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
@@ -543,4 +540,6 @@ export default function Dashboard() {
 }
 
     
+    
+
     
