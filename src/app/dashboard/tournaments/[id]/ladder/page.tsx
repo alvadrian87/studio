@@ -1,9 +1,8 @@
 
-
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
-import { collection, query, where, getDocs, addDoc, serverTimestamp, writeBatch } from "firebase/firestore";
+import { useMemo, useState, useEffect, use } from "react";
+import { collection, query, where, getDocs, addDoc, serverTimestamp, writeBatch, doc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button"
 import Image from "next/image";
@@ -33,7 +32,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 export default function LadderPage({ params }: { params: { id: string } }) {
-  const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${params.id}`);
+  const id = params.id;
+  const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${id}`);
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
   const { data: allChallenges, loading: loadingAllChallenges } = useCollection<Challenge>('challenges');
   const [events, setEvents] = useState<TournamentEvent[]>([]);
@@ -329,3 +329,5 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    
