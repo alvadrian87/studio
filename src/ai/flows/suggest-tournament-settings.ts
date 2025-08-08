@@ -12,22 +12,22 @@ import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const SuggestTournamentSettingsInputSchema = z.object({
-  tournamentName: z.string().describe('The name of the tournament.'),
-  startDate: z.string().describe('The start date of the tournament (YYYY-MM-DD).'),
-  endDate: z.string().describe('The end date of the tournament (YYYY-MM-DD).'),
-  location: z.string().describe('The location where the tournament will be held.'),
-  format: z.enum(['Single Elimination', 'Double Elimination', 'Round Robin']).describe('The format of the tournament.'),
-  numberOfPlayers: z.number().int().positive().describe('The number of players participating in the tournament.'),
-  entryFee: z.number().min(0).describe('The entry fee for the tournament.'),
-  prizePoolDistribution: z.string().describe('Details on how the prize pool will be distributed among the winners.'),
-  rules: z.string().describe('A description of the rules.'),
+  tournamentName: z.string().describe('El nombre del torneo.'),
+  startDate: z.string().describe('La fecha de inicio del torneo (YYYY-MM-DD).'),
+  endDate: z.string().describe('La fecha de finalización del torneo (YYYY-MM-DD).'),
+  location: z.string().describe('El lugar donde se celebrará el torneo.'),
+  format: z.enum(['Eliminación Simple', 'Doble Eliminación', 'Round Robin']).describe('El formato del torneo.'),
+  numberOfPlayers: z.number().int().positive().describe('El número de jugadores que participan en el torneo.'),
+  entryFee: z.number().min(0).describe('La cuota de inscripción para el torneo.'),
+  prizePoolDistribution: z.string().describe('Detalles sobre cómo se distribuirá el pozo de premios entre los ganadores.'),
+  rules: z.string().describe('Una descripción de las reglas.'),
 });
 export type SuggestTournamentSettingsInput = z.infer<typeof SuggestTournamentSettingsInputSchema>;
 
 const SuggestTournamentSettingsOutputSchema = z.object({
-  isValid: z.boolean().describe('Whether the tournament configuration is valid and balanced.'),
-  suggestions: z.array(z.string()).describe('Suggestions to improve the tournament setup, if any.'),
-  reason: z.string().describe('The reasoning behind the validity and suggestions.'),
+  isValid: z.boolean().describe('Si la configuración del torneo es válida y equilibrada.'),
+  suggestions: z.array(z.string()).describe('Sugerencias para mejorar la configuración del torneo, si las hay.'),
+  reason: z.string().describe('El razonamiento detrás de la validez y las sugerencias.'),
 });
 export type SuggestTournamentSettingsOutput = z.infer<typeof SuggestTournamentSettingsOutputSchema>;
 
@@ -39,28 +39,28 @@ const prompt = ai.definePrompt({
   name: 'suggestTournamentSettingsPrompt',
   input: {schema: SuggestTournamentSettingsInputSchema},
   output: {schema: SuggestTournamentSettingsOutputSchema},
-  prompt: `You are an AI assistant specialized in validating tournament configurations and providing suggestions for improvement.
+  prompt: `Eres un asistente de IA especializado en validar configuraciones de torneos y proporcionar sugerencias de mejora.
 
-  Analyze the following tournament settings to determine if they are valid and balanced.
-  Provide suggestions to improve the tournament setup if there are any misconfigurations or imbalances.
+  Analiza la siguiente configuración de torneo para determinar si es válida y equilibrada.
+  Proporciona sugerencias para mejorar la configuración del torneo si hay alguna configuración incorrecta o desequilibrio.
 
-  Tournament Name: {{{tournamentName}}}
-  Start Date: {{{startDate}}}
-  End Date: {{{endDate}}}
-  Location: {{{location}}}
-  Format: {{{format}}}
-  Number of Players: {{{numberOfPlayers}}}
-  Entry Fee: {{{entryFee}}}
-  Prize Pool Distribution: {{{prizePoolDistribution}}}
-  Rules: {{{rules}}}
+  Nombre del Torneo: {{{tournamentName}}}
+  Fecha de Inicio: {{{startDate}}}
+  Fecha de Finalización: {{{endDate}}}
+  Ubicación: {{{location}}}
+  Formato: {{{format}}}
+  Número de Jugadores: {{{numberOfPlayers}}}
+  Cuota de Inscripción: {{{entryFee}}}
+  Distribución del Pozo de Premios: {{{prizePoolDistribution}}}
+  Reglas: {{{rules}}}
 
-  Respond with a JSON object that contains the following keys:
-  - isValid (boolean): Whether the tournament configuration is valid and balanced.
-  - suggestions (array of strings): Suggestions to improve the tournament setup, if any.
-  - reason (string): The reasoning behind the validity and suggestions.
+  Responde con un objeto JSON que contenga las siguientes claves:
+  - isValid (boolean): Si la configuración del torneo es válida y equilibrada.
+  - suggestions (array de strings): Sugerencias para mejorar la configuración del torneo, si las hay.
+  - reason (string): El razonamiento detrás de la validez y las sugerencias.
 
-  Ensure that the isValid field accurately reflects whether the tournament setup is reasonable given the provided information.
-  If the setup appears flawed, explain why and provide specific suggestions.
+  Asegúrate de que el campo isValid refleje con precisión si la configuración del torneo es razonable dada la información proporcionada.
+  Si la configuración parece defectuosa, explica por qué y proporciona sugerencias específicas.
   `,
 });
 

@@ -19,15 +19,15 @@ export default function ProfilePage() {
     <>
       <div className="flex items-center justify-between space-y-2">
         <div className="flex flex-col w-full">
-          <h1 className="text-3xl font-bold tracking-tight">My Profile</h1>
-          <p className="text-muted-foreground">Manage your account settings and personal information.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Mi Perfil</h1>
+          <p className="text-muted-foreground">Gestiona la configuración de tu cuenta y tu información personal.</p>
         </div>
       </div>
       <div className="grid gap-6">
         <Card>
           <CardHeader>
-            <CardTitle>Personal Information</CardTitle>
-            <CardDescription>Update your public profile information here.</CardDescription>
+            <CardTitle>Información Personal</CardTitle>
+            <CardDescription>Actualiza aquí la información de tu perfil público.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6">
             <div className="flex items-center gap-4">
@@ -35,42 +35,42 @@ export default function ProfilePage() {
                 <AvatarImage src={player.avatar} />
                 <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
               </Avatar>
-              <Button>Change Photo</Button>
+              <Button>Cambiar Foto</Button>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">Nombre de usuario</Label>
               <Input id="username" defaultValue={player.name} />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Correo electrónico</Label>
               <Input id="email" type="email" defaultValue={`${player.name.toLowerCase()}@evoladder.com`} />
             </div>
           </CardContent>
           <CardFooter className="border-t px-6 py-4">
-            <Button>Save Changes</Button>
+            <Button>Guardar Cambios</Button>
           </CardFooter>
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>Password</CardTitle>
-            <CardDescription>Change your password here. It's a good idea to use a strong password that you're not using elsewhere.</CardDescription>
+            <CardTitle>Contraseña</CardTitle>
+            <CardDescription>Cambia tu contraseña aquí. Es una buena idea usar una contraseña segura que no estés usando en otro lugar.</CardDescription>
           </CardHeader>
           <CardContent className="grid gap-6">
             <div className="grid gap-2">
-                <Label htmlFor="current-password">Current Password</Label>
+                <Label htmlFor="current-password">Contraseña Actual</Label>
                 <Input id="current-password" type="password" />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="new-password">New Password</Label>
+                <Label htmlFor="new-password">Nueva Contraseña</Label>
                 <Input id="new-password" type="password" />
             </div>
             <div className="grid gap-2">
-                <Label htmlFor="confirm-password">Confirm New Password</Label>
+                <Label htmlFor="confirm-password">Confirmar Nueva Contraseña</Label>
                 <Input id="confirm-password" type="password" />
             </div>
           </CardContent>
           <CardFooter className="border-t px-6 py-4">
-            <Button>Update Password</Button>
+            <Button>Actualizar Contraseña</Button>
           </CardFooter>
         </Card>
       </div>

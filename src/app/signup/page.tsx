@@ -20,19 +20,19 @@ export default function SignupPage() {
           <div className="flex justify-center mb-4">
             <Trophy className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">Create your Account</CardTitle>
+          <CardTitle className="text-2xl text-center">Crea tu Cuenta</CardTitle>
           <CardDescription className="text-center">
-            Enter your information to create an account
+            Introduce tu información para crear una cuenta
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid gap-4">
             <div className="grid gap-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username">Nombre de usuario</Label>
               <Input id="username" placeholder="Rafa" required />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Correo electrónico</Label>
               <Input
                 id="email"
                 type="email"
@@ -41,17 +41,17 @@ export default function SignupPage() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password">Contraseña</Label>
               <Input id="password" type="password" />
             </div>
             <Button type="submit" className="w-full" asChild>
-              <Link href="/dashboard">Create an account</Link>
+              <Link href="/dashboard">Crear una cuenta</Link>
             </Button>
           </div>
           <div className="mt-4 text-center text-sm">
-            Already have an account?{" "}
+            ¿Ya tienes una cuenta?{" "}
             <Link href="/login" className="underline">
-              Login
+              Iniciar Sesión
             </Link>
           </div>
         </CardContent>

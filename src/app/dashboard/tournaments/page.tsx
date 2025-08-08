@@ -32,15 +32,15 @@ export default function TournamentsPage() {
     <>
       <div className="flex items-center">
         <div className="flex flex-col w-full">
-            <h1 className="text-3xl font-bold tracking-tight">Tournaments</h1>
-            <p className="text-muted-foreground">Manage your tournaments and view their status.</p>
+            <h1 className="text-3xl font-bold tracking-tight">Torneos</h1>
+            <p className="text-muted-foreground">Gestiona tus torneos y mira su estado.</p>
         </div>
         <div className="ml-auto flex items-center gap-2">
           <Button size="sm" className="h-8 gap-1" asChild>
             <Link href="/dashboard/tournaments/new">
               <PlusCircle className="h-3.5 w-3.5" />
               <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Create Tournament
+                Crear Torneo
               </span>
             </Link>
           </Button>
@@ -48,19 +48,19 @@ export default function TournamentsPage() {
       </div>
       <Card>
         <CardHeader>
-          <CardTitle>Tournament List</CardTitle>
-          <CardDescription>A list of all tournaments in the system.</CardDescription>
+          <CardTitle>Lista de Torneos</CardTitle>
+          <CardDescription>Una lista de todos los torneos en el sistema.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead className="hidden md:table-cell">Format</TableHead>
-                <TableHead className="hidden md:table-cell">Location</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Estado</TableHead>
+                <TableHead className="hidden md:table-cell">Formato</TableHead>
+                <TableHead className="hidden md:table-cell">Ubicación</TableHead>
                 <TableHead>
-                  <span className="sr-only">Actions</span>
+                  <span className="sr-only">Acciones</span>
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -69,7 +69,7 @@ export default function TournamentsPage() {
                 <TableRow key={tournament.id}>
                   <TableCell className="font-medium">{tournament.name}</TableCell>
                   <TableCell>
-                    <Badge variant={tournament.status === 'Ongoing' ? 'default' : 'secondary'}>
+                    <Badge variant={tournament.status === 'En Curso' ? 'default' : 'secondary'}>
                       {tournament.status}
                     </Badge>
                   </TableCell>
@@ -84,16 +84,16 @@ export default function TournamentsPage() {
                           variant="ghost"
                         >
                           <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
+                          <span className="sr-only">Alternar menú</span>
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                          <DropdownMenuItem asChild>
-                            <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>View Ladder</Link>
+                            <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>Ver Clasificación</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem>Edit</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">Delete</DropdownMenuItem>
+                        <DropdownMenuItem>Editar</DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive">Eliminar</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

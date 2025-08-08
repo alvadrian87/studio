@@ -26,24 +26,24 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     <>
       <div className="flex items-center justify-between space-y-2">
         <div className="flex flex-col w-full">
-            <h1 className="text-3xl font-bold tracking-tight">{tournament.name} Ladder</h1>
-            <p className="text-muted-foreground">Player rankings and challenge status.</p>
+            <h1 className="text-3xl font-bold tracking-tight">Clasificación de {tournament.name}</h1>
+            <p className="text-muted-foreground">Clasificación de jugadores y estado de los desafíos.</p>
         </div>
       </div>
        <Card>
         <CardHeader>
-          <CardTitle>Player Rankings</CardTitle>
-          <CardDescription>The official ladder for the {tournament.name}.</CardDescription>
+          <CardTitle>Clasificación de Jugadores</CardTitle>
+          <CardDescription>La clasificación oficial para el {tournament.name}.</CardDescription>
         </CardHeader>
         <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[80px]">Rank</TableHead>
-                <TableHead>Player</TableHead>
-                <TableHead className="hidden md:table-cell">Wins</TableHead>
-                <TableHead className="hidden md:table-cell">Losses</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+                <TableHead className="w-[80px]">Rango</TableHead>
+                <TableHead>Jugador</TableHead>
+                <TableHead className="hidden md:table-cell">Victorias</TableHead>
+                <TableHead className="hidden md:table-cell">Derrotas</TableHead>
+                <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -64,7 +64,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                   <TableCell className="text-right">
                     <Button variant="outline" size="sm" disabled={player.rank === 1}>
                         <Swords className="h-4 w-4 mr-2" />
-                        Challenge
+                        Desafiar
                     </Button>
                   </TableCell>
                 </TableRow>

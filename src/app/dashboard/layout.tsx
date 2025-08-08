@@ -36,10 +36,10 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard", icon: Home },
-  { href: "/dashboard/tournaments", label: "Tournaments", icon: Trophy },
-  { href: "/dashboard/marketplace", label: "Marketplace", icon: Store },
-  { href: "/dashboard/profile", label: "Profile", icon: User },
+  { href: "/dashboard", label: "Panel", icon: Home },
+  { href: "/dashboard/tournaments", label: "Torneos", icon: Trophy },
+  { href: "/dashboard/marketplace", label: "Mercado", icon: Store },
+  { href: "/dashboard/profile", label: "Perfil", icon: User },
 ];
 
 export default function DashboardLayout({
@@ -81,7 +81,7 @@ export default function DashboardLayout({
                 <ThemeToggle />
                 <Button variant="ghost" size="icon" className="rounded-full">
                     <LogOut className="h-5 w-5" />
-                    <span className="sr-only">Logout</span>
+                    <span className="sr-only">Cerrar Sesión</span>
                 </Button>
              </div>
           </div>
@@ -97,7 +97,7 @@ export default function DashboardLayout({
                 className="shrink-0 md:hidden"
               >
                 <Users className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
+                <span className="sr-only">Alternar menú de navegación</span>
               </Button>
             </SheetTrigger>
             <SheetContent side="left" className="flex flex-col">
@@ -128,7 +128,7 @@ export default function DashboardLayout({
                     <ThemeToggle />
                     <Button variant="ghost" size="icon" className="rounded-full">
                         <LogOut className="h-5 w-5" />
-                        <span className="sr-only">Logout</span>
+                        <span className="sr-only">Cerrar Sesión</span>
                     </Button>
                 </div>
               </div>
@@ -144,16 +144,16 @@ export default function DashboardLayout({
                   <AvatarImage src="https://placehold.co/40x40.png" alt="@shadcn" />
                   <AvatarFallback>AM</AvatarFallback>
                 </Avatar>
-                <span className="sr-only">Toggle user menu</span>
+                <span className="sr-only">Alternar menú de usuario</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>My Account</DropdownMenuLabel>
+              <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild><Link href="/dashboard/profile">Profile</Link></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link href="/dashboard/settings">Settings</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href="/dashboard/profile">Perfil</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href="/dashboard/settings">Configuración</Link></DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild><Link href="/">Logout</Link></DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href="/">Cerrar Sesión</Link></DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>

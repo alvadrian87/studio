@@ -60,8 +60,8 @@ export default function MarketplacePage() {
     <>
       <div className="flex items-center justify-between space-y-2">
         <div className="flex flex-col w-full">
-            <h1 className="text-3xl font-bold tracking-tight">Marketplace</h1>
-            <p className="text-muted-foreground">Browse gear and services from other players.</p>
+            <h1 className="text-3xl font-bold tracking-tight">Mercado</h1>
+            <p className="text-muted-foreground">Explora equipos y servicios de otros jugadores.</p>
         </div>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -82,7 +82,7 @@ export default function MarketplacePage() {
               <CardDescription className="text-primary font-bold text-xl mt-2">${item.price.toFixed(2)}</CardDescription>
             </CardContent>
             <CardFooter className="p-4 pt-0">
-              <Button className="w-full">Add to Cart</Button>
+              <Button className="w-full">Añadir al Carrito</Button>
             </CardFooter>
           </Card>
         ))}

@@ -12,16 +12,16 @@ export type Match = {
   player1: Player;
   player2: Player;
   winnerId: string | null;
-  status: 'Pending' | 'Completed' | 'In Progress';
+  status: 'Pendiente' | 'Completado' | 'En Progreso';
   date: string;
 };
 
 export type Tournament = {
   id: string;
   name: string;
-  format: 'Single Elimination' | 'Double Elimination' | 'Round Robin';
+  format: 'Eliminación Simple' | 'Doble Eliminación' | 'Round Robin';
   location: string;
-  status: 'Upcoming' | 'Ongoing' | 'Completed';
+  status: 'Próximo' | 'En Curso' | 'Completado';
   startDate: string;
 };
 
@@ -35,19 +35,19 @@ export const players: Player[] = [
 ];
 
 export const tournaments: Tournament[] = [
-  { id: '1', name: 'Summer Smash Open', format: 'Single Elimination', location: 'City Tennis Center', status: 'Ongoing', startDate: '2024-07-15' },
-  { id: '2', name: 'Autumn Invitational', format: 'Round Robin', location: 'Country Club Courts', status: 'Upcoming', startDate: '2024-09-01' },
-  { id: '3', name: 'Winter Grand Slam', format: 'Double Elimination', location: 'Indoor Arena', status: 'Completed', startDate: '2024-01-20' },
+  { id: '1', name: 'Abierto de Verano', format: 'Eliminación Simple', location: 'Centro de Tenis de la Ciudad', status: 'En Curso', startDate: '2024-07-15' },
+  { id: '2', name: 'Invitacional de Otoño', format: 'Round Robin', location: 'Canchas del Club de Campo', status: 'Próximo', startDate: '2024-09-01' },
+  { id: '3', name: 'Grand Slam de Invierno', format: 'Doble Eliminación', location: 'Arena Cubierta', status: 'Completado', startDate: '2024-01-20' },
 ];
 
 export const matches: Match[] = [
-  { id: 'm1', player1: players[0], player2: players[2], winnerId: '1', status: 'Completed', date: '2024-07-20' },
-  { id: 'm2', player1: players[1], player2: players[3], winnerId: null, status: 'In Progress', date: '2024-07-21' },
-  { id: 'm3', player1: players[4], player2: players[5], winnerId: null, status: 'Pending', date: '2024-07-22' },
-  { id: 'm4', player1: players[0], player2: players[4], winnerId: '1', status: 'Completed', date: '2024-07-18' },
+  { id: 'm1', player1: players[0], player2: players[2], winnerId: '1', status: 'Completado', date: '2024-07-20' },
+  { id: 'm2', player1: players[1], player2: players[3], winnerId: null, status: 'En Progreso', date: '2024-07-21' },
+  { id: 'm3', player1: players[4], player2: players[5], winnerId: null, status: 'Pendiente', date: '2024-07-22' },
+  { id: 'm4', player1: players[0], player2: players[4], winnerId: '1', status: 'Completado', date: '2024-07-18' },
 ];
 
 export const challenges = [
-    { id: 'c1', from: players[1], to: players[0], status: 'Pending' },
-    { id: 'c2', from: players[3], to: players[2], status: 'Accepted' },
+    { id: 'c1', from: players[1], to: players[0], status: 'Pendiente' },
+    { id: 'c2', from: players[3], to: players[2], status: 'Aceptado' },
 ];

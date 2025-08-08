@@ -31,25 +31,25 @@ import { suggestTournamentSettings } from "@/ai/flows/suggest-tournament-setting
 
 const formSchema = z.object({
   tournamentName: z.string().min(2, {
-    message: "Tournament name must be at least 2 characters.",
+    message: "El nombre del torneo debe tener al menos 2 caracteres.",
   }),
   startDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: "Invalid date format.",
+    message: "Formato de fecha inválido.",
   }),
   endDate: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: "Invalid date format.",
+    message: "Formato de fecha inválido.",
   }),
   location: z.string().min(2, {
-    message: "Location must be at least 2 characters.",
+    message: "La ubicación debe tener al menos 2 caracteres.",
   }),
-  format: z.enum(['Single Elimination', 'Double Elimination', 'Round Robin']),
+  format: z.enum(['Eliminación Simple', 'Doble Eliminación', 'Round Robin']),
   numberOfPlayers: z.coerce.number().int().positive(),
   entryFee: z.coerce.number().min(0),
   prizePoolDistribution: z.string().min(10, {
-    message: "Prize pool distribution details must be at least 10 characters.",
+    message: "Los detalles de la distribución del pozo de premios deben tener al menos 10 caracteres.",
   }),
   rules: z.string().min(20, {
-    message: "Rules must be at least 20 characters long.",
+    message: "Las reglas deben tener al menos 20 caracteres.",
   }),
 })
 
@@ -60,15 +60,15 @@ export function TournamentForm() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      tournamentName: "EvoLadder Summer Cup",
+      tournamentName: "Copa de Verano EvoLadder",
       startDate: new Date().toISOString().split("T")[0],
       endDate: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString().split("T")[0],
-      location: "Online",
-      format: "Single Elimination",
+      location: "En línea",
+      format: "Eliminación Simple",
       numberOfPlayers: 16,
       entryFee: 10,
-      prizePoolDistribution: "1st: 60%, 2nd: 30%, 3rd: 10%",
-      rules: "Standard tournament rules apply. All matches are best of 3.",
+      prizePoolDistribution: "1er: 60%, 2do: 30%, 3er: 10%",
+      rules: "Se aplican las reglas estándar del torneo. Todas las partidas son al mejor de 3.",
     },
   })
 
@@ -83,11 +83,14 @@ export function TournamentForm() {
     setLoading(true)
     setAiResult(null)
     try {
-      const result = await suggestTournamentSettings(validation.data)
+      const result = await suggestTournamentSettings({
+        ...validation.data,
+        format: values.format as 'Eliminación Simple' | 'Doble Eliminación' | 'Round Robin'
+      })
       setAiResult(result)
     } catch (error) {
-      console.error("AI suggestion failed:", error)
-      // You can add a toast notification here for the error
+      console.error("La sugerencia de IA falló:", error)
+      // Puedes añadir una notificación toast aquí para el error
     } finally {
       setLoading(false)
     }
@@ -95,7 +98,7 @@ export function TournamentForm() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     console.log(values)
-    // Here you would typically send the data to your backend to create the tournament
+    // Aquí normalmente enviarías los datos a tu backend para crear el torneo
   }
 
   return (
@@ -108,9 +111,9 @@ export function TournamentForm() {
               name="tournamentName"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Tournament Name</FormLabel>
+                  <FormLabel>Nombre del Torneo</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., Summer Smash Open" {...field} />
+                    <Input placeholder="p. ej., Abierto de Verano" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -121,9 +124,9 @@ export function TournamentForm() {
               name="location"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location</FormLabel>
+                  <FormLabel>Ubicación</FormLabel>
                   <FormControl>
-                    <Input placeholder="e.g., City Tennis Center" {...field} />
+                    <Input placeholder="p. ej., Centro de Tenis de la Ciudad" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -134,7 +137,7 @@ export function TournamentForm() {
               name="startDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Start Date</FormLabel>
+                  <FormLabel>Fecha de Inicio</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>
@@ -147,7 +150,7 @@ export function TournamentForm() {
               name="endDate"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>End Date</FormLabel>
+                  <FormLabel>Fecha de Finalización</FormLabel>
                   <FormControl>
                     <Input type="date" {...field} />
                   </FormControl>
@@ -160,16 +163,16 @@ export function TournamentForm() {
               name="format"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Format</FormLabel>
+                  <FormLabel>Formato</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a tournament format" />
+                        <SelectValue placeholder="Selecciona un formato de torneo" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      <SelectItem value="Single Elimination">Single Elimination</SelectItem>
-                      <SelectItem value="Double Elimination">Double Elimination</SelectItem>
+                      <SelectItem value="Eliminación Simple">Eliminación Simple</SelectItem>
+                      <SelectItem value="Doble Eliminación">Doble Eliminación</SelectItem>
                       <SelectItem value="Round Robin">Round Robin</SelectItem>
                     </SelectContent>
                   </Select>
@@ -182,7 +185,7 @@ export function TournamentForm() {
               name="numberOfPlayers"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Number of Players</FormLabel>
+                  <FormLabel>Número de Jugadores</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} />
                   </FormControl>
@@ -195,7 +198,7 @@ export function TournamentForm() {
               name="entryFee"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Entry Fee ($)</FormLabel>
+                  <FormLabel>Cuota de Inscripción ($)</FormLabel>
                   <FormControl>
                     <Input type="number" {...field} />
                   </FormControl>
@@ -209,9 +212,9 @@ export function TournamentForm() {
             name="prizePoolDistribution"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Prize Pool Distribution</FormLabel>
+                <FormLabel>Distribución del Pozo de Premios</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Describe how the prize pool will be distributed..." {...field} />
+                  <Textarea placeholder="Describe cómo se distribuirá el pozo de premios..." {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -222,9 +225,9 @@ export function TournamentForm() {
             name="rules"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Rules</FormLabel>
+                <FormLabel>Reglas</FormLabel>
                 <FormControl>
-                  <Textarea placeholder="Describe the tournament rules..." {...field} />
+                  <Textarea placeholder="Describe las reglas del torneo..." {...field} />
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -234,7 +237,7 @@ export function TournamentForm() {
           {aiResult && (
             <Alert variant={aiResult.isValid ? "default" : "destructive"}>
               {aiResult.isValid ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-              <AlertTitle>{aiResult.isValid ? "Configuration looks good!" : "Potential Issues Found"}</AlertTitle>
+              <AlertTitle>{aiResult.isValid ? "¡La configuración se ve bien!" : "Problemas Potenciales Encontrados"}</AlertTitle>
               <AlertDescription>
                 <p className="mb-2">{aiResult.reason}</p>
                 {aiResult.suggestions.length > 0 && (
@@ -255,9 +258,9 @@ export function TournamentForm() {
               ) : (
                 <Sparkles className="mr-2 h-4 w-4" />
               )}
-              AI Suggestions
+              Sugerencias de IA
             </Button>
-            <Button type="submit">Create Tournament</Button>
+            <Button type="submit">Crear Torneo</Button>
           </div>
         </form>
       </Form>

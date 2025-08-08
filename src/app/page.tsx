@@ -11,20 +11,20 @@ export default function Home() {
       <header className="px-4 lg:px-6 h-16 flex items-center bg-background/95 backdrop-blur-sm sticky top-0 z-50">
         <Link href="#" className="flex items-center justify-center" prefetch={false}>
           <Trophy className="h-6 w-6 text-primary" />
-          <span className="ml-2 text-xl font-bold">EvoLadder Manager</span>
+          <span className="ml-2 text-xl font-bold">Gestor EvoLadder</span>
         </Link>
         <nav className="ml-auto flex gap-4 sm:gap-6">
           <Link href="#features" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
-            Features
+            Características
           </Link>
           <Link href="#ai-management" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
-            AI Management
+            Gestión con IA
           </Link>
           <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
-            Login
+            Iniciar Sesión
           </Link>
           <Button asChild>
-            <Link href="/dashboard">Get Started</Link>
+            <Link href="/dashboard">Comenzar</Link>
           </Button>
         </nav>
       </header>
@@ -35,18 +35,18 @@ export default function Home() {
               <div className="flex flex-col justify-center space-y-4">
                 <div className="space-y-2">
                   <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl xl:text-6xl/none">
-                    The Ultimate Tournament Ladder System
+                    El Sistema Definitivo de Clasificación de Torneos
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    EvoLadder Manager provides a seamless, engaging, and fair platform for all your competitive gaming needs. Create, manage, and participate in tournaments with ease.
+                    El Gestor EvoLadder proporciona una plataforma fluida, atractiva y justa para todas tus necesidades de juego competitivo. Crea, gestiona y participa en torneos con facilidad.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
                   <Button asChild size="lg">
-                    <Link href="/dashboard">Create a Tournament</Link>
+                    <Link href="/dashboard">Crear un Torneo</Link>
                   </Button>
                   <Button asChild size="lg" variant="outline">
-                    <Link href="#features">Learn More</Link>
+                    <Link href="#features">Aprende Más</Link>
                   </Button>
                 </div>
               </div>
@@ -65,10 +65,10 @@ export default function Home() {
           <div className="container px-4 md:px-6">
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
-                <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm">Key Features</div>
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Everything You Need to Run a Tournament</h2>
+                <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm">Características Clave</div>
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Todo lo que Necesitas para Organizar un Torneo</h2>
                 <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  From player dashboards to intelligent management tools, we've got you covered.
+                  Desde paneles de jugador hasta herramientas de gestión inteligentes, te tenemos cubierto.
                 </p>
               </div>
             </div>
@@ -77,54 +77,54 @@ export default function Home() {
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
                   <ListOrdered className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Dynamic Ladders</h3>
+                <h3 className="text-xl font-bold">Clasificaciones Dinámicas</h3>
                 <p className="text-sm text-muted-foreground">
-                  Visualize tournament progress with our interactive ladder display, showing rankings and challenge status in real-time.
+                  Visualiza el progreso del torneo con nuestra pantalla de clasificación interactiva, que muestra las clasificaciones y el estado de los desafíos en tiempo real.
                 </p>
               </div>
               <div className="grid gap-1 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
                   <Users className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Player Dashboards</h3>
+                <h3 className="text-xl font-bold">Paneles de Jugador</h3>
                 <p className="text-sm text-muted-foreground">
-                  Players can track their profile, challenge history, rankings, and detailed performance statistics.
+                  Los jugadores pueden seguir su perfil, historial de desafíos, clasificaciones y estadísticas de rendimiento detalladas.
                 </p>
               </div>
               <div className="grid gap-1 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
                   <Swords className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Challenge System</h3>
+                <h3 className="text-xl font-bold">Sistema de Desafíos</h3>
                 <p className="text-sm text-muted-foreground">
-                  Enable players to issue challenges to others, with backend rules to ensure fair and competitive matches.
+                  Permite a los jugadores lanzar desafíos a otros, con reglas de backend para garantizar partidas justas y competitivas.
                 </p>
               </div>
               <div className="grid gap-1 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
                   <Shield className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">CRUD Operations</h3>
+                <h3 className="text-xl font-bold">Operaciones CRUD</h3>
                 <p className="text-sm text-muted-foreground">
-                  Full control over users, tournaments, and matches with comprehensive Create, Read, Update, and Delete functionality.
+                  Control total sobre usuarios, torneos y partidas con una funcionalidad completa de Crear, Leer, Actualizar y Eliminar.
                 </p>
               </div>
               <div className="grid gap-1 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
                   <TennisBallIcon className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Marketplace</h3>
+                <h3 className="text-xl font-bold">Mercado</h3>
                 <p className="text-sm text-muted-foreground">
-                  An integrated marketplace for users to trade, sell, or buy gaming-related items and services.
+                  Un mercado integrado para que los usuarios intercambien, vendan o compren artículos y servicios relacionados con los juegos.
                 </p>
               </div>
               <div className="grid gap-1 text-center">
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
                   <BarChart className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Advanced Statistics</h3>
+                <h3 className="text-xl font-bold">Estadísticas Avanzadas</h3>
                 <p className="text-sm text-muted-foreground">
-                  In-depth analytics on sets won, game win percentages, and more to help players improve their strategy.
+                  Análisis detallados sobre sets ganados, porcentajes de victorias en juegos y más para ayudar a los jugadores a mejorar su estrategia.
                 </p>
               </div>
             </div>
@@ -134,10 +134,10 @@ export default function Home() {
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
             <div className="space-y-3">
               <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                Smarter Tournament Management with <span className="text-primary">AI</span>
+                Gestión de Torneos más Inteligente con <span className="text-primary">IA</span>
               </h2>
               <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Let our AI assistant validate your tournament configurations, detect misconfigurations, and suggest improvements for a perfectly balanced event.
+                Deja que nuestro asistente de IA valide las configuraciones de tu torneo, detecte configuraciones incorrectas y sugiera mejoras para un evento perfectamente equilibrado.
               </p>
             </div>
             <div className="mx-auto w-full max-w-4xl">
@@ -145,17 +145,17 @@ export default function Home() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BrainCircuit className="h-6 w-6 text-primary" />
-                    AI-Powered Suggestions
+                    Sugerencias Impulsadas por IA
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-left space-y-4">
-                      <p className="text-muted-foreground">Simply input your tournament details, and our AI will analyze the setup for fairness, balance, and logistical soundness. It's like having a professional tournament organizer by your side.</p>
+                      <p className="text-muted-foreground">Simplemente introduce los detalles de tu torneo y nuestra IA analizará la configuración en busca de equidad, equilibrio y solidez logística. Es como tener un organizador de torneos profesional a tu lado.</p>
                       <div className="flex items-start space-x-4 rounded-md bg-secondary p-4">
                         <CheckCircle className="h-5 w-5 text-green-500 mt-1" />
                         <div>
-                          <p className="font-semibold">Suggestion Example</p>
-                          <p className="text-sm text-muted-foreground">Consider changing the format to Double Elimination for a tournament of this size to increase player engagement.</p>
+                          <p className="font-semibold">Ejemplo de Sugerencia</p>
+                          <p className="text-sm text-muted-foreground">Considera cambiar el formato a Doble Eliminación para un torneo de este tamaño para aumentar la participación de los jugadores.</p>
                         </div>
                       </div>
                   </div>
@@ -166,13 +166,13 @@ export default function Home() {
         </section>
       </main>
       <footer className="flex flex-col gap-2 sm:flex-row py-6 w-full shrink-0 items-center px-4 md:px-6 border-t">
-        <p className="text-xs text-muted-foreground">&copy; 2024 EvoLadder Manager. All rights reserved.</p>
+        <p className="text-xs text-muted-foreground">&copy; 2024 Gestor EvoLadder. Todos los derechos reservados.</p>
         <nav className="sm:ml-auto flex gap-4 sm:gap-6">
           <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
-            Terms of Service
+            Términos de Servicio
           </Link>
           <Link href="#" className="text-xs hover:underline underline-offset-4" prefetch={false}>
-            Privacy
+            Privacidad
           </Link>
         </nav>
       </footer>

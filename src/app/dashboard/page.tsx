@@ -25,66 +25,66 @@ export default function Dashboard() {
   return (
     <>
       <div className="flex items-center justify-between space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back, {player.name}!</h1>
+        <h1 className="text-3xl font-bold tracking-tight">¡Bienvenido de nuevo, {player.name}!</h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Current Rank</CardTitle>
+            <CardTitle className="text-sm font-medium">Clasificación Actual</CardTitle>
             <Trophy className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">#{player.rank}</div>
-            <p className="text-xs text-muted-foreground">Top 1% of all players</p>
+            <p className="text-xs text-muted-foreground">Top 1% de todos los jugadores</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Wins</CardTitle>
+            <CardTitle className="text-sm font-medium">Victorias</CardTitle>
             <Check className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{player.wins}</div>
-            <p className="text-xs text-muted-foreground">2 more to next rank</p>
+            <p className="text-xs text-muted-foreground">2 más para el siguiente rango</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Losses</CardTitle>
+            <CardTitle className="text-sm font-medium">Derrotas</CardTitle>
             <X className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{player.losses}</div>
-            <p className="text-xs text-muted-foreground">Your performance record</p>
+            <p className="text-xs text-muted-foreground">Tu historial de rendimiento</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Win Rate</CardTitle>
+            <CardTitle className="text-sm font-medium">Tasa de Victorias</CardTitle>
             <BarChart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {((player.wins / (player.wins + player.losses)) * 100).toFixed(1)}%
             </div>
-            <p className="text-xs text-muted-foreground">Compared to last season</p>
+            <p className="text-xs text-muted-foreground">Comparado con la temporada pasada</p>
           </CardContent>
         </Card>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7">
         <Card className="lg:col-span-4">
           <CardHeader>
-            <CardTitle>Recent Matches</CardTitle>
-            <CardDescription>An overview of your recent games.</CardDescription>
+            <CardTitle>Partidas Recientes</CardTitle>
+            <CardDescription>Un resumen de tus últimas partidas.</CardDescription>
           </CardHeader>
           <CardContent>
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Opponent</TableHead>
-                  <TableHead className="hidden md:table-cell">Status</TableHead>
-                  <TableHead className="hidden md:table-cell">Date</TableHead>
-                  <TableHead className="text-right">Result</TableHead>
+                  <TableHead>Oponente</TableHead>
+                  <TableHead className="hidden md:table-cell">Estado</TableHead>
+                  <TableHead className="hidden md:table-cell">Fecha</TableHead>
+                  <TableHead className="text-right">Resultado</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -100,12 +100,12 @@ export default function Dashboard() {
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
-                      <Badge variant={match.status === 'Completed' ? 'default' : 'secondary'}>{match.status}</Badge>
+                      <Badge variant={match.status === 'Completado' ? 'default' : 'secondary'}>{match.status}</Badge>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">{match.date}</TableCell>
                     <TableCell className="text-right">
                        <Badge variant={match.winnerId === player.id ? "default" : "destructive"}>
-                        {match.winnerId === player.id ? 'Win' : 'Loss'}
+                        {match.winnerId === player.id ? 'Victoria' : 'Derrota'}
                       </Badge>
                     </TableCell>
                   </TableRow>
@@ -116,8 +116,8 @@ export default function Dashboard() {
         </Card>
         <Card className="lg:col-span-3">
           <CardHeader>
-            <CardTitle>Active Challenges</CardTitle>
-            <CardDescription>Challenges awaiting your action.</CardDescription>
+            <CardTitle>Desafíos Activos</CardTitle>
+            <CardDescription>Desafíos que esperan tu acción.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className=" space-y-4">
@@ -129,13 +129,13 @@ export default function Dashboard() {
                   </Avatar>
                   <div className="ml-4 space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      {challenge.from.name} challenged {challenge.to.name}
+                      {challenge.from.name} desafió a {challenge.to.name}
                     </p>
-                    <p className="text-sm text-muted-foreground">Status: {challenge.status}</p>
+                    <p className="text-sm text-muted-foreground">Estado: {challenge.status}</p>
                   </div>
                   <div className="ml-auto font-medium flex gap-2">
-                    <Button size="sm" variant="outline"><Check className="h-4 w-4 mr-1"/> Accept</Button>
-                    <Button size="sm" variant="destructive"><X className="h-4 w-4 mr-1"/> Decline</Button>
+                    <Button size="sm" variant="outline"><Check className="h-4 w-4 mr-1"/> Aceptar</Button>
+                    <Button size="sm" variant="destructive"><X className="h-4 w-4 mr-1"/> Rechazar</Button>
                   </div>
                 </div>
               ))}
