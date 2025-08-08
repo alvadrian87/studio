@@ -16,7 +16,7 @@ import { db } from '@/lib/firebase';
 import type { Player, Match, Tournament, Challenge, Inscription } from '@/hooks/use-firestore';
 
 
-export const RegisterMatchResultInputSchema = z.object({
+const RegisterMatchResultInputSchema = z.object({
   matchId: z.string().describe("The ID of the match to update."),
   winnerId: z.string().describe("The UID of the winning player."),
   score: z.string().describe("The final score string, e.g., '6-4, 6-4'."),
@@ -25,7 +25,7 @@ export const RegisterMatchResultInputSchema = z.object({
 export type RegisterMatchResultInput = z.infer<typeof RegisterMatchResultInputSchema>;
 
 
-export const RegisterMatchResultOutputSchema = z.object({
+const RegisterMatchResultOutputSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 });
