@@ -35,6 +35,8 @@ import { useRouter } from "next/navigation";
 export default function LadderPage({ params }: { params: { id: string } }) {
   const resolvedParams = use(params);
   const router = useRouter();
+  console.log("LadderPage Params:", resolvedParams);
+  
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
   const { data: allChallenges, loading: loadingAllChallenges } = useCollection<Challenge>('challenges');
@@ -48,6 +50,10 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const { toast } = useToast();
 
   useEffect(() => {
+    console.log("Tournament Data:", tournament);
+    console.log("Inscriptions Data:", inscriptions);
+    console.log("All Players Data:", allPlayers);
+
     if (tournament) {
       const fetchEvents = async () => {
         setLoadingEventsAndData(true);
@@ -55,12 +61,13 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         const eventsQuery = query(collection(db, "eventos"), where("torneoId", "==", tournament.id));
         const eventsSnapshot = await getDocs(eventsQuery);
         const tournamentEvents = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TournamentEvent));
+        console.log("Fetched Events:", tournamentEvents);
         setEvents(tournamentEvents);
         setLoadingEventsAndData(false);
       };
       fetchEvents();
     }
-  }, [tournament]);
+  }, [tournament, inscriptions, allPlayers]);
 
   const getPlayerDetails = (playerId: string) => {
     return allPlayers?.find(p => p.uid === playerId);
@@ -68,13 +75,15 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   
   const getEventInscriptions = (eventId: string) => {
     if (!inscriptions) return [];
-    return inscriptions
+    const eventInscriptions = inscriptions
       .filter(i => i.eventoId === eventId)
       .map(i => ({
         ...i,
         playerDetails: getPlayerDetails(i.jugadorId!)
       }))
       .sort((a, b) => a.posicionActual - b.posicionActual);
+    console.log(`Participants for event ${eventId}:`, eventInscriptions);
+    return eventInscriptions;
   }
 
   const isUserEnrolledInEvent = (eventId: string) => {
@@ -96,7 +105,6 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     const newPosition = eventInscriptions.length + 1;
     
     const batch = writeBatch(db);
-    // Note: inscriptions are now in a subcollection of the tournament
     const newInscriptionRef = doc(collection(db, `tournaments/${tournament!.id}/inscriptions`));
 
     batch.set(newInscriptionRef, {
@@ -118,7 +126,6 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const canChallenge = (challengerInscription: Inscription | null | undefined, challengedInscription: Inscription) => {
     if (!challengerInscription || !tournament?.reglasLadder || !inscriptions) return false;
 
-    // A user cannot challenge someone if they already have a pending challenge
     const hasPendingChallenge = allChallenges?.some(c => 
         (c.retadorId === challengerInscription.jugadorId || c.desafiadoId === challengerInscription.jugadorId) && c.estado === 'Pendiente'
     );
@@ -138,16 +145,13 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     const eventParticipants = getEventInscriptions(challengedInscription.eventoId);
     const lastPosition = eventParticipants.length;
 
-    // Rule for the last position
     if (challengerPos === lastPosition) {
         return challengerPos - challengedPos <= posicionesDesafioArribaUltimoPuesto;
     }
-    // Rule for the first position being challenged
     if (challengedPos === 1) {
         return challengerPos <= posicionesDesafioAbajoPrimerPuesto + 1;
     }
 
-    // General rule
     return challengerPos - challengedPos <= posicionesDesafioArriba;
   };
 
@@ -322,5 +326,3 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
-
-    
