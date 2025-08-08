@@ -220,12 +220,12 @@ export default function DashboardLayout({
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="secondary" size="icon" className="rounded-full">
-                <Avatar>
+              <Button variant="ghost" className="relative flex items-center gap-3 pr-4 pl-2 rounded-full">
+                <Avatar className="h-8 w-8">
                   <AvatarImage src={user ? (player?.avatar || "https://placehold.co/40x40.png") : "https://placehold.co/40x40.png"} alt={user ? (player?.displayName || "Usuario") : "Guest"} />
                   <AvatarFallback>{user ? getAvatarFallback() : 'G'}</AvatarFallback>
                 </Avatar>
-                <span className="sr-only">Alternar menú de usuario</span>
+                <span className="hidden sm:inline-block font-medium">{user ? (player?.displayName || 'Usuario') : 'Invitado'}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
