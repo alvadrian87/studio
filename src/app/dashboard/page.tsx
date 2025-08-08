@@ -27,6 +27,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -39,6 +51,7 @@ import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc,
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { cn } from "@/lib/utils";
 
 
 export default function Dashboard() {
@@ -52,6 +65,7 @@ export default function Dashboard() {
   const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
   
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
   const [isSubmittingResult, setIsSubmittingResult] = useState(false);
@@ -62,6 +76,119 @@ export default function Dashboard() {
   ]);
   const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
   const [scoreError, setScoreError] = useState<string | null>(null);
+  const [scoreInputErrors, setScoreInputErrors] = useState<boolean[][]>([
+    [false, false],
+    [false, false],
+    [false, false],
+  ]);
+
+
+  // Call all hooks unconditionally at the top level
+  useEffect(() => {
+    if (!isResultDialogOpen) return;
+
+    const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
+    if (!p1 || !p2) return;
+    
+    const tournamentId = selectedMatch?.tournamentId;
+    const tournament = allTournaments?.find(t => t.id === tournamentId);
+    const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
+
+    let p1SetsWon = 0;
+    let p2SetsWon = 0;
+    let localError: string | null = null;
+    const newScoreInputErrors = [ [false, false], [false, false], [false, false] ];
+
+    const validateSet = (score1: number, score2: number, setIndex: number, isSuperTiebreak: boolean = false) => {
+        if (isNaN(score1) || isNaN(score2)) return null;
+        
+        const winningScore = isSuperTiebreak ? 10 : 6;
+        const tiebreakWinningScore = 7;
+
+        if (score1 === 6 && score2 === 6 && !isSuperTiebreak) {
+            // Tiebreak set, validation will happen on the tiebreak input
+            return null; 
+        }
+
+        if (score1 >= winningScore || score2 >= winningScore) {
+            // Standard set win
+            if (score1 > score2 && score1 >= score2 + 2) {
+                 if (score1 > 7 || (score1 === 7 && score2 < 5)) {
+                    localError = `Resultado inválido en el set ${setIndex + 1}.`;
+                    newScoreInputErrors[setIndex][0] = true;
+                    newScoreInputErrors[setIndex][1] = true;
+                }
+                return 'p1';
+            }
+             if (score2 > score1 && score2 >= score1 + 2) {
+                 if (score2 > 7 || (score2 === 7 && score1 < 5)) {
+                    localError = `Resultado inválido en el set ${setIndex + 1}.`;
+                    newScoreInputErrors[setIndex][0] = true;
+                    newScoreInputErrors[setIndex][1] = true;
+                }
+                return 'p2';
+            }
+        }
+
+        // Tiebreak win (7-6)
+        if (score1 === 7 && score2 === 6) return 'p1';
+        if (score2 === 7 && score1 === 6) return 'p2';
+
+        // Super Tiebreak win (10+)
+        if (isSuperTiebreak) {
+            if (score1 >= 10 && score1 >= score2 + 2) return 'p1';
+            if (score2 >= 10 && score2 >= score1 + 2) return 'p2';
+        }
+
+        // Invalid scores
+        if ( (score1 >= 6 || score2 >= 6) && (Math.abs(score1-score2) < 2) && !(score1===7 && score2===6) && !(score1===6 && score2===7) ) {
+             localError = `Un set debe ganarse por 2 juegos de diferencia.`;
+             newScoreInputErrors[setIndex][0] = true;
+             newScoreInputErrors[setIndex][1] = true;
+        }
+
+        return null;
+    }
+
+    for (let i = 0; i < 2; i++) {
+        const set = scores[i];
+        const score1 = parseInt(set.p1, 10);
+        const score2 = parseInt(set.p2, 10);
+        const setWinner = validateSet(score1, score2, i);
+        if (setWinner === 'p1') p1SetsWon++;
+        else if (setWinner === 'p2') p2SetsWon++;
+    }
+    
+    if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
+        const tiebreak = scores[2];
+        const score1 = parseInt(tiebreak.p1, 10);
+        const score2 = parseInt(tiebreak.p2, 10);
+
+        if (!isNaN(score1) && !isNaN(score2)) {
+             const setWinner = validateSet(score1, score2, 2, true);
+             if (setWinner === 'p1') {
+                p1SetsWon++;
+             } else if (setWinner === 'p2') {
+                p2SetsWon++;
+             }
+        }
+    }
+    
+    setScoreError(localError);
+    setScoreInputErrors(newScoreInputErrors);
+
+    if (p1SetsWon === 2 && p2SetsWon < 2) {
+        setWinnerId(p1.uid);
+        setIsWinnerRadioDisabled(true);
+    } else if (p2SetsWon === 2 && p1SetsWon < 2) {
+        setWinnerId(p2.uid);
+        setIsWinnerRadioDisabled(true);
+    } else {
+        setWinnerId(null);
+        setIsWinnerRadioDisabled(false);
+    }
+
+}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch]);
 
 
   const pendingChallenges = useMemo(() => {
@@ -129,6 +256,8 @@ export default function Dashboard() {
     setSelectedMatch(match);
     setWinnerId(null);
     setScores([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
+    setScoreError(null);
+    setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
     setIsResultDialogOpen(true);
   }
   
@@ -141,7 +270,7 @@ export default function Dashboard() {
   const formatScoreString = () => {
     return scores
       .map(set => `${set.p1}-${set.p2}`)
-      .filter(set => set !== '-' && set !== '0-0' && set !== '') 
+      .filter(set => set !== '-' && set !== '0-0' && set.p1 !== '' && set.p2 !== '')
       .join(', ');
   };
 
@@ -160,99 +289,11 @@ export default function Dashboard() {
     setScores(newScores);
   };
 
-  useEffect(() => {
-    if (!isResultDialogOpen) return;
-
-    const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
-    if (!p1 || !p2) return;
-    
-    const tournamentId = selectedMatch?.tournamentId;
-    const tournament = allTournaments?.find(t => t.id === tournamentId);
-    const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
-
-    let p1SetsWon = 0;
-    let p2SetsWon = 0;
-    let localError: string | null = null;
-
-    const validateSet = (score1: number, score2: number, isTiebreak: boolean = false) => {
-        if (isNaN(score1) || isNaN(score2)) return null;
-        
-        const winningScore = isTiebreak ? 7 : 6;
-        if (score1 === score2) return null; // Can't have a winner yet
-
-        if (score1 >= winningScore || score2 >= winningScore) {
-            if (score1 > score2 && score1 >= score2 + (isTiebreak ? 2 : (score1 === winningScore + 1 ? 1 : 2))) {
-                if (score1 === 6 && score2 === 5) localError = "Un set no puede terminar 6-5.";
-                else if (score1 >= winningScore && score1 < score2 + 2) localError = `El ganador del set debe tener una ventaja de 2 juegos (o ganar el tie-break).`;
-                return 'p1';
-            }
-            if (score2 > score1 && score2 >= score1 + (isTiebreak ? 2 : (score2 === winningScore + 1 ? 1 : 2))) {
-                if (score2 === 6 && score1 === 5) localError = "Un set no puede terminar 6-5.";
-                 else if (score2 >= winningScore && score2 < score1 + 2) localError = `El ganador del set debe tener una ventaja de 2 juegos (o ganar el tie-break).`;
-                return 'p2';
-            }
-        }
-        return null;
-    }
-
-    for (let i = 0; i < 2; i++) {
-        const set = scores[i];
-        const score1 = parseInt(set.p1, 10);
-        const score2 = parseInt(set.p2, 10);
-        
-        if (isNaN(score1) || isNaN(score2)) continue;
-
-        if (score1 === 6 && score2 === 6) {
-             // Tie-break scenario, do nothing here, let user fill tie-break points if applicable
-        } else {
-             const setWinner = validateSet(score1, score2);
-             if (setWinner === 'p1') p1SetsWon++;
-             else if (setWinner === 'p2') p2SetsWon++;
-        }
-        if (localError) break;
-    }
-    
-    setScoreError(localError);
-
-    if (p1SetsWon === 2) {
-        setWinnerId(p1.uid);
-        setIsWinnerRadioDisabled(true);
-        return;
-    }
-    if (p2SetsWon === 2) {
-        setWinnerId(p2.uid);
-        setIsWinnerRadioDisabled(true);
-        return;
-    }
-
-    if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
-        const tiebreak = scores[2];
-        const score1 = parseInt(tiebreak.p1, 10);
-        const score2 = parseInt(tiebreak.p2, 10);
-
-        if (isNaN(score1) || isNaN(score2)) {
-            setIsWinnerRadioDisabled(false);
-            setWinnerId(null);
-            return;
-        }
-
-        if (score1 >= 10 && score1 >= score2 + 2) {
-            setWinnerId(p1.uid);
-            setIsWinnerRadioDisabled(true);
-        } else if (score2 >= 10 && score2 >= score1 + 2) {
-            setWinnerId(p2.uid);
-            setIsWinnerRadioDisabled(true);
-        } else {
-            setWinnerId(null);
-            setIsWinnerRadioDisabled(false);
-        }
-    } else {
-        // Default case if no winner is determined
-        setIsWinnerRadioDisabled(false);
-        setWinnerId(null);
-    }
-}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch]);
-
+  const handleConfirmAndSave = async () => {
+    setIsConfirmDialogOpen(false); // Close confirmation dialog
+    await handleSaveResult(); // Proceed with saving
+  };
+  
     
   const handleSaveResult = async () => {
     if (!selectedMatch || !winnerId) {
@@ -314,13 +355,19 @@ export default function Dashboard() {
         const loserId = selectedMatch.player1Id === winnerId ? selectedMatch.player2Id : selectedMatch.player1Id;
         
       await runTransaction(db, async (transaction) => {
+        if (!selectedMatch?.tournamentId) throw new Error("ID de torneo no encontrado en la partida.");
+        
         const matchRef = doc(db, "matches", selectedMatch.id);
         const winnerRef = doc(db, "users", winnerId);
         const loserRef = doc(db, "users", loserId);
+        const tournamentRef = doc(db, "tournaments", selectedMatch.tournamentId);
+
+        const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
+          transaction.get(winnerRef),
+          transaction.get(loserRef),
+          transaction.get(tournamentRef)
+        ]);
         
-        const winnerDoc = await transaction.get(winnerRef);
-        const loserDoc = await transaction.get(loserRef);
-        const tournamentDoc = await transaction.get(doc(db, "tournaments", selectedMatch.tournamentId));
 
         if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) throw new Error("No se encontraron los datos de los jugadores o del torneo.");
         
@@ -331,7 +378,7 @@ export default function Dashboard() {
         if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
             const challengeRef = doc(db, "challenges", selectedMatch.challengeId);
             const challengeDoc = await transaction.get(challengeRef);
-            if (!challengeDoc.exists()) throw new Error("Challenge not found for ladder logic");
+            if (!challengeDoc.exists()) throw new Error("Desafío no encontrado para la lógica de escalera");
             const challengeData = challengeDoc.data() as Challenge;
 
             if (challengeData.eventoId) {
@@ -604,17 +651,17 @@ export default function Dashboard() {
                  <div className="flex justify-around items-center gap-2">
                     <div className="w-1/3 text-sm truncate">{playerInSelectedMatch?.displayName}</div>
                     <div className="flex-1 grid grid-cols-3 gap-2">
-                         <Input className="text-center" value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} />
-                         <Input className="text-center" value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} />
-                         <Input className="text-center" value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} />
+                         <Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} />
+                         <Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} />
+                         <Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} />
                     </div>
                 </div>
                  <div className="flex justify-around items-center gap-2">
                     <div className="w-1/3 text-sm truncate">{opponentInSelectedMatch?.displayName}</div>
                      <div className="flex-1 grid grid-cols-3 gap-2">
-                         <Input className="text-center" value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} />
-                         <Input className="text-center" value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} />
-                         <Input className="text-center" value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} />
+                         <Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} />
+                         <Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} />
+                         <Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} />
                     </div>
                 </div>
                 {scoreError && (
@@ -625,17 +672,35 @@ export default function Dashboard() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveResult} disabled={isSubmittingResult || !winnerId || !!scoreError}>
-              {isSubmittingResult && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Guardar Resultado
-            </Button>
+            <AlertDialog>
+                <AlertDialogTrigger asChild>
+                    <Button disabled={isSubmittingResult || !winnerId || !!scoreError}>
+                        Guardar Resultado
+                    </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmar Resultado</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        ¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.
+                        <div className="py-4 font-medium text-foreground">
+                            <p>Ganador: {getPlayerById(winnerId)?.displayName}</p>
+                            <p>Marcador: {formatScoreString()}</p>
+                        </div>
+                    </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmAndSave} disabled={isSubmittingResult}>
+                        {isSubmittingResult && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                        Confirmar y Guardar
+                    </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </>
   )
 }
-
-    
-
-    
