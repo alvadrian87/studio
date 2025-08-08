@@ -15,6 +15,7 @@ import { Label } from "../ui/label";
 export default function TournamentStep1Details() {
   const { control } = useFormContext();
   const tipoTorneo = useWatch({ control, name: "tipoTorneo" });
+  const fechaInicio = useWatch({ control, name: "fechaInicio" });
 
   return (
     <div className="space-y-6">
@@ -77,7 +78,7 @@ export default function TournamentStep1Details() {
                 render={({ field }) => (
                     <FormItem>
                         <FormLabel>Fecha de Fin</FormLabel>
-                        <FormControl><Input type="date" {...field} /></FormControl>
+                        <FormControl><Input type="date" {...field} min={fechaInicio} /></FormControl>
                         <FormMessage />
                     </FormItem>
                 )}

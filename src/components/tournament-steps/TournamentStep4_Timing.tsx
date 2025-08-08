@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import {
   FormControl,
   FormField,
@@ -18,8 +18,11 @@ interface Props {
 
 export default function TournamentStep4Timing({ isLadder }: Props) {
   const { control } = useFormContext();
-
   const stepNumber = isLadder ? 4 : 3;
+  
+  const fechaInicioInscripciones = useWatch({ control, name: "fechaInicioInscripciones" });
+  const fechaCierreInscripciones = useWatch({ control, name: "fechaCierreInscripciones" });
+
 
   return (
     <div className="space-y-6">
@@ -45,7 +48,7 @@ export default function TournamentStep4Timing({ isLadder }: Props) {
                 render={({ field }) => (
                     <FormItem>
                         <FormLabel>Cierre de Inscripciones</FormLabel>
-                        <FormControl><Input type="datetime-local" {...field} /></FormControl>
+                        <FormControl><Input type="datetime-local" {...field} min={fechaInicioInscripciones} /></FormControl>
                         <FormMessage />
                     </FormItem>
                 )}
@@ -59,7 +62,7 @@ export default function TournamentStep4Timing({ isLadder }: Props) {
                         render={({ field }) => (
                             <FormItem>
                                 <FormLabel>Cierre de Fase de Desafíos</FormLabel>
-                                <FormControl><Input type="datetime-local" {...field} /></FormControl>
+                                <FormControl><Input type="datetime-local" {...field} min={fechaCierreInscripciones} /></FormControl>
                                 <FormMessage />
                             </FormItem>
                         )}
