@@ -61,6 +61,8 @@ export default function Dashboard() {
     { p1: '', p2: '' }, // Set 3
   ]);
   const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
+  const [scoreError, setScoreError] = useState<string | null>(null);
+
 
   const pendingChallenges = useMemo(() => {
     if (!allChallenges || !user) return [];
@@ -139,7 +141,7 @@ export default function Dashboard() {
   const formatScoreString = () => {
     return scores
       .map(set => `${set.p1}-${set.p2}`)
-      .filter(set => set !== '-') // Filter out empty sets
+      .filter(set => set !== '-' && set !== '0-0' && set !== '') 
       .join(', ');
   };
 
@@ -159,76 +161,98 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-      if (!isResultDialogOpen) return;
+    if (!isResultDialogOpen) return;
 
-      const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
-      if (!p1 || !p2) return;
-      
-      const tournamentId = selectedMatch?.tournamentId;
-      const tournament = allTournaments?.find(t => t.id === tournamentId);
-      const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
+    const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
+    if (!p1 || !p2) return;
+    
+    const tournamentId = selectedMatch?.tournamentId;
+    const tournament = allTournaments?.find(t => t.id === tournamentId);
+    const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
 
-      let p1SetsWon = 0;
-      let p2SetsWon = 0;
+    let p1SetsWon = 0;
+    let p2SetsWon = 0;
+    let localError: string | null = null;
 
-      for (let i = 0; i < 2; i++) { // Only check first two sets for match winner
-          const set = scores[i];
-          const score1 = parseInt(set.p1, 10);
-          const score2 = parseInt(set.p2, 10);
+    const validateSet = (score1: number, score2: number, isTiebreak: boolean = false) => {
+        if (isNaN(score1) || isNaN(score2)) return null;
+        
+        const winningScore = isTiebreak ? 7 : 6;
+        if (score1 === score2) return null; // Can't have a winner yet
 
-          if (isNaN(score1) || isNaN(score2)) continue;
+        if (score1 >= winningScore || score2 >= winningScore) {
+            if (score1 > score2 && score1 >= score2 + (isTiebreak ? 2 : (score1 === winningScore + 1 ? 1 : 2))) {
+                if (score1 === 6 && score2 === 5) localError = "Un set no puede terminar 6-5.";
+                else if (score1 >= winningScore && score1 < score2 + 2) localError = `El ganador del set debe tener una ventaja de 2 juegos (o ganar el tie-break).`;
+                return 'p1';
+            }
+            if (score2 > score1 && score2 >= score1 + (isTiebreak ? 2 : (score2 === winningScore + 1 ? 1 : 2))) {
+                if (score2 === 6 && score1 === 5) localError = "Un set no puede terminar 6-5.";
+                 else if (score2 >= winningScore && score2 < score1 + 2) localError = `El ganador del set debe tener una ventaja de 2 juegos (o ganar el tie-break).`;
+                return 'p2';
+            }
+        }
+        return null;
+    }
 
-          if (score1 >= 6 && score1 >= score2 + 2) {
-              p1SetsWon++;
-          } else if (score2 >= 6 && score2 >= score1 + 2) {
-              p2SetsWon++;
-          } else if (score1 === 7 && (score2 === 6 || score2 === 5)) {
-              p1SetsWon++;
-          } else if (score2 === 7 && (score1 === 6 || score1 === 5)) {
-              p2SetsWon++;
-          }
-      }
+    for (let i = 0; i < 2; i++) {
+        const set = scores[i];
+        const score1 = parseInt(set.p1, 10);
+        const score2 = parseInt(set.p2, 10);
+        
+        if (isNaN(score1) || isNaN(score2)) continue;
 
-      if (p1SetsWon === 2) {
-          setWinnerId(p1.uid);
-          setIsWinnerRadioDisabled(true);
-          return;
-      }
-      if (p2SetsWon === 2) {
-          setWinnerId(p2.uid);
-          setIsWinnerRadioDisabled(true);
-          return;
-      }
+        if (score1 === 6 && score2 === 6) {
+             // Tie-break scenario, do nothing here, let user fill tie-break points if applicable
+        } else {
+             const setWinner = validateSet(score1, score2);
+             if (setWinner === 'p1') p1SetsWon++;
+             else if (setWinner === 'p2') p2SetsWon++;
+        }
+        if (localError) break;
+    }
+    
+    setScoreError(localError);
 
-      // Check for match tiebreak
-      if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
-          const tiebreak = scores[2];
-          const score1 = parseInt(tiebreak.p1, 10);
-          const score2 = parseInt(tiebreak.p2, 10);
+    if (p1SetsWon === 2) {
+        setWinnerId(p1.uid);
+        setIsWinnerRadioDisabled(true);
+        return;
+    }
+    if (p2SetsWon === 2) {
+        setWinnerId(p2.uid);
+        setIsWinnerRadioDisabled(true);
+        return;
+    }
 
-          if (isNaN(score1) || isNaN(score2)) {
-               setIsWinnerRadioDisabled(false);
-               setWinnerId(null);
-               return;
-          };
+    if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
+        const tiebreak = scores[2];
+        const score1 = parseInt(tiebreak.p1, 10);
+        const score2 = parseInt(tiebreak.p2, 10);
 
-          if (score1 >= 10 && score1 >= score2 + 2) {
-              setWinnerId(p1.uid);
-              setIsWinnerRadioDisabled(true);
-              return;
-          }
-          if (score2 >= 10 && score2 >= score1 + 2) {
-              setWinnerId(p2.uid);
-              setIsWinnerRadioDisabled(true);
-              return;
-          }
-      }
+        if (isNaN(score1) || isNaN(score2)) {
+            setIsWinnerRadioDisabled(false);
+            setWinnerId(null);
+            return;
+        }
 
-      // Default case if no winner is determined
-      setIsWinnerRadioDisabled(false);
-      setWinnerId(null);
+        if (score1 >= 10 && score1 >= score2 + 2) {
+            setWinnerId(p1.uid);
+            setIsWinnerRadioDisabled(true);
+        } else if (score2 >= 10 && score2 >= score1 + 2) {
+            setWinnerId(p2.uid);
+            setIsWinnerRadioDisabled(true);
+        } else {
+            setWinnerId(null);
+            setIsWinnerRadioDisabled(false);
+        }
+    } else {
+        // Default case if no winner is determined
+        setIsWinnerRadioDisabled(false);
+        setWinnerId(null);
+    }
+}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch]);
 
-  }, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch]);
     
   const handleSaveResult = async () => {
     if (!selectedMatch || !winnerId) {
@@ -241,14 +265,17 @@ export default function Dashboard() {
       toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los jugadores." });
       return;
     }
+    
+    if (scoreError) {
+        toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError });
+        return;
+    }
 
-    // Score validation logic
+    // Final validation before submitting
     let p1SetsWon = 0;
     let p2SetsWon = 0;
-    
-    const tournamentDoc = await getDoc(doc(db, "tournaments", selectedMatch.tournamentId));
-    const tournamentData = tournamentDoc.data() as Tournament;
-    const isSuperTiebreakFormat = tournamentData.formatoScore === '2 Sets + Super Tiebreak';
+    const tournament = allTournaments?.find(t => t.id === selectedMatch.tournamentId);
+    const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
 
     for (let i = 0; i < 2; i++) {
         const set = scores[i];
@@ -256,16 +283,8 @@ export default function Dashboard() {
         const score2 = parseInt(set.p2, 10);
 
         if (isNaN(score1) || isNaN(score2)) continue;
-
-        if (score1 >= 6 && score1 >= score2 + 2) {
-            p1SetsWon++;
-        } else if (score2 >= 6 && score2 >= score1 + 2) {
-            p2SetsWon++;
-        } else if (score1 === 7 && (score2 === 6 || score2 === 5)) {
-            p1SetsWon++;
-        } else if (score2 === 7 && (score1 === 6 || score1 === 5)) {
-            p2SetsWon++;
-        }
+        if ((score1 >= 6 && score1 >= score2 + 2) || (score1 === 7 && (score2 === 5 || score2 === 6))) p1SetsWon++;
+        else if ((score2 >= 6 && score2 >= score1 + 2) || (score2 === 7 && (score1 === 5 || score1 === 6))) p2SetsWon++;
     }
     
     if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
@@ -274,21 +293,16 @@ export default function Dashboard() {
         const score2 = parseInt(tiebreak.p2, 10);
         if (!isNaN(score1) && !isNaN(score2)) {
             if (score1 >= 10 && score1 >= score2 + 2) p1SetsWon++;
-            if (score2 >= 10 && score2 >= score1 + 2) p2SetsWon++;
+            else if (score2 >= 10 && score2 >= score1 + 2) p2SetsWon++;
         }
     }
     
-    if ((p1SetsWon < 2 && p2SetsWon < 2) || p1SetsWon === p2SetsWon) {
-        toast({ variant: "destructive", title: "Marcador Incompleto o Inválido", description: "El partido no ha concluido o el marcador es inválido. Un jugador debe ganar 2 sets." });
-        return;
-    }
-
-    const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : p2.uid;
+    const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : (p2SetsWon > p1SetsWon ? p2.uid : null);
     if (calculatedWinnerId !== winnerId) {
         toast({
             variant: "destructive",
             title: "Error de Validación",
-            description: "El marcador no coincide con el ganador seleccionado. Por favor, revisa los datos.",
+            description: "El marcador no coincide con el ganador seleccionado o está incompleto. Por favor, revisa los datos.",
         });
         return;
     }
@@ -306,11 +320,13 @@ export default function Dashboard() {
         
         const winnerDoc = await transaction.get(winnerRef);
         const loserDoc = await transaction.get(loserRef);
+        const tournamentDoc = await transaction.get(doc(db, "tournaments", selectedMatch.tournamentId));
 
-        if (!winnerDoc.exists() || !loserDoc.exists()) throw new Error("No se encontraron los datos de uno de los jugadores.");
+        if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) throw new Error("No se encontraron los datos de los jugadores o del torneo.");
         
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
+        const tournamentData = tournamentDoc.data() as Tournament;
         
         if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
             const challengeRef = doc(db, "challenges", selectedMatch.challengeId);
@@ -338,7 +354,8 @@ export default function Dashboard() {
                         const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
 
                         const challengerIsWinner = winnerId === challengeData.retadorId;
-
+                        
+                        // Challenger must be ranked lower to swap positions
                         if (challengerIsWinner && winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
                             const winnerOldPosition = winnerInscriptionData.posicionActual;
                             const loserOldPosition = loserInscriptionData.posicionActual;
@@ -379,7 +396,9 @@ export default function Dashboard() {
     }
   };
 
-  if (loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments) {
+  const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments;
+
+  if (loading) {
     return <div>Cargando...</div>
   }
   
@@ -598,12 +617,15 @@ export default function Dashboard() {
                          <Input className="text-center" value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} />
                     </div>
                 </div>
+                {scoreError && (
+                    <p className="text-sm font-medium text-destructive text-center pt-2">{scoreError}</p>
+                )}
             </div>
 
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSaveResult} disabled={isSubmittingResult || !winnerId}>
+            <Button onClick={handleSaveResult} disabled={isSubmittingResult || !winnerId || !!scoreError}>
               {isSubmittingResult && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Guardar Resultado
             </Button>
@@ -613,5 +635,7 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
 
     
