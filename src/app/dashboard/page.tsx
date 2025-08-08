@@ -36,7 +36,6 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
 import { Label } from "@/components/ui/label";
@@ -78,6 +77,7 @@ export default function Dashboard() {
     { p1: '', p2: '' }, // Set 3
   ]);
   const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
+  const [isThirdSetDisabled, setIsThirdSetDisabled] = useState(false);
   const [scoreError, setScoreError] = useState<string | null>(null);
   const [scoreInputErrors, setScoreInputErrors] = useState<boolean[][]>([
     [false, false],
@@ -108,6 +108,7 @@ export default function Dashboard() {
         setScoreError(null);
         setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
         setIsWinnerRadioDisabled(false);
+        setIsThirdSetDisabled(false);
         return;
     }
     
@@ -123,77 +124,96 @@ export default function Dashboard() {
     const validateSet = (score1Str: string, score2Str: string, setIndex: number, isSuperTiebreak: boolean = false) => {
         const score1 = parseInt(score1Str, 10);
         const score2 = parseInt(score2Str, 10);
-        if (isNaN(score1) && isNaN(score2)) return null;
 
+        if (isNaN(score1) && isNaN(score2)) return null; // Empty set, not a win for anyone
 
         const hasError = (msg: string) => {
             localError = msg;
             newScoreInputErrors[setIndex][0] = true;
             newScoreInputErrors[setIndex][1] = true;
         };
-        
-        const tiebreakWinningScore = 7;
-        
+
+        if (isNaN(score1) || isNaN(score2)) {
+             hasError('Ambos campos del set deben estar completos.');
+             return null;
+        }
+
         if (!isSuperTiebreak) {
             // Regular Set Validation
-             if (score1 > tiebreakWinningScore || score2 > tiebreakWinningScore) {
-                 hasError(`Un set no puede tener más de ${tiebreakWinningScore} juegos.`);
+             const winningScore = 6;
+             const tiebreakScore = 7;
+             if (score1 > tiebreakScore || score2 > tiebreakScore) {
+                 hasError(`Un set no puede tener más de ${tiebreakScore} juegos.`);
                  return null;
              }
-             if ((score1 === tiebreakWinningScore && score2 < 5) || (score2 === tiebreakWinningScore && score1 < 5) || (score1 === 7 && score2 === 7)) {
-                hasError(`Un marcador de ${tiebreakWinningScore} es solo para tiebreaks (7-6 o 7-5).`);
+             if (score1 < 0 || score2 < 0) {
+                 hasError('Los juegos no pueden ser negativos.');
+                 return null;
+             }
+             if (score1 === score2 && score1 >= winningScore) {
+                if(score1 === winningScore) return null; // 6-6 valid for tie-break
+                hasError(`Marcador inválido: ${score1}-${score2}.`);
                 return null;
              }
-
-             if(score1 === 6 && score2 === 6) { // Tie-break
-                 // No winner yet, valid state
-                 return null;
-             }
-
-             if ((score1 >= 6 || score2 >= 6) && Math.abs(score1 - score2) < 2) {
-                if(!((score1 === 6 && score2 === 5) || (score2 === 6 && score1 === 5) || (score1 === 7 && score2 === 6) || (score2 === 7 && score1 === 6))) {
-                    hasError('Debe haber una diferencia de 2 juegos para ganar un set, o llegar a 7-5 o 7-6.');
-                    return null;
-                }
+             
+             if ( (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) < 2 ) {
+                 if ( !( (score1 === tiebreakScore && score2 === tiebreakScore - 1) || (score2 === tiebreakScore && score1 === tiebreakScore - 1) || (score1 === tiebreakScore -1 && score2 === tiebreakScore - 2) || (score2 === tiebreakScore -1 && score1 === tiebreakScore - 2)) ) {
+                     hasError('El ganador de un set debe tener una diferencia de 2 juegos, o ganar 7-6/7-5.');
+                     return null;
+                 }
              }
              
-             if (score1 === 6 && score2 === 5 || score2 === 6 && score1 === 5) {
-                // valid state, but no winner yet.
-                return null
-             }
-
-             if ((score1 === 7 && score2 === 5) || (score1 > score2 && score1 === 6)) return 'p1';
-             if ((score2 === 7 && score1 === 5) || (score2 > score1 && score2 === 6)) return 'p2';
-             if (score1 === 7 && score2 === 6) return 'p1';
-             if (score2 === 7 && score1 === 6) return 'p2';
+             if ( (score1 > score2 && score1 === winningScore && score2 < winningScore -1) || (score2 > score1 && score2 === winningScore && score1 < winningScore -1) ) return score1 > score2 ? 'p1' : 'p2';
+             if ( (score1 === tiebreakScore && (score2 === tiebreakScore - 2 || score2 === tiebreakScore - 1)) || (score2 === tiebreakScore && (score1 === tiebreakScore - 2 || score1 === tiebreakScore - 1)) ) return score1 > score2 ? 'p1' : 'p2';
 
         } else {
             // Super Tiebreak Validation
             const winningScore = 10;
+            if (score1 < 0 || score2 < 0) {
+                 hasError('Los puntos no pueden ser negativos.');
+                 return null;
+            }
             if (score1 < winningScore && score2 < winningScore) return null; // Not finished
             
             if (Math.abs(score1 - score2) < 2) {
                 hasError('El Súper Tiebreak debe ganarse por 2 puntos de diferencia.');
                 return null;
             }
-             if (score1 > score2) return 'p1';
-             if (score2 > score1) return 'p2';
+             if ((score1 > score2 && score1 >= winningScore) || (score2 > score1 && score2 >= winningScore)) {
+                if (Math.abs(score1 - score2) !== 2 && (score1 > winningScore || score2 > winningScore)) {
+                     hasError(`Resultado inválido. Con más de 10 puntos, la diferencia debe ser 2. (Ej: 11-9, 12-10)`);
+                     return null;
+                }
+                return score1 > score2 ? 'p1' : 'p2';
+             }
         }
         
         return null;
     }
 
-    const setsToValidate = 3;
-    for (let i = 0; i < setsToValidate; i++) {
-        if (localError || p1SetsWon >= 2 || p2SetsWon >= 2) continue;
-
-        const isLastSetSuperTiebreak = isSuperTiebreakFormat && i === 2 && p1SetsWon === 1 && p2SetsWon === 1;
+    // Validate first two sets
+    for (let i = 0; i < 2; i++) {
+        if (localError) continue;
         const set = scores[i];
-        const setWinner = validateSet(set.p1, set.p2, i, isLastSetSuperTiebreak);
-
+        const setWinner = validateSet(set.p1, set.p2, i, false);
         if (setWinner === 'p1') p1SetsWon++;
         else if (setWinner === 'p2') p2SetsWon++;
     }
+
+    if (!localError && (p1SetsWon === 2 || p2SetsWon === 2)) {
+        setIsThirdSetDisabled(true);
+    } else {
+        setIsThirdSetDisabled(false);
+        // Validate third set only if needed
+        if (!localError) {
+             const isLastSetSuperTiebreak = isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1;
+             const set = scores[2];
+             const setWinner = validateSet(set.p1, set.p2, 2, isLastSetSuperTiebreak);
+             if (setWinner === 'p1') p1SetsWon++;
+             else if (setWinner === 'p2') p2SetsWon++;
+        }
+    }
+
 
     setScoreError(localError);
     setScoreInputErrors(newScoreInputErrors);
@@ -278,6 +298,7 @@ export default function Dashboard() {
     setScoreError(null);
     setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
     setIsRetirement(false);
+    setIsThirdSetDisabled(false);
     setIsResultDialogOpen(true);
   }
   
@@ -331,7 +352,7 @@ export default function Dashboard() {
             if(isNaN(score1) || isNaN(score2)) return;
 
             if (score1 > score2) p1SetsWon++;
-            else if (score2 > score1) p2SetsWon++;
+            else if (score2 > p1SetsWon) p2SetsWon++;
         });
         
         const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : (p2SetsWon > p1SetsWon ? p2.uid : null);
@@ -588,7 +609,7 @@ export default function Dashboard() {
                     <div className="flex-1 grid grid-cols-3 gap-2">
                          <Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} disabled={isRetirement} />
                          <Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} disabled={isRetirement} />
-                         <Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isRetirement || (tournamentInSelectedMatch?.formatoScore === '2 Sets + Super Tiebreak' && (parseInt(scores[0].p1) + parseInt(scores[1].p1) === 0 || parseInt(scores[0].p2) + parseInt(scores[1].p2) === 0) ) } />
+                         <Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isRetirement || isThirdSetDisabled} />
                     </div>
                 </div>
                  <div className="flex justify-around items-center gap-2">
@@ -596,7 +617,7 @@ export default function Dashboard() {
                      <div className="flex-1 grid grid-cols-3 gap-2">
                          <Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} disabled={isRetirement}/>
                          <Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} disabled={isRetirement}/>
-                         <Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isRetirement || (tournamentInSelectedMatch?.formatoScore === '2 Sets + Super Tiebreak' && (parseInt(scores[0].p1) + parseInt(scores[1].p1) === 0 || parseInt(scores[0].p2) + parseInt(scores[1].p2) === 0) ) }/>
+                         <Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isRetirement || isThirdSetDisabled}/>
                     </div>
                 </div>
                 {scoreError && (
@@ -631,9 +652,9 @@ export default function Dashboard() {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Confirmar Resultado</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            ¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.
-                        </AlertDialogDescription>
+                            <AlertDialogDescription>
+                                ¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.
+                            </AlertDialogDescription>
                     </AlertDialogHeader>
                      <div className="py-4 font-medium text-foreground text-sm">
                         <div><strong>Ganador:</strong> {getPlayerById(winnerId)?.displayName}</div>
@@ -654,3 +675,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
