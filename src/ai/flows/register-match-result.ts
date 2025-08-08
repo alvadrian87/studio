@@ -3,14 +3,8 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import admin from 'firebase-admin';
+import { db } from '@/lib/firebase-admin'; // Usar la instancia centralizada
 import type { Player, Match, Tournament, Challenge } from '@/types';
-
-// Initialize Firebase Admin SDK if not already initialized
-if (!admin.apps.length) {
-    admin.initializeApp();
-}
-const db = admin.firestore();
 
 
 const RegisterMatchResultInputSchema = z.object({
@@ -46,7 +40,7 @@ export const registerMatchResult = ai.defineFlow(
         if (!matchDoc.exists) {
             return { success: false, message: "La partida no fue encontrada." };
         }
-
+        
         const matchData = matchDoc.data() as Match;
         if(matchData.status === 'Completado') {
             return { success: false, message: "Este resultado ya ha sido registrado." };
