@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -7,6 +8,7 @@ import { db } from '@/lib/firebase';
 // Type definitions based on your data structure
 export interface Player {
   id: string; // This will be the user's UID from auth
+  uid: string;
   displayName: string;
   email: string;
   avatar?: string;
@@ -18,11 +20,12 @@ export interface Player {
 
 export interface Match {
   id: string;
-  player1: Player;
-  player2: Player;
+  player1Id: string;
+  player2Id: string;
   winnerId: string | null;
   status: 'Pendiente' | 'Completado' | 'En Progreso';
   date: string;
+  tournamentId: string;
 }
 
 export interface Tournament {
@@ -43,9 +46,14 @@ export interface Tournament {
 
 export interface Challenge {
     id: string;
-    from: Player;
-    to: Player;
+    challengerId: string;
+    challengerName: string;
+    challengedId: string;
+    challengedName: string;
+    tournamentId: string;
+    tournamentName: string;
     status: 'Pendiente' | 'Aceptado' | 'Rechazado';
+    date: string;
 }
 
 
@@ -82,6 +90,11 @@ export function useDocument<T extends DocumentData>(docPath: string) {
   const [error, setError] = useState<FirestoreError | null>(null);
 
   useEffect(() => {
+    if (!docPath || docPath.includes('dummy')) {
+        setLoading(false);
+        setData(null);
+        return;
+    }
     const docRef = doc(db, docPath);
     const unsubscribe = onSnapshot(docRef, (docSnap) => {
       if (docSnap.exists()) {

@@ -1,5 +1,7 @@
+
 "use client";
 
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -18,7 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { BarChart, Check, Clock, Swords, Trophy, X } from "lucide-react"
+import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge } from "@/hooks/use-firestore";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
@@ -29,8 +31,12 @@ export default function Dashboard() {
   // Fetch the current user's player data from the 'users' collection
   const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
   const { data: matches, loading: loadingMatches } = useCollection<Match>('matches');
-  const { data: challenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
+  const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
   
+  const pendingChallenges = useMemo(() => {
+    if (!allChallenges || !user) return [];
+    return allChallenges.filter(c => c.challengedId === user.uid && c.status === 'Pendiente');
+  }, [allChallenges, user]);
 
   if (loadingPlayer || loadingMatches || loadingChallenges) {
     return <div>Cargando...</div>
@@ -47,7 +53,7 @@ export default function Dashboard() {
   return (
     <>
       <div className="flex items-center justify-between space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">¡Bienvenido de nuevo, {user?.displayName || 'Jugador'}!</h1>
+        <h1 className="text-3xl font-bold tracking-tight">¡Bienvenido de nuevo, {player.displayName || 'Jugador'}!</h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -126,10 +132,27 @@ export default function Dashboard() {
             <CardDescription>Desafíos que esperan tu acción.</CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Challenges need to be fetched and filtered for the current user */}
-            <div className="text-center py-8 text-muted-foreground">
-              No tienes desafíos activos.
-            </div>
+            {pendingChallenges.length > 0 ? (
+              <ul className="space-y-4">
+                {pendingChallenges.map(challenge => (
+                  <li key={challenge.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div>
+                      <p className="font-medium">{challenge.challengerName}</p>
+                      <p className="text-sm text-muted-foreground">Te ha desafiado en: <span className="font-semibold text-primary">{challenge.tournamentName}</span></p>
+                    </div>
+                    <div className="flex gap-2">
+                       <Button size="sm" variant="outline">Rechazar</Button>
+                       <Button size="sm">Aceptar</Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-center py-8 text-muted-foreground flex flex-col items-center">
+                <ShieldQuestion className="h-10 w-10 mb-2" />
+                <p>No tienes desafíos pendientes.</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

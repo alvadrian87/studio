@@ -2,7 +2,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { doc, updateDoc, arrayUnion, arrayRemove, getDocs, collection, query, where } from "firebase/firestore";
+import { doc, updateDoc, arrayUnion, arrayRemove, getDocs, collection, query, where, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button"
 import {
@@ -27,6 +27,7 @@ import type { Player, Tournament } from "@/hooks/use-firestore";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { useEffect } from "react";
+import { format } from "date-fns";
 
 export default function LadderPage({ params }: { params: { id: string } }) {
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${params.id}`);
@@ -154,6 +155,39 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const handleChallenge = async (challengedPlayer: Player) => {
+    if (!user || !user.displayName || !tournament) {
+        toast({ variant: "destructive", title: "Error", description: "No se puede enviar el desafío. Falta información." });
+        return;
+    };
+
+    try {
+        await addDoc(collection(db, "challenges"), {
+            challengerId: user.uid,
+            challengerName: user.displayName,
+            challengedId: challengedPlayer.uid,
+            challengedName: challengedPlayer.displayName,
+            tournamentId: tournament.id,
+            tournamentName: tournament.name,
+            status: "Pendiente",
+            date: format(new Date(), "yyyy-MM-dd HH:mm"),
+        });
+
+        toast({
+            title: "¡Desafío Enviado!",
+            description: `Has desafiado a ${challengedPlayer.displayName}.`,
+        });
+
+    } catch (error) {
+        console.error("Error creating challenge:", error);
+        toast({
+            variant: "destructive",
+            title: "Error",
+            description: "No se pudo enviar el desafío. Inténtalo de nuevo.",
+        });
+    }
+  };
+
 
   if (loadingTournament) {
     return <div>Cargando...</div>
@@ -226,7 +260,12 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                     <TableCell className="hidden md:table-cell text-green-500 font-medium">{player.globalWins}</TableCell>
                     <TableCell className="hidden md:table-cell text-red-500 font-medium">{player.globalLosses}</TableCell>
                     <TableCell className="text-right">
-                        <Button variant="outline" size="sm" disabled={tournament.status !== 'En Curso' || player.uid === user?.uid}>
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            disabled={tournament.status !== 'En Curso' || player.uid === user?.uid}
+                            onClick={() => handleChallenge(player)}
+                        >
                             <Swords className="h-4 w-4 mr-2" />
                             Desafiar
                         </Button>
