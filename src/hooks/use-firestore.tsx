@@ -37,22 +37,48 @@ export interface Match {
 }
 
 export interface Tournament {
-  id:string;
-  name: string;
-  format: 'Eliminación Simple' | 'Doble Eliminación' | 'Round Robin' | 'Escalera';
-  location: string;
-  status: 'Próximo' | 'En Curso' | 'Completado';
-  startDate: string;
-  endDate: string;
-  numberOfPlayers: number;
-  entryFee: number;
-  prizePoolDistribution: string;
-  rules: string;
-  creatorId: string; // To track who created the tournament
-  participants: string[]; // Array of player UIDs
-  isRanked: boolean; // Determines if matches affect global ELO rating
-  bannerUrl?: string;
+  id: string;
+  creatorId: string;
+  status: 'Próximo' | 'En Curso' | 'Completado' | 'Borrador';
+  // Step 1
+  tipoTorneo: 'Individual' | 'Por Equipos';
+  nombreTorneo: string;
+  descripcion?: string;
+  organizacion: string;
+  fechaInicio: string;
+  fechaFin: string;
+  ubicacion: string;
+  imagenBannerUrl?: string;
+  // Step 3
+  fechaInicioInscripciones: string;
+  fechaCierreInscripciones: string;
+  maximoInscripciones?: number;
+  contactoNombre: string;
+  contactoEmail: string;
+  contactoTelefono?: string;
 }
+
+export interface TournamentEvent {
+    id?: string; // ID is optional because it might not exist on creation
+    torneoId?: string; 
+    nombre: string; 
+    formatoTorneo: 'Single Elimination' | 'Round Robin' | 'First Match Backdraw' | 'Ladder' | '';
+    // Individual
+    tipoDeJuego?: 'Singles' | 'Dobles';
+    sexo?: 'Femenino' | 'Masculino' | 'Mixto' | 'Abierto';
+    edadMinima?: number;
+    edadMaxima?: number;
+    eloMinimo?: number;
+    eloMaximo?: number;
+    tarifaInscripcion?: number;
+    // Equipos
+    numJugadoresPorEquipo?: number;
+    configuracionRonda?: string;
+    eloMinimoEquipo?: number;
+    eloMaximoEquipo?: number;
+    tarifaInscripcionEquipo?: number;
+}
+
 
 export interface Challenge {
     id: string;
@@ -62,6 +88,25 @@ export interface Challenge {
     tournamentName: string;
     status: 'Pendiente' | 'Aceptado' | 'Rechazado';
     date: string;
+}
+
+export interface Team {
+  id: string;
+  torneoId: string;
+  eventoId: string;
+  nombreEquipo: string;
+  capitanId: string; // player uid
+  jugadoresIds: string[]; // array of player uids
+}
+
+export interface Inscription {
+  id: string;
+  torneoId: string;
+  eventoId: string;
+  jugadorId: string; // player uid
+  equipoId?: string; // if team tournament
+  fechaInscripcion: string;
+  status: 'Confirmado' | 'En Espera';
 }
 
 

@@ -1,6 +1,7 @@
+
 "use client";
 
-import { TournamentForm } from "@/components/tournament-form"
+// import { TournamentForm } from "@/components/tournament-form"
 import {
   Card,
   CardContent,
@@ -21,22 +22,26 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
   if (!tournament) {
     return <div>Torneo no encontrado.</div>;
   }
+  
+  // The new TournamentForm is for creation only for now. 
+  // Editing a complex tournament with events requires a different logic flow.
+  // We will show a placeholder message for now.
 
   return (
     <>
         <div className="flex items-center justify-between space-y-2">
             <div className="flex flex-col w-full">
                 <h1 className="text-3xl font-bold tracking-tight">Editar Torneo</h1>
-                <p className="text-muted-foreground">Actualiza los detalles de tu torneo a continuación.</p>
+                <p className="text-muted-foreground">La edición de torneos se implementará en una futura actualización.</p>
             </div>
         </div>
         <Card>
             <CardHeader>
-                <CardTitle>Detalles del Torneo</CardTitle>
-                <CardDescription>Usa nuestro asistente de IA para ayudarte a optimizar los ajustes.</CardDescription>
+                <CardTitle>Función en Desarrollo</CardTitle>
+                <CardDescription>El nuevo wizard de creación es el primer paso. La edición de estos nuevos y complejos torneos vendrá pronto.</CardDescription>
             </CardHeader>
             <CardContent>
-                <TournamentForm tournament={tournament} />
+                <p>Torneo: {tournament.nombreTorneo}</p>
             </CardContent>
         </Card>
     </>

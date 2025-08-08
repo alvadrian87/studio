@@ -4,7 +4,7 @@
 import Link from "next/link"
 import { PlusCircle, MoreHorizontal } from "lucide-react"
 import { useState } from "react";
-import { doc, deleteDoc } from "firebase/firestore";
+import { doc, deleteDoc, collection, query, where, getDocs, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 import { Badge } from "@/components/ui/badge"
@@ -45,6 +45,7 @@ import { useCollection } from "@/hooks/use-firestore"
 import type { Tournament } from "@/hooks/use-firestore"
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
+import { format } from "date-fns";
 
 export default function TournamentsPage() {
   const { data: tournaments, loading } = useCollection<Tournament>('tournaments');
@@ -61,10 +62,27 @@ export default function TournamentsPage() {
   const handleDeleteConfirm = async () => {
     if (!selectedTournamentId) return;
     try {
-      await deleteDoc(doc(db, "tournaments", selectedTournamentId));
+      const batch = writeBatch(db);
+
+      // Delete the tournament document
+      const tournamentRef = doc(db, "tournaments", selectedTournamentId);
+      batch.delete(tournamentRef);
+
+      // Query and delete associated events
+      const eventsRef = collection(db, "eventos");
+      const q = query(eventsRef, where("torneoId", "==", selectedTournamentId));
+      const querySnapshot = await getDocs(q);
+      querySnapshot.forEach((doc) => {
+        batch.delete(doc.ref);
+      });
+      
+      // We can extend this to delete inscriptions, matches, etc. if needed
+
+      await batch.commit();
+
       toast({
         title: "Torneo Eliminado",
-        description: "El torneo ha sido eliminado exitosamente.",
+        description: "El torneo y sus eventos asociados han sido eliminados.",
       });
     } catch (error) {
        toast({
@@ -114,8 +132,8 @@ export default function TournamentsPage() {
               <TableRow>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead className="hidden md:table-cell">Formato</TableHead>
-                <TableHead className="hidden md:table-cell">Ubicación</TableHead>
+                <TableHead className="hidden md:table-cell">Tipo</TableHead>
+                <TableHead className="hidden md:table-cell">Fecha Inicio</TableHead>
                 <TableHead>
                   <span className="sr-only">Acciones</span>
                 </TableHead>
@@ -127,14 +145,14 @@ export default function TournamentsPage() {
                 
                 return (
                   <TableRow key={tournament.id}>
-                    <TableCell className="font-medium">{tournament.name}</TableCell>
+                    <TableCell className="font-medium">{tournament.nombreTorneo}</TableCell>
                     <TableCell>
                       <Badge variant={tournament.status === 'En Curso' ? 'default' : 'secondary'}>
                         {tournament.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell">{tournament.format}</TableCell>
-                    <TableCell className="hidden md:table-cell">{tournament.location}</TableCell>
+                    <TableCell className="hidden md:table-cell">{tournament.tipoTorneo}</TableCell>
+                    <TableCell className="hidden md:table-cell">{format(new Date(tournament.fechaInicio), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
@@ -180,7 +198,7 @@ export default function TournamentsPage() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás absolutely seguro?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Esto eliminará permanentemente el torneo
               y todos sus datos asociados de nuestros servidores.
