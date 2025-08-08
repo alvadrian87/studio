@@ -25,23 +25,6 @@ import TournamentStep3LadderRules from "./tournament-steps/TournamentStep3_Ladde
 import TournamentStep4Timing from "./tournament-steps/TournamentStep4_Timing";
 import TournamentStep5Summary from "./tournament-steps/TournamentStep5_Summary";
 
-// Base schemas for individual steps
-const step0Schema = z.object({
-    tipoTorneo: z.enum(['Evento por Llaves', 'Evento tipo Escalera'], { required_error: "Debes seleccionar un tipo de torneo." }),
-});
-
-const step1Schema = z.object({
-    nombreTorneo: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
-    descripcion: z.string().optional(),
-    organizacion: z.string().min(2, "La organización es requerida."),
-    fechaInicio: z.string().min(1, "La fecha de inicio es requerida."),
-    fechaFin: z.string().min(1, "La fecha de fin es requerida."),
-    ubicacion: z.string().min(2, "La ubicación es requerida."),
-    imagenBannerUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal('')),
-}).refine(data => new Date(data.fechaFin) >= new Date(data.fechaInicio), {
-    message: "La fecha de fin no puede ser anterior a la de inicio.",
-    path: ["fechaFin"],
-});
 
 const eventSchema = z.object({
     nombre: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
@@ -65,52 +48,48 @@ const ladderEventSchema = z.object({
     ELOminimoEquipo: z.coerce.number().int().optional(),
     ELOmaximoEquipo: z.coerce.number().int().optional(),
     tarifaInscripcion: z.coerce.number().min(0),
-}).refine(data => !data.ELOmaximo || data.ELOmaximo >= (data.ELOminimo || 0), {
+}).refine(data => !data.ELOmaximo || !data.ELOminimo || data.ELOmaximo >= data.ELOminimo, {
     message: "ELO máximo no puede ser menor que ELO mínimo.",
     path: ["ELOmaximo"],
 });
 
-const step2KeyedSchema = z.object({
+const baseTournamentSchema = z.object({
+    tipoTorneo: z.enum(['Evento por Llaves', 'Evento tipo Escalera'], { required_error: "Debes seleccionar un tipo de torneo." }),
+    nombreTorneo: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
+    descripcion: z.string().optional(),
+    organizacion: z.string().min(2, "La organización es requerida."),
+    fechaInicio: z.string().min(1, "La fecha de inicio es requerida."),
+    fechaFin: z.string().min(1, "La fecha de fin es requerida."),
+    ubicacion: z.string().min(2, "La ubicación es requerida."),
+    imagenBannerUrl: z.string().url("Debe ser una URL válida.").optional().or(z.literal('')),
+    fechaInicioInscripciones: z.string().min(1, "Requerido"),
+    fechaCierreInscripciones: z.string().min(1, "Requerido"),
+    maximoInscripciones: z.coerce.number().optional(),
+    contactoNombre: z.string().min(2, "Requerido"),
+    contactoEmail: z.string().email("Email inválido."),
+    contactoTelefono: z.string().optional(),
+}).refine(data => new Date(data.fechaFin) >= new Date(data.fechaInicio), {
+    message: "La fecha de fin no puede ser anterior a la de inicio.",
+    path: ["fechaFin"],
+});
+
+const KeyedTournamentSchema = baseTournamentSchema.extend({
     events: z.array(eventSchema).min(1, "Debes agregar al menos una categoría o división."),
 });
 
-const step2LadderSchema = z.object({
+const LadderTournamentSchema = baseTournamentSchema.extend({
     metodoOrdenInicial: z.enum(['Ordenar por ELO', 'Ordenar manualmente']),
     events: z.array(ladderEventSchema).min(1, "Debes agregar al menos una categoría."),
-});
-
-const step3LadderSchema = z.object({
     reglasLadder: z.object({
         posicionesDesafioArriba: z.coerce.number().int().positive(),
         posicionesDesafioAbajoPrimerPuesto: z.coerce.number().int().positive(),
         posicionesDesafioArribaUltimoPuesto: z.coerce.number().int().positive(),
     }),
     formatoScore: z.enum(['2 Sets + Super Tiebreak', '3 Sets Completos']),
-});
-
-const step4Schema = z.object({
-    fechaInicioInscripciones: z.string().min(1, "Requerido"),
-    fechaCierreInscripciones: z.string().min(1, "Requerido"),
     fechaCierreDesafios: z.string().optional(),
     tiempoLimiteAceptarDesafio: z.coerce.number().int().positive().optional(),
     tiempoLimiteJugarPartido: z.coerce.number().int().positive().optional(),
-    maximoInscripciones: z.coerce.number().optional(),
-    contactoNombre: z.string().min(2, "Requerido"),
-    contactoEmail: z.string().email("Email inválido."),
-    contactoTelefono: z.string().optional(),
 });
-
-// Full static schemas
-const KeyedTournamentSchema = step0Schema
-    .merge(step1Schema)
-    .merge(step2KeyedSchema)
-    .merge(step4Schema);
-
-const LadderTournamentSchema = step0Schema
-    .merge(step1Schema)
-    .merge(step2LadderSchema)
-    .merge(step3LadderSchema)
-    .merge(step4Schema);
 
 type FullFormValues = z.infer<typeof KeyedTournamentSchema> | z.infer<typeof LadderTournamentSchema>;
 
@@ -126,7 +105,7 @@ export function TournamentForm() {
     const [torneoType, setTorneoType] = useState('');
 
     const methods = useForm<FullFormValues>({
-        resolver: (data, context, options) => {
+        resolver: async (data, context, options) => {
             const schema = data.tipoTorneo === 'Evento tipo Escalera' ? LadderTournamentSchema : KeyedTournamentSchema;
             return zodResolver(schema)(data, context, options);
         },
@@ -149,7 +128,6 @@ export function TournamentForm() {
                 posicionesDesafioAbajoPrimerPuesto: 5,
                 posicionesDesafioArribaUltimoPuesto: 5,
             },
-            // Opcionales para que no sean undefined
             fechaCierreDesafios: "", 
             tiempoLimiteAceptarDesafio: 48,
             tiempoLimiteJugarPartido: 7,
@@ -169,35 +147,29 @@ export function TournamentForm() {
     
 
     const handleNext = async () => {
-        let schema;
         const isLadder = methods.getValues("tipoTorneo") === 'Evento tipo Escalera';
-        const values = methods.getValues();
+        
+        const fieldMap: any = {
+            0: ['tipoTorneo'],
+            1: ['nombreTorneo', 'organizacion', 'ubicacion', 'fechaInicio', 'fechaFin'],
+            2: ['events'],
+            3: isLadder ? ['reglasLadder', 'formatoScore'] : ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'],
+            4: isLadder ? ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'] : [],
+        };
 
-        // Determine which schema to use for validation based on the current step
-        switch(currentStep) {
-            case 0: schema = step0Schema; break;
-            case 1: schema = step1Schema; break;
-            case 2: schema = isLadder ? step2LadderSchema : step2KeyedSchema; break;
-            case 3: schema = isLadder ? step3LadderSchema : step4Schema; break;
-            case 4: schema = isLadder ? step4Schema : z.object({}); break; // Step 4 is last for keyed
-            default: schema = z.object({});
+        const fieldsToValidate = fieldMap[currentStep] || [];
+        if (fieldsToValidate.length === 0 && currentStep < finalStep) {
+             setCurrentStep(prev => prev + 1);
+             return;
         }
 
-        const result = await schema.safeParseAsync(values);
+        const isValid = await methods.trigger(fieldsToValidate);
         
-        methods.clearErrors();
-
-        if (!result.success) {
-             result.error.errors.forEach((err) => {
-                methods.setError(err.path.join('.') as any, {
-                    type: 'manual',
-                    message: err.message,
-                });
-            });
-            console.log(result.error.flatten());
+        if (!isValid) {
+            console.log("Validation failed", methods.formState.errors);
             return;
         }
-
+        
         const finalStep = isLadder ? 5 : 4;
         if (currentStep < finalStep) {
              setCurrentStep(prev => prev + 1);
