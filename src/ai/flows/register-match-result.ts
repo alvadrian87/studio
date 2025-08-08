@@ -57,19 +57,9 @@ export const registerMatchResult = ai.defineFlow(
         const winnerRef = db.collection("users").doc(winnerId);
         const loserRef = db.collection("users").doc(loserId);
         const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
-        const challengeRef = matchData.challengeId ? db.collection("challenges").doc(matchData.challengeId) : null;
-
-        const docs = await Promise.all([
-          transaction.get(winnerRef),
-          transaction.get(loserRef),
-          transaction.get(tournamentRef),
-          challengeRef ? transaction.get(challengeRef) : Promise.resolve(null),
-        ]);
         
-        const winnerDoc = docs[0];
-        const loserDoc = docs[1];
-        const tournamentDoc = docs[2];
-        const challengeDoc = docs[3] as admin.firestore.DocumentSnapshot | null;
+        const docsToGet = [winnerRef, loserRef, tournamentRef];
+        const [winnerDoc, loserDoc, tournamentDoc] = await transaction.getAll(...docsToGet);
         
         if (!winnerDoc.exists || !loserDoc.exists || !tournamentDoc.exists) throw new Error("Player or tournament data not found.");
         
@@ -78,32 +68,36 @@ export const registerMatchResult = ai.defineFlow(
         const tournamentData = tournamentDoc.data() as Tournament;
         
         // Ladder logic
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc && challengeRef && challengeDoc.exists) {
-            const challengeData = challengeDoc.data() as Challenge;
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
+            const challengeRef = db.collection("challenges").doc(matchData.challengeId);
+            const challengeDoc = await transaction.get(challengeRef);
 
-            if (challengeData.eventoId) {
-                const inscriptionsRef = db.collection(`tournaments/${tournamentData.id}/inscriptions`);
-                const qWinner = inscriptionsRef.where("jugadorId", "==", winnerId).where("eventoId", "==", challengeData.eventoId);
-                const qLoser = inscriptionsRef.where("jugadorId", "==", loserId).where("eventoId", "==", challengeData.eventoId);
-                
-                const [winnerInscriptionsSnap, loserInscriptionsSnap] = await Promise.all([ transaction.get(qWinner), transaction.get(qLoser) ]);
+            if (challengeDoc.exists) {
+                const challengeData = challengeDoc.data() as Challenge;
+                if (challengeData.eventoId) {
+                    const inscriptionsRef = db.collection(`tournaments/${tournamentData.id}/inscriptions`);
+                    const qWinner = inscriptionsRef.where("jugadorId", "==", winnerId).where("eventoId", "==", challengeData.eventoId).limit(1);
+                    const qLoser = inscriptionsRef.where("jugadorId", "==", loserId).where("eventoId", "==", challengeData.eventoId).limit(1);
+                    
+                    const [winnerInscriptionsSnap, loserInscriptionsSnap] = await Promise.all([ transaction.get(qWinner), transaction.get(qLoser) ]);
 
-                if (!winnerInscriptionsSnap.empty && !loserInscriptionsSnap.empty) {
-                    const winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
-                    const loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
-                    const winnerInscriptionData = winnerInscriptionsSnap.docs[0].data() as Inscription;
-                    const loserInscriptionData = loserInscriptionsSnap.docs[0].data() as Inscription;
-                    const challengerIsWinner = winnerId === challengeData.retadorId;
-                        
-                    if (challengerIsWinner && winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
-                        const winnerOldPosition = winnerInscriptionData.posicionActual;
-                        const loserOldPosition = loserInscriptionData.posicionActual;
-                        transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
-                        transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
+                    if (!winnerInscriptionsSnap.empty && !loserInscriptionsSnap.empty) {
+                        const winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
+                        const loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
+                        const winnerInscriptionData = winnerInscriptionsSnap.docs[0].data() as Inscription;
+                        const loserInscriptionData = loserInscriptionsSnap.docs[0].data() as Inscription;
+                        const challengerIsWinner = winnerId === challengeData.retadorId;
+                            
+                        if (challengerIsWinner && winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
+                            const winnerOldPosition = winnerInscriptionData.posicionActual;
+                            const loserOldPosition = loserInscriptionData.posicionActual;
+                            transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
+                            transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
+                        }
                     }
                 }
+                transaction.update(challengeRef, { estado: 'Jugado' });
             }
-            transaction.update(challengeRef, { estado: 'Jugado' });
         }
         
         // Update stats

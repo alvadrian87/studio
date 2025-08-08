@@ -172,19 +172,18 @@ export default function Dashboard() {
             const isValidScore = (s1:number, s2:number) => {
                 if(s1 < winningScore && s2 < winningScore) return true; // not finished yet
                 if(s1 === winningScore && s2 <= winningScore - 2) return true; // 6-4, 6-3, etc.
+                if(s2 === winningScore && s1 <= winningScore - 2) return true;
                 if(s1 === tiebreakScore && (s2 === winningScore -1 || s2 === winningScore)) return true; // 7-5 or 7-6
+                if(s2 === tiebreakScore && (s1 === winningScore -1 || s1 === winningScore)) return true; // 7-5 or 7-6
                 return false;
             }
             
-            if (!isValidScore(score1, score2) && !isValidScore(score2, score1)) {
+            if (!isValidScore(score1, score2)) {
                  hasError('Resultado de set inválido. Use 6-0..4, 7-5, o 7-6.');
                  return null;
             }
             
-            if((score1 >= winningScore || score2 >= winningScore) && Math.abs(score1-score2) >= 2) {
-                 if (score1 > score2) return 'p1'; else return 'p2';
-            }
-            if(score1 === tiebreakScore || score2 === tiebreakScore) {
+            if (isFinished) {
                  if (score1 > score2) return 'p1'; else return 'p2';
             }
             
@@ -195,13 +194,11 @@ export default function Dashboard() {
             const isFinished = (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) >= 2;
             
             if(isFinished) {
-                const high = Math.max(score1, score2);
-                const low = Math.min(score1, score2);
-                if(high > winningScore && high - low !== 2) {
-                     hasError(`Resultado de tie-break inválido. La diferencia debe ser 2.`);
-                     return null;
+                if ((score1 > score2 ? score1 : score2) > winningScore && Math.abs(score1-score2) !== 2){
+                    hasError(`Resultado de tie-break inválido. La diferencia debe ser 2.`);
+                    return null;
                 }
-                 return score1 > score2 ? 'p1' : 'p2';
+                return score1 > score2 ? 'p1' : 'p2';
             }
             
             if((score1 >= winningScore || score2 >= winningScore) && Math.abs(score1-score2) < 2) {
@@ -374,7 +371,7 @@ export default function Dashboard() {
             if(isNaN(score1) || isNaN(score2)) return;
 
             if (score1 > score2) p1SetsWon++;
-            else if (score2 > score1) p2SetsWon++; // Changed from p1SetsWon to score1
+            else if (score2 > score1) p2SetsWon++;
         });
         
         const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : (p2SetsWon > p1SetsWon ? p2.uid : null);
