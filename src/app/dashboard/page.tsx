@@ -32,9 +32,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
-import type { Player, Match, Challenge } from "@/hooks/use-firestore";
+import type { Player, Match, Challenge, Tournament } from "@/hooks/use-firestore";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -48,6 +48,7 @@ export default function Dashboard() {
   const { data: allMatches, loading: loadingMatches } = useCollection<Match>('matches');
   const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
   const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
+  const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
   
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
@@ -64,6 +65,12 @@ export default function Dashboard() {
     return allMatches.filter(m => m.player1Id === user.uid || m.player2Id === user.uid)
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allMatches, user]);
+  
+  const playerRank = useMemo(() => {
+    if (!allPlayers || !player) return 0;
+    const sortedPlayers = [...allPlayers].sort((a, b) => b.rankPoints - a.rankPoints);
+    return sortedPlayers.findIndex(p => p.uid === player.uid) + 1;
+  }, [allPlayers, player]);
 
   const getOpponent = (match: Match) => {
     if (!user || !allPlayers) return null;
@@ -112,6 +119,12 @@ export default function Dashboard() {
     setWinnerId(null);
     setIsResultDialogOpen(true);
   }
+  
+  const calculateElo = (playerRating: number, opponentRating: number, result: number) => {
+      const kFactor = 32;
+      const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
+      return playerRating + kFactor * (result - expectedScore);
+  };
 
   const handleSaveResult = async () => {
     if (!selectedMatch || !winnerId) {
@@ -123,6 +136,14 @@ export default function Dashboard() {
     try {
       await runTransaction(db, async (transaction) => {
         const matchRef = doc(db, "matches", selectedMatch.id);
+        const tournamentRef = doc(db, "tournaments", selectedMatch.tournamentId);
+        
+        const tournamentDoc = await transaction.get(tournamentRef);
+        if (!tournamentDoc.exists()) {
+          throw new Error("No se encontraron los datos del torneo.");
+        }
+        const tournamentData = tournamentDoc.data() as Tournament;
+
         const loserId = selectedMatch.player1Id === winnerId ? selectedMatch.player2Id : selectedMatch.player1Id;
 
         const winnerRef = doc(db, "users", winnerId);
@@ -135,15 +156,27 @@ export default function Dashboard() {
           throw new Error("No se encontraron los datos de uno de los jugadores.");
         }
 
-        const newWinnerWins = (winnerDoc.data().globalWins || 0) + 1;
-        const newLoserLosses = (loserDoc.data().globalLosses || 0) + 1;
+        const winnerData = winnerDoc.data() as Player;
+        const loserData = loserDoc.data() as Player;
 
+        const newWinnerWins = (winnerData.globalWins || 0) + 1;
+        const newLoserLosses = (loserData.globalLosses || 0) + 1;
+        
         // Update match
         transaction.update(matchRef, { winnerId: winnerId, status: "Completado" });
-        // Update winner
+        // Update winner stats
         transaction.update(winnerRef, { globalWins: newWinnerWins });
-        // Update loser
+        // Update loser stats
         transaction.update(loserRef, { globalLosses: newLoserLosses });
+
+        // Calculate and update ELO if the tournament is ranked
+        if (tournamentData.isRanked) {
+          const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
+          const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
+          
+          transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
+          transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
+        }
       });
 
       toast({ title: "¡Resultado Guardado!", description: "La partida y las estadísticas han sido actualizadas." });
@@ -158,7 +191,7 @@ export default function Dashboard() {
     }
   };
 
-  if (loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers) {
+  if (loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments) {
     return <div>Cargando...</div>
   }
   
@@ -185,8 +218,8 @@ export default function Dashboard() {
             <Trophy className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">#1</div>
-            <p className="text-xs text-muted-foreground">Pendiente de implementación</p>
+            <div className="text-2xl font-bold">#{playerRank > 0 ? playerRank : '-'}</div>
+            <p className="text-xs text-muted-foreground">{player.rankPoints} Puntos ELO</p>
           </CardContent>
         </Card>
         <Card>
@@ -343,5 +376,3 @@ export default function Dashboard() {
     </>
   )
 }
-
-    

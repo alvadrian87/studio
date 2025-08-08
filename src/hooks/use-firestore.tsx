@@ -15,6 +15,7 @@ export interface Player {
   role: 'player' | 'admin';
   globalWins: number;
   globalLosses: number;
+  rankPoints: number; // ELO-like ranking points
 }
 
 export interface Match {
@@ -41,6 +42,7 @@ export interface Tournament {
   rules: string;
   creatorId: string; // To track who created the tournament
   participants: string[]; // Array of player UIDs
+  isRanked: boolean; // Determines if matches affect global ELO rating
 }
 
 export interface Challenge {
@@ -110,5 +112,3 @@ export function useDocument<T extends DocumentData>(docPath: string) {
 
   return { data, loading, error };
 }
-
-    

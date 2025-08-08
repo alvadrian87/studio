@@ -1,3 +1,4 @@
+
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -34,6 +35,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Sparkles, CheckCircle, AlertCircle } from "lucide-react"
 import { suggestTournamentSettings } from "@/ai/flows/suggest-tournament-settings"
 import { useToast } from "@/hooks/use-toast"
+import { Switch } from "@/components/ui/switch"
 
 const formSchema = z.object({
   tournamentName: z.string().min(2, {
@@ -57,6 +59,7 @@ const formSchema = z.object({
   rules: z.string().min(20, {
     message: "Las reglas deben tener al menos 20 caracteres.",
   }),
+  isRanked: z.boolean(),
 })
 
 interface TournamentFormProps {
@@ -86,6 +89,7 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
       entryFee: 10,
       prizePoolDistribution: "1er: 60%, 2do: 30%, 3er: 10%",
       rules: "Se aplican las reglas estándar del torneo. Todas las partidas son al mejor de 3.",
+      isRanked: true,
     },
   })
 
@@ -101,6 +105,7 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
         entryFee: tournament.entryFee,
         prizePoolDistribution: tournament.prizePoolDistribution,
         rules: tournament.rules,
+        isRanked: tournament.isRanked ?? true,
       });
     }
   }, [isEditMode, tournament, form]);
@@ -118,6 +123,7 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
     try {
       const result = await suggestTournamentSettings({
         ...validation.data,
+        tournamentName: validation.data.tournamentName,
       })
       setAiResult(result)
     } catch (error) {
@@ -287,6 +293,26 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
                     <Input type="number" {...field} />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+             <FormField
+              control={form.control}
+              name="isRanked"
+              render={({ field }) => (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel className="text-base">Partidas de Ranking</FormLabel>
+                    <FormDescription>
+                      ¿Las partidas de este torneo afectarán al Ranking Global (ELO)?
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
                 </FormItem>
               )}
             />

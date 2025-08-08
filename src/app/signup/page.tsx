@@ -55,6 +55,7 @@ export default function SignupPage() {
         role: "player", // Default role
         globalWins: 0,
         globalLosses: 0,
+        rankPoints: 1000, // Initial ELO points
       });
 
       toast({

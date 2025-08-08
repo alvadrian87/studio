@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Swords, UserPlus, DoorOpen, Play } from "lucide-react"
+import { Swords, UserPlus, DoorOpen, Play, Trophy } from "lucide-react"
 import { useDocument } from "@/hooks/use-firestore";
 import type { Player, Tournament } from "@/hooks/use-firestore";
 import { useAuth } from "@/hooks/use-auth";
@@ -66,9 +66,13 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                     email: data.email,
                     globalWins: data.globalWins || 0,
                     globalLosses: data.globalLosses || 0,
+                    rankPoints: data.rankPoints || 1000,
                 } as Player);
             });
         }
+        
+        // Sort participants by rankPoints
+        participantData.sort((a, b) => b.rankPoints - a.rankPoints);
         
         setParticipants(participantData);
       } catch (error) {
@@ -227,8 +231,8 @@ export default function LadderPage({ params }: { params: { id: string } }) {
           <CardTitle>Jugadores Inscritos ({participants.length}/{tournament.numberOfPlayers})</CardTitle>
           <CardDescription>
             {tournament.status === 'Próximo' 
-              ? `La lista oficial de jugadores para el ${tournament.name}. El ranking se generará cuando comience el torneo.`
-              : `El torneo ${tournament.name} está en curso.`
+              ? `La lista oficial de jugadores para el ${tournament.name}.`
+              : `El torneo ${tournament.name} está ${tournament.isRanked ? 'en curso y es de ranking' : 'en curso'}.`
             }
             </CardDescription>
         </CardHeader>
@@ -239,15 +243,23 @@ export default function LadderPage({ params }: { params: { id: string } }) {
             <Table>
                 <TableHeader>
                 <TableRow>
+                    <TableHead>Ranking</TableHead>
                     <TableHead>Jugador</TableHead>
-                    <TableHead className="hidden md:table-cell">Victorias Globales</TableHead>
-                    <TableHead className="hidden md:table-cell">Derrotas Globales</TableHead>
+                    <TableHead className="hidden md:table-cell">Puntos ELO</TableHead>
                     <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
                 </TableHeader>
                 <TableBody>
-                {participants.map((player) => (
+                {participants.map((player, index) => (
                     <TableRow key={player.id}>
+                    <TableCell className="font-bold text-lg text-muted-foreground w-16">
+                        <div className="flex items-center gap-2">
+                           {index === 0 && <Trophy className="w-5 h-5 text-yellow-500" />}
+                           {index === 1 && <Trophy className="w-5 h-5 text-gray-400" />}
+                           {index === 2 && <Trophy className="w-5 h-5 text-orange-400" />}
+                           {index > 2 && <span className="w-5 h-5 flex items-center justify-center">{index + 1}</span>}
+                        </div>
+                    </TableCell>
                     <TableCell>
                         <div className="flex items-center gap-3">
                         <Avatar>
@@ -257,8 +269,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                         <span className="font-medium">{player.displayName}</span>
                         </div>
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-green-500 font-medium">{player.globalWins}</TableCell>
-                    <TableCell className="hidden md:table-cell text-red-500 font-medium">{player.globalLosses}</TableCell>
+                    <TableCell className="hidden md:table-cell font-medium">{player.rankPoints}</TableCell>
                     <TableCell className="text-right">
                         <Button 
                             variant="outline" 
