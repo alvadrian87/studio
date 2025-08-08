@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from "next/link"
@@ -38,10 +39,14 @@ export default function LoginPage() {
       router.push("/dashboard");
     } catch (error: any) {
       console.error(error);
+      let description = "Ocurrió un error inesperado. Por favor, inténtalo de nuevo.";
+      if (error.code === 'auth/invalid-credential') {
+        description = "Las credenciales son incorrectas. Por favor, comprueba tu correo y contraseña.";
+      }
       toast({
         variant: "destructive",
         title: "Error al iniciar sesión",
-        description: error.message,
+        description: description,
       });
     } finally {
       setLoading(false);
