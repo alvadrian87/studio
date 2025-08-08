@@ -1,3 +1,5 @@
+'use client';
+
 import { Button } from "@/components/ui/button"
 import {
   Card,
@@ -10,10 +12,14 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { players } from "@/lib/data"
+import { useAuth } from "@/hooks/use-auth";
 
 export default function ProfilePage() {
-  const player = players[0] // Mock current player
+  const { user } = useAuth();
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <>
@@ -32,18 +38,18 @@ export default function ProfilePage() {
           <CardContent className="grid gap-6">
             <div className="flex items-center gap-4">
               <Avatar className="h-20 w-20">
-                <AvatarImage src={player.avatar} />
-                <AvatarFallback>{player.name.substring(0, 2)}</AvatarFallback>
+                <AvatarImage src={user.photoURL || 'https://placehold.co/80x80.png'} />
+                <AvatarFallback>{user.displayName?.substring(0, 2) || user.email?.substring(0, 2) || 'U'}</AvatarFallback>
               </Avatar>
               <Button>Cambiar Foto</Button>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="username">Nombre de usuario</Label>
-              <Input id="username" defaultValue={player.name} />
+              <Input id="username" defaultValue={user.displayName || ""} />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Correo electrónico</Label>
-              <Input id="email" type="email" defaultValue={`${player.name.toLowerCase()}@evoladder.com`} />
+              <Input id="email" type="email" defaultValue={user.email || ""} disabled />
             </div>
           </CardContent>
           <CardFooter className="border-t px-6 py-4">

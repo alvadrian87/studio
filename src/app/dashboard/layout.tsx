@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Bell,
   Home,
@@ -12,6 +12,9 @@ import {
   User,
   Users,
 } from "lucide-react";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { useAuth } from "@/hooks/use-auth";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -48,6 +51,17 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error("Error al cerrar sesión", error);
+    }
+  };
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -79,7 +93,7 @@ export default function DashboardLayout({
           <div className="mt-auto p-4">
              <div className="flex items-center gap-4">
                 <ThemeToggle />
-                <Button variant="ghost" size="icon" className="rounded-full">
+                <Button variant="ghost" size="icon" className="rounded-full" onClick={handleLogout}>
                     <LogOut className="h-5 w-5" />
                     <span className="sr-only">Cerrar Sesión</span>
                 </Button>
@@ -126,7 +140,7 @@ export default function DashboardLayout({
               <div className="mt-auto">
                 <div className="flex items-center gap-4">
                     <ThemeToggle />
-                    <Button variant="ghost" size="icon" className="rounded-full">
+                    <Button variant="ghost" size="icon" className="rounded-full" onClick={handleLogout}>
                         <LogOut className="h-5 w-5" />
                         <span className="sr-only">Cerrar Sesión</span>
                     </Button>
@@ -141,8 +155,8 @@ export default function DashboardLayout({
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="icon" className="rounded-full">
                 <Avatar>
-                  <AvatarImage src="https://placehold.co/40x40.png" alt="@shadcn" />
-                  <AvatarFallback>AM</AvatarFallback>
+                  <AvatarImage src={user?.photoURL || "https://placehold.co/40x40.png"} alt={user?.displayName || "Usuario"} />
+                  <AvatarFallback>{user?.displayName?.substring(0, 2) || user?.email?.substring(0, 2) || 'U'}</AvatarFallback>
                 </Avatar>
                 <span className="sr-only">Alternar menú de usuario</span>
               </Button>
@@ -153,7 +167,7 @@ export default function DashboardLayout({
               <DropdownMenuItem asChild><Link href="/dashboard/profile">Perfil</Link></DropdownMenuItem>
               <DropdownMenuItem asChild><Link href="/dashboard/settings">Configuración</Link></DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem asChild><Link href="/">Cerrar Sesión</Link></DropdownMenuItem>
+              <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </header>
