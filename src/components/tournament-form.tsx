@@ -101,13 +101,19 @@ const step4Schema = z.object({
 
 
 const getFullFormSchema = (torneoType: string) => {
-    let schema = step0Schema.merge(step1Schema).merge(step4Schema);
+    let baseSchema = step0Schema.merge(step1Schema);
+
     if (torneoType === 'Evento tipo Escalera') {
-        schema = schema.merge(step2LadderSchema).merge(step3LadderSchema);
-    } else { // Evento por Llaves
-        schema = schema.merge(step2KeyedSchema);
-    }
-    return schema;
+        return baseSchema
+            .merge(step2LadderSchema)
+            .merge(step3LadderSchema)
+            .merge(step4Schema);
+    } 
+    
+    // Default to 'Evento por Llaves' if type is not ladder or not set
+    return baseSchema
+        .merge(step2KeyedSchema)
+        .merge(step4Schema);
 }
 
 type FullFormValues = z.infer<ReturnType<typeof getFullFormSchema>>;
@@ -173,7 +179,7 @@ export function TournamentForm() {
             case 1: schema = step1Schema; break;
             case 2: schema = isLadder ? step2LadderSchema : step2KeyedSchema; break;
             case 3: schema = isLadder ? step3LadderSchema : step4Schema; break;
-            case 4: schema = isLadder ? step4Schema : z.object({}); break; // Step 4 is last for ladder
+            case 4: schema = isLadder ? step4Schema : z.object({}); break; // Step 4 is last for keyed
             default: schema = z.object({});
         }
 
