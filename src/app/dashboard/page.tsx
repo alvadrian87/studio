@@ -148,6 +148,47 @@ export default function Dashboard() {
         toast({ variant: "destructive", title: "Error", description: "Debes seleccionar un ganador." });
         return;
     }
+
+    const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
+    if (!p1 || !p2) {
+      toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los jugadores." });
+      return;
+    }
+
+    // Score validation logic
+    let p1SetsWon = 0;
+    let p2SetsWon = 0;
+    let validSets = 0;
+
+    for (const set of scores) {
+        const score1 = parseInt(set.p1, 10);
+        const score2 = parseInt(set.p2, 10);
+
+        if (!isNaN(score1) && !isNaN(score2)) {
+            validSets++;
+            if (score1 > score2) p1SetsWon++;
+            else if (score2 > score1) p2SetsWon++;
+        }
+    }
+    
+    if (validSets < 2) {
+        toast({ variant: "destructive", title: "Marcador Incompleto", description: "Debes registrar al menos dos sets." });
+        return;
+    }
+
+    const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : p2.uid;
+    if (p1SetsWon === p2SetsWon) {
+      // In case of a draw in sets (e.g., 1-1 after 2 sets), we trust the user selection for now.
+      // More complex logic could be added for tie-breaks.
+    } else if (calculatedWinnerId !== winnerId) {
+        toast({
+            variant: "destructive",
+            title: "Error de Validación",
+            description: "El marcador no coincide con el ganador seleccionado. Por favor, revisa los datos.",
+        });
+        return;
+    }
+    
     setIsSubmittingResult(true);
     const finalScore = formatScoreString();
 
