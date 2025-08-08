@@ -4,7 +4,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, FormProvider, useWatch } from "react-hook-form";
 import { z } from "zod";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { addDoc, collection, doc, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
@@ -148,17 +148,20 @@ export function TournamentForm() {
             tiempos: {
                 tiempoLimiteAceptarDesafio: 48,
                 tiempoLimiteJugarPartido: 7,
-            }
+            },
+            maximoInscripciones: undefined,
+            tiempoLimiteAceptarDesafio: 48,
+            tiempoLimiteJugarPartido: 7,
         },
     });
 
     const watchedTorneoType = useWatch({ control: methods.control, name: 'tipoTorneo' });
 
-    useState(() => {
+    useEffect(() => {
         if (watchedTorneoType) {
             setTorneoType(watchedTorneoType);
         }
-    });
+    }, [watchedTorneoType]);
     
 
     const handleNext = async () => {
