@@ -3,7 +3,7 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, DocumentData, QueryDocumentSnapshot, FirestoreError } from 'firebase/firestore';
+import { collection, onSnapshot, doc, DocumentData, QueryDocumentSnapshot, FirestoreError, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // Type definitions based on your data structure
@@ -159,14 +159,16 @@ export interface Inscription {
 
 
 // Hook to get a collection
-export function useCollection<T extends DocumentData>(collectionName: string) {
+export function useCollection<T extends DocumentData>(collectionPath: string) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | null>(null);
 
   useEffect(() => {
-    const q = collection(db, collectionName);
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+    // This allows passing a path like 'tournaments/xyz/inscriptions'
+    const ref = collection(db, collectionPath);
+    
+    const unsubscribe = onSnapshot(ref, (querySnapshot) => {
       const documents: T[] = [];
       querySnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
         documents.push({ id: doc.id, ...doc.data() } as T);
@@ -179,7 +181,7 @@ export function useCollection<T extends DocumentData>(collectionName: string) {
     });
 
     return () => unsubscribe();
-  }, [collectionName]);
+  }, [collectionPath]);
 
   return { data, loading, error };
 }
@@ -214,3 +216,5 @@ export function useDocument<T extends DocumentData>(docPath: string) {
 
   return { data, loading, error };
 }
+
+    

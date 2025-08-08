@@ -38,8 +38,8 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
   const { data: allChallenges, loading: loadingAllChallenges } = useCollection<Challenge>('challenges');
+  const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
   const [events, setEvents] = useState<TournamentEvent[]>([]);
-  const [inscriptions, setInscriptions] = useState<Inscription[]>([]);
   const [loadingEventsAndData, setLoadingEventsAndData] = useState(true);
   const [challengingPlayerId, setChallengingPlayerId] = useState<string | null>(null);
 
@@ -47,30 +47,18 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const { user } = useAuth();
   const { toast } = useToast();
 
-  const fetchInscriptions = async () => {
-      if (!tournament) return;
-      const inscriptionsQuery = query(collection(db, "inscriptions"), where("torneoId", "==", tournament.id));
-      const inscriptionsSnapshot = await getDocs(inscriptionsQuery);
-      const tournamentInscriptions = inscriptionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Inscription));
-      setInscriptions(tournamentInscriptions);
-  }
-
   useEffect(() => {
     if (tournament) {
-      const fetchEventsAndInscriptions = async () => {
+      const fetchEvents = async () => {
         setLoadingEventsAndData(true);
         // Fetch Events (Categories/Divisions)
         const eventsQuery = query(collection(db, "eventos"), where("torneoId", "==", tournament.id));
         const eventsSnapshot = await getDocs(eventsQuery);
         const tournamentEvents = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TournamentEvent));
         setEvents(tournamentEvents);
-
-        // Fetch Inscriptions for the whole tournament
-        await fetchInscriptions();
-
         setLoadingEventsAndData(false);
       };
-      fetchEventsAndInscriptions();
+      fetchEvents();
     }
   }, [tournament]);
 
@@ -79,6 +67,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   };
   
   const getEventInscriptions = (eventId: string) => {
+    if (!inscriptions) return [];
     return inscriptions
       .filter(i => i.eventoId === eventId)
       .map(i => ({
@@ -89,12 +78,12 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   }
 
   const isUserEnrolledInEvent = (eventId: string) => {
-    if (!user) return false;
+    if (!user || !inscriptions) return false;
     return inscriptions.some(i => i.eventoId === eventId && i.jugadorId === user.uid);
   }
   
   const userInscription = (eventId: string) => {
-      if (!user) return null;
+      if (!user || !inscriptions) return null;
       return inscriptions.find(i => i.eventoId === eventId && i.jugadorId === user.uid);
   }
 
@@ -107,7 +96,8 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     const newPosition = eventInscriptions.length + 1;
     
     const batch = writeBatch(db);
-    const newInscriptionRef = doc(collection(db, "inscriptions"));
+    // Note: inscriptions are now in a subcollection of the tournament
+    const newInscriptionRef = doc(collection(db, `tournaments/${tournament!.id}/inscriptions`));
 
     batch.set(newInscriptionRef, {
         torneoId: tournament!.id,
@@ -123,13 +113,10 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     
     await batch.commit();
     toast({ title: '¡Inscripción Exitosa!', description: 'Te has inscrito correctamente en la categoría.'});
-    
-    // Force a reload to ensure all data is fresh and consistent
-    router.refresh();
   };
 
   const canChallenge = (challengerInscription: Inscription | null | undefined, challengedInscription: Inscription) => {
-    if (!challengerInscription || !tournament?.reglasLadder) return false;
+    if (!challengerInscription || !tournament?.reglasLadder || !inscriptions) return false;
 
     // A user cannot challenge someone if they already have a pending challenge
     const hasPendingChallenge = allChallenges?.some(c => 
@@ -165,7 +152,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   };
 
   const handleChallenge = async (challengedInscription: Inscription) => {
-    if (!user) return;
+    if (!user || !inscriptions) return;
     setChallengingPlayerId(challengedInscription.jugadorId!);
 
     const challengerInscription = userInscription(challengedInscription.eventoId);
@@ -200,7 +187,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   }
 
 
-  if (loadingTournament || loadingAllPlayers || loadingEventsAndData || loadingAllChallenges) {
+  if (loadingTournament || loadingAllPlayers || loadingEventsAndData || loadingAllChallenges || loadingInscriptions) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /> Cargando datos del torneo...</div>
   }
 
@@ -335,7 +322,5 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
-
-    
 
     

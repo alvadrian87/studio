@@ -4,53 +4,62 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
     }
-    
-    function isOwner(userId) {
-        return request.auth.uid == userId;
+    function isUser(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+    function isAdmin() {
+      return isSignedIn() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isPlayerInMatch(matchDoc) {
+        return isSignedIn() && (request.auth.uid == matchDoc.data.player1Id || request.auth.uid == matchDoc.data.player2Id);
     }
 
-    // Users: Can create their own profile, can only read/update their own profile. Admins can R/W anyone.
+    // Users Collection
     match /users/{userId} {
-      allow create: if request.auth != null;
-      allow read, update: if isOwner(userId) || isAdmin();
+      allow create: if isSignedIn(); // Any signed in user can create their own profile during signup
+      allow read: if isSignedIn(); // Any signed in user can read any user's profile (for display names, avatars etc.)
+      allow update: if isUser(userId) || isAdmin(); // A user can update their own profile, or an admin can
+      allow delete: if isAdmin(); // Only admins can delete users
+    }
+
+    // Tournaments and related subcollections
+    match /tournaments/{tournamentId} {
+      allow read: if true; // Anyone can view tournament details
+      allow create, update, delete: if isAdmin(); // Only admins can manage tournaments
+      
+      // Inscriptions subcollection
+      match /inscriptions/{inscriptionId} {
+        allow read: if true;
+        allow create: if isSignedIn(); // Any signed in user can try to enroll
+        allow update, delete: if isAdmin(); // Only admins can modify/remove enrollments
+      }
+    }
+
+    // Events Collection (assuming it's a top-level collection)
+    match /eventos/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Challenges Collection
+    match /challenges/{challengeId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn() && (isUser(resource.data.retadorId) || isUser(resource.data.desafiadoId) || isAdmin());
       allow delete: if isAdmin();
     }
 
-    // Tournaments, Events: Public read, but only admins can write.
-    match /tournaments/{tournamentId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-
-    match /eventos/{eventId} {
-        allow read: if true;
-        allow write: if isAdmin();
-    }
-    
-    // Inscriptions: Public read, authenticated users can create. Only admin can delete.
-    match /inscriptions/{inscriptionId} {
-        allow read: if true;
-        allow create: if request.auth != null;
-        // Let's assume only admins can update/delete for now to avoid complex rules
-        allow update, delete: if isAdmin();
-    }
-
-    // Challenges: Authenticated users can create/read. Only participants or admins can update.
-    match /challenges/{challengeId} {
-        allow read, create: if request.auth != null;
-        allow update: if isAdmin() || request.auth.uid == resource.data.retadorId || request.auth.uid == resource.data.desafiadoId;
-        allow delete: if isAdmin();
-    }
-
-    // Matches: Public read. Only participants or admin can update.
+    // Matches Collection
     match /matches/{matchId} {
       allow read: if true;
-      allow create: if request.auth != null; // Challenges create matches
-      allow update: if isAdmin() || request.auth.uid == resource.data.player1Id || request.auth.uid == resource.data.player2Id;
+      allow create: if isAdmin(); // Matches are created via accepting challenges, but admins can create them manually.
+      allow update: if isPlayerInMatch(get(/databases/$(database)/documents/matches/$(matchId))) || isAdmin(); // Players in the match or admins can update it
       allow delete: if isAdmin();
     }
   }
 }
+    
