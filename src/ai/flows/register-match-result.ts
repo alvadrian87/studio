@@ -3,9 +3,9 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { runTransaction, doc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase-admin'; // Use server-side admin DB
 import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
+import * as admin from 'firebase-admin';
 
 
 const RegisterMatchResultInputSchema = z.object({
@@ -14,15 +14,12 @@ const RegisterMatchResultInputSchema = z.object({
   score: z.string().describe("The final score string, e.g., '6-4, 6-4'."),
   isRetirement: z.boolean().describe("Whether the match ended due to a player retiring."),
 });
-type RegisterMatchResultInput = z.infer<typeof RegisterMatchResultInputSchema>;
 
 
 const RegisterMatchResultOutputSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 });
-type RegisterMatchResultOutput = z.infer<typeof RegisterMatchResultOutputSchema>;
-
 
 const calculateElo = (playerRating: number, opponentRating: number, result: number) => {
     const kFactor = 32;
@@ -62,7 +59,7 @@ export const registerMatchResult = ai.defineFlow(
         const winnerDoc = docs[0];
         const loserDoc = docs[1];
         const tournamentDoc = docs[2];
-        const challengeDoc = docs[3] as admin.firestore.DocumentSnapshot | null; // Use admin type
+        const challengeDoc = docs[3] as admin.firestore.DocumentSnapshot | null;
         
         if (!winnerDoc.exists || !loserDoc.exists || !tournamentDoc.exists) throw new Error("Player or tournament data not found.");
         
