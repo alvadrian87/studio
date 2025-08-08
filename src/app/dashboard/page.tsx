@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -82,14 +82,16 @@ export default function Dashboard() {
     [false, false],
   ]);
 
-  const getPlayerById = (id: string | undefined) => allPlayers?.find(p => p.uid === id);
+  const getPlayerById = useCallback((id: string | undefined) => {
+    return allPlayers?.find(p => p.uid === id);
+  }, [allPlayers]);
 
-  const getPlayersForMatch = (match: Match | null) => {
+  const getPlayersForMatch = useCallback((match: Match | null) => {
     if (!match || !allPlayers) return { player1: null, player2: null };
     const player1 = getPlayerById(match.player1Id);
     const player2 = getPlayerById(match.player2Id);
     return { player1, player2 };
-  };
+  }, [allPlayers, getPlayerById]);
 
   // Call all hooks unconditionally at the top level
   useEffect(() => {
