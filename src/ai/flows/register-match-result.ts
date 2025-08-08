@@ -1,18 +1,10 @@
 
 'use server';
 
-/**
- * @fileOverview A flow for securely registering match results.
- *
- * - registerMatchResult - Handles the business logic for updating match outcomes.
- * - RegisterMatchResultInput - The input type for the registerMatchResult function.
- * - RegisterMatchResultOutput - The return type for the registerMatchResult function.
- */
-
 import { ai } from '@/ai/genkit';
-import { z } from 'genkit';
+import { z } from 'zod';
 import { runTransaction, doc, collection, getDocs, query, where } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { db } from '@/lib/firebase-admin'; // Use server-side admin DB
 import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
 
 
@@ -22,14 +14,14 @@ const RegisterMatchResultInputSchema = z.object({
   score: z.string().describe("The final score string, e.g., '6-4, 6-4'."),
   isRetirement: z.boolean().describe("Whether the match ended due to a player retiring."),
 });
-export type RegisterMatchResultInput = z.infer<typeof RegisterMatchResultInputSchema>;
+type RegisterMatchResultInput = z.infer<typeof RegisterMatchResultInputSchema>;
 
 
 const RegisterMatchResultOutputSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 });
-export type RegisterMatchResultOutput = z.infer<typeof RegisterMatchResultOutputSchema>;
+type RegisterMatchResultOutput = z.infer<typeof RegisterMatchResultOutputSchema>;
 
 
 const calculateElo = (playerRating: number, opponentRating: number, result: number) => {
@@ -38,7 +30,7 @@ const calculateElo = (playerRating: number, opponentRating: number, result: numb
     return playerRating + kFactor * (result - expectedScore);
 };
 
-const registerMatchResultFlow = ai.defineFlow(
+export const registerMatchResult = ai.defineFlow(
   {
     name: 'registerMatchResultFlow',
     inputSchema: RegisterMatchResultInputSchema,
@@ -46,19 +38,19 @@ const registerMatchResultFlow = ai.defineFlow(
   },
   async ({ matchId, winnerId, score }) => {
     try {
-      await runTransaction(db, async (transaction) => {
-        const matchRef = doc(db, "matches", matchId);
+      await db.runTransaction(async (transaction) => {
+        const matchRef = db.collection("matches").doc(matchId);
         const matchDoc = await transaction.get(matchRef);
 
-        if (!matchDoc.exists()) throw new Error("Match not found.");
+        if (!matchDoc.exists) throw new Error("Match not found.");
 
         const matchData = matchDoc.data() as Match;
         const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
 
-        const winnerRef = doc(db, "users", winnerId);
-        const loserRef = doc(db, "users", loserId);
-        const tournamentRef = doc(db, "tournaments", matchData.tournamentId);
-        const challengeRef = matchData.challengeId ? doc(db, "challenges", matchData.challengeId) : null;
+        const winnerRef = db.collection("users").doc(winnerId);
+        const loserRef = db.collection("users").doc(loserId);
+        const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
+        const challengeRef = matchData.challengeId ? db.collection("challenges").doc(matchData.challengeId) : null;
 
         const docs = await Promise.all([
           transaction.get(winnerRef),
@@ -70,24 +62,24 @@ const registerMatchResultFlow = ai.defineFlow(
         const winnerDoc = docs[0];
         const loserDoc = docs[1];
         const tournamentDoc = docs[2];
-        const challengeDoc = docs[3];
+        const challengeDoc = docs[3] as admin.firestore.DocumentSnapshot | null; // Use admin type
         
-        if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) throw new Error("Player or tournament data not found.");
+        if (!winnerDoc.exists || !loserDoc.exists || !tournamentDoc.exists) throw new Error("Player or tournament data not found.");
         
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
         const tournamentData = tournamentDoc.data() as Tournament;
         
         // Ladder logic
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc && challengeRef && challengeDoc.exists()) {
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc && challengeRef && challengeDoc.exists) {
             const challengeData = challengeDoc.data() as Challenge;
 
             if (challengeData.eventoId) {
-                const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
-                const qWinner = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId));
-                const qLoser = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId));
+                const inscriptionsRef = db.collection(`tournaments/${tournamentData.id}/inscriptions`);
+                const qWinner = inscriptionsRef.where("jugadorId", "==", winnerId).where("eventoId", "==", challengeData.eventoId);
+                const qLoser = inscriptionsRef.where("jugadorId", "==", loserId).where("eventoId", "==", challengeData.eventoId);
                 
-                const [winnerInscriptionsSnap, loserInscriptionsSnap] = await Promise.all([ getDocs(qWinner), getDocs(qLoser) ]);
+                const [winnerInscriptionsSnap, loserInscriptionsSnap] = await Promise.all([ transaction.get(qWinner), transaction.get(qLoser) ]);
 
                 if (!winnerInscriptionsSnap.empty && !loserInscriptionsSnap.empty) {
                     const winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
@@ -95,7 +87,7 @@ const registerMatchResultFlow = ai.defineFlow(
                     const winnerInscriptionDoc = await transaction.get(winnerInscriptionRef);
                     const loserInscriptionDoc = await transaction.get(loserInscriptionRef);
 
-                    if (winnerInscriptionDoc.exists() && loserInscriptionDoc.exists()) {
+                    if (winnerInscriptionDoc.exists && loserInscriptionDoc.exists) {
                         const winnerInscriptionData = winnerInscriptionDoc.data() as Inscription;
                         const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
                         const challengerIsWinner = winnerId === challengeData.retadorId;
@@ -136,8 +128,3 @@ const registerMatchResultFlow = ai.defineFlow(
     }
   }
 );
-
-
-export async function registerMatchResult(input: RegisterMatchResultInput): Promise<RegisterMatchResultOutput> {
-  return registerMatchResultFlow(input);
-}
