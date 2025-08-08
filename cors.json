@@ -1,0 +1,13 @@
+
+[
+  {
+    "origin": ["https://studio--evoladder-manager.us-central1.hosted.app"],
+    "method": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    "responseHeader": [
+      "Content-Type",
+      "Authorization",
+      "X-Goog-Resumable"
+    ],
+    "maxAgeSeconds": 3600
+  }
+]
