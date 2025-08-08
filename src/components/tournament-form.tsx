@@ -32,10 +32,12 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Loader2, Sparkles, CheckCircle, AlertCircle } from "lucide-react"
+import { Loader2, Sparkles, CheckCircle, AlertCircle, ArrowLeft } from "lucide-react"
 import { suggestTournamentSettings } from "@/ai/flows/suggest-tournament-settings"
 import { useToast } from "@/hooks/use-toast"
 import { Switch } from "@/components/ui/switch"
+import { Card, CardContent } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 
 const formSchema = z.object({
   tournamentName: z.string().min(2, {
@@ -67,8 +69,10 @@ interface TournamentFormProps {
   tournament?: Tournament;
 }
 
+const TOTAL_STEPS = 4;
 
 export function TournamentForm({ tournament }: TournamentFormProps) {
+  const [currentStep, setCurrentStep] = useState(1);
   const [loading, setLoading] = useState(false)
   const [submitLoading, setSubmitLoading] = useState(false);
   const [aiResult, setAiResult] = useState<SuggestTournamentSettingsOutput | null>(null)
@@ -113,9 +117,33 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
     }
   }, [isEditMode, tournament, form]);
 
+  const handleNext = async () => {
+    let fieldsToValidate: (keyof z.infer<typeof formSchema>)[] = [];
+    if (currentStep === 1) {
+        fieldsToValidate = ['tournamentName', 'location', 'startDate', 'endDate', 'format'];
+    } else if (currentStep === 2) {
+        fieldsToValidate = ['numberOfPlayers', 'entryFee', 'isRanked', 'bannerUrl'];
+    } else if (currentStep === 3) {
+        fieldsToValidate = ['prizePoolDistribution', 'rules'];
+    }
+    
+    const isValid = await form.trigger(fieldsToValidate);
+    if (isValid) {
+      if (currentStep < TOTAL_STEPS) {
+        setCurrentStep(prev => prev + 1);
+      }
+    }
+  };
+
+  const handlePrevious = () => {
+      if (currentStep > 1) {
+          setCurrentStep(prev => prev - 1);
+      }
+  };
+
+
   async function onSuggest() {
     const values = form.getValues()
-    // Exclude bannerUrl from AI suggestion logic as it's not part of the AI model
     const { bannerUrl, ...valuesForAI } = values;
     const validation = formSchema.partial().safeParse(valuesForAI);
     
@@ -207,209 +235,247 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
 
   return (
     <>
-      <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-          <div className="grid md:grid-cols-2 gap-8">
-            <FormField
-              control={form.control}
-              name="tournamentName"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Nombre del Torneo</FormLabel>
-                  <FormControl>
-                    <Input placeholder="p. ej., Abierto de Verano" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="location"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Ubicación</FormLabel>
-                  <FormControl>
-                    <Input placeholder="p. ej., Centro de Tenis de la Ciudad" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="startDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fecha de Inicio</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="endDate"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Fecha de Finalización</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="format"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Formato</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un formato de torneo" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Eliminación Simple">Eliminación Simple</SelectItem>
-                      <SelectItem value="Doble Eliminación">Doble Eliminación</SelectItem>
-                      <SelectItem value="Round Robin">Round Robin</SelectItem>
-                      <SelectItem value="Escalera">Escalera</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="numberOfPlayers"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Número de Jugadores</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="entryFee"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cuota de Inscripción ($)</FormLabel>
-                  <FormControl>
-                    <Input type="number" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="isRanked"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Partidas de Ranking</FormLabel>
-                    <FormDescription>
-                      ¿Las partidas de este torneo afectarán al Ranking Global (ELO)?
-                    </FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={field.onChange}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-             <div className="md:col-span-2">
-                <FormField
-                control={form.control}
-                name="bannerUrl"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>URL del Banner del Torneo</FormLabel>
-                    <FormControl>
-                        <Input placeholder="https://example.com/banner.png" {...field} />
-                    </FormControl>
-                    <FormDescription>
-                        Pega la URL de una imagen para que sirva como banner para la página del torneo.
-                    </FormDescription>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-            </div>
-          </div>
-          <FormField
-            control={form.control}
-            name="prizePoolDistribution"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Distribución del Pozo de Premios</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Describe cómo se distribuirá el pozo de premios..." {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name="rules"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Reglas</FormLabel>
-                <FormControl>
-                  <Textarea placeholder="Describe las reglas del torneo..." {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+      <Progress value={(currentStep / TOTAL_STEPS) * 100} className="mb-6" />
+      <Card>
+          <CardContent className="pt-6">
+              <Form {...form}>
+                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+                      {currentStep === 1 && (
+                          <div className="grid md:grid-cols-2 gap-8">
+                              <FormField
+                                  control={form.control}
+                                  name="tournamentName"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Nombre del Torneo</FormLabel>
+                                          <FormControl>
+                                              <Input placeholder="p. ej., Abierto de Verano" {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                              <FormField
+                                  control={form.control}
+                                  name="location"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Ubicación</FormLabel>
+                                          <FormControl>
+                                              <Input placeholder="p. ej., Centro de Tenis de la Ciudad" {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                              <FormField
+                                  control={form.control}
+                                  name="startDate"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Fecha de Inicio</FormLabel>
+                                          <FormControl>
+                                              <Input type="date" {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                              <FormField
+                                  control={form.control}
+                                  name="endDate"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Fecha de Finalización</FormLabel>
+                                          <FormControl>
+                                              <Input type="date" {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                              <FormField
+                                  control={form.control}
+                                  name="format"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Formato</FormLabel>
+                                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                              <FormControl>
+                                                  <SelectTrigger>
+                                                      <SelectValue placeholder="Selecciona un formato de torneo" />
+                                                  </SelectTrigger>
+                                              </FormControl>
+                                              <SelectContent>
+                                                  <SelectItem value="Eliminación Simple">Eliminación Simple</SelectItem>
+                                                  <SelectItem value="Doble Eliminación">Doble Eliminación</SelectItem>
+                                                  <SelectItem value="Round Robin">Round Robin</SelectItem>
+                                                  <SelectItem value="Escalera">Escalera</SelectItem>
+                                              </SelectContent>
+                                          </Select>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                          </div>
+                      )}
 
-          {aiResult && (
-            <Alert variant={aiResult.isValid ? "default" : "destructive"}>
-              {aiResult.isValid ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
-              <AlertTitle>{aiResult.isValid ? "¡La configuración se ve bien!" : "Problemas Potenciales Encontrados"}</AlertTitle>
-              <AlertDescription>
-                <p className="mb-2">{aiResult.reason}</p>
-                {aiResult.suggestions.length > 0 && (
-                  <ul className="list-disc pl-5 space-y-1">
-                    {aiResult.suggestions.map((suggestion, index) => (
-                      <li key={index}>{suggestion}</li>
-                    ))}
-                  </ul>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
+                      {currentStep === 2 && (
+                          <div className="grid md:grid-cols-2 gap-8">
+                              <FormField
+                                  control={form.control}
+                                  name="numberOfPlayers"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Número de Jugadores</FormLabel>
+                                          <FormControl>
+                                              <Input type="number" {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                              <FormField
+                                  control={form.control}
+                                  name="entryFee"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Cuota de Inscripción ($)</FormLabel>
+                                          <FormControl>
+                                              <Input type="number" {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                              <FormField
+                                  control={form.control}
+                                  name="isRanked"
+                                  render={({ field }) => (
+                                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4 md:col-span-2">
+                                          <div className="space-y-0.5">
+                                              <FormLabel className="text-base">Partidas de Ranking</FormLabel>
+                                              <FormDescription>
+                                                  ¿Las partidas de este torneo afectarán al Ranking Global (ELO)?
+                                              </FormDescription>
+                                          </div>
+                                          <FormControl>
+                                              <Switch
+                                                  checked={field.value}
+                                                  onCheckedChange={field.onChange}
+                                              />
+                                          </FormControl>
+                                      </FormItem>
+                                  )}
+                              />
+                              <div className="md:col-span-2">
+                                  <FormField
+                                      control={form.control}
+                                      name="bannerUrl"
+                                      render={({ field }) => (
+                                          <FormItem>
+                                              <FormLabel>URL del Banner del Torneo</FormLabel>
+                                              <FormControl>
+                                                  <Input placeholder="https://example.com/banner.png" {...field} />
+                                              </FormControl>
+                                              <FormDescription>
+                                                  Pega la URL de una imagen para que sirva como banner para la página del torneo.
+                                              </FormDescription>
+                                              <FormMessage />
+                                          </FormItem>
+                                      )}
+                                  />
+                              </div>
+                          </div>
+                      )}
 
-          <div className="flex justify-end gap-4">
-            <Button type="button" variant="outline" onClick={onSuggest} disabled={loading}>
-              {loading ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="mr-2 h-4 w-4" />
-              )}
-              Sugerencias de IA
-            </Button>
-            <Button type="submit" disabled={submitLoading}>
-               {submitLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-               {isEditMode ? 'Guardar Cambios' : 'Crear Torneo'}
-            </Button>
-          </div>
-        </form>
-      </Form>
+                      {currentStep === 3 && (
+                          <div className="space-y-8">
+                              <FormField
+                                  control={form.control}
+                                  name="prizePoolDistribution"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Distribución del Pozo de Premios</FormLabel>
+                                          <FormControl>
+                                              <Textarea placeholder="Describe cómo se distribuirá el pozo de premios..." {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                              <FormField
+                                  control={form.control}
+                                  name="rules"
+                                  render={({ field }) => (
+                                      <FormItem>
+                                          <FormLabel>Reglas</FormLabel>
+                                          <FormControl>
+                                              <Textarea placeholder="Describe las reglas del torneo..." {...field} />
+                                          </FormControl>
+                                          <FormMessage />
+                                      </FormItem>
+                                  )}
+                              />
+                          </div>
+                      )}
+                      
+                      {currentStep === 4 && (
+                          <div className="space-y-6">
+                            <h3 className="text-lg font-medium">Revisar y Enviar</h3>
+                            <p className="text-sm text-muted-foreground">Revisa la configuración del torneo a continuación. Usa el Asistente de IA para obtener sugerencias antes de enviar.</p>
+                             {aiResult && (
+                              <Alert variant={aiResult.isValid ? "default" : "destructive"}>
+                                {aiResult.isValid ? <CheckCircle className="h-4 w-4" /> : <AlertCircle className="h-4 w-4" />}
+                                <AlertTitle>{aiResult.isValid ? "¡La configuración se ve bien!" : "Problemas Potenciales Encontrados"}</AlertTitle>
+                                <AlertDescription>
+                                  <p className="mb-2">{aiResult.reason}</p>
+                                  {aiResult.suggestions.length > 0 && (
+                                    <ul className="list-disc pl-5 space-y-1">
+                                      {aiResult.suggestions.map((suggestion, index) => (
+                                        <li key={index}>{suggestion}</li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </AlertDescription>
+                              </Alert>
+                            )}
+                            <Button type="button" variant="outline" onClick={onSuggest} disabled={loading} className="w-full sm:w-auto">
+                                {loading ? (
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                  <Sparkles className="mr-2 h-4 w-4" />
+                                )}
+                                Obtener Sugerencias de IA
+                              </Button>
+                          </div>
+                      )}
+
+                      <div className="flex justify-between gap-4 pt-4">
+                          {currentStep > 1 && (
+                              <Button type="button" variant="outline" onClick={handlePrevious}>
+                                  <ArrowLeft className="mr-2 h-4 w-4" /> Anterior
+                              </Button>
+                          )}
+                          <div className="flex-grow"></div>
+                          {currentStep < TOTAL_STEPS && (
+                              <Button type="button" onClick={handleNext}>
+                                  Siguiente
+                              </Button>
+                          )}
+                          {currentStep === TOTAL_STEPS && (
+                              <Button type="submit" disabled={submitLoading}>
+                                 {submitLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                 {isEditMode ? 'Guardar Cambios' : 'Crear Torneo'}
+                              </Button>
+                          )}
+                      </div>
+                  </form>
+              </Form>
+          </CardContent>
+      </Card>
     </>
   )
 }
+
+    
