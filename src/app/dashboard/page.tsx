@@ -107,61 +107,56 @@ export default function Dashboard() {
     let p1SetsWon = 0;
     let p2SetsWon = 0;
     let localError: string | null = null;
-    const newScoreInputErrors = [ [false, false], [false, false], [false, false] ];
+    const newScoreInputErrors: boolean[][] = [ [false, false], [false, false], [false, false] ];
 
     const validateSet = (score1: number, score2: number, setIndex: number, isSuperTiebreak: boolean = false) => {
-        if (isNaN(score1) || isNaN(score2)) return null;
+        if (isNaN(score1) || isNaN(score2)) return null; // Incomplete score, no winner yet
         
         const winningScore = isSuperTiebreak ? 10 : 6;
         const tiebreakWinningScore = 7;
-
-        if (score1 === 6 && score2 === 6 && !isSuperTiebreak) {
-            // Tiebreak set, validation will happen on the tiebreak input
-            return null; 
+        
+        const hasError = (msg: string) => {
+            localError = msg;
+            newScoreInputErrors[setIndex][0] = true;
+            newScoreInputErrors[setIndex][1] = true;
         }
 
-        if (score1 >= winningScore || score2 >= winningScore) {
-            // Standard set win
-            if (score1 > score2 && score1 >= score2 + 2) {
-                 if (score1 > 7 || (score1 === 7 && score2 < 5)) {
-                    localError = `Resultado inválido en el set ${setIndex + 1}.`;
-                    newScoreInputErrors[setIndex][0] = true;
-                    newScoreInputErrors[setIndex][1] = true;
-                }
-                return 'p1';
-            }
-             if (score2 > score1 && score2 >= score1 + 2) {
-                 if (score2 > 7 || (score2 === 7 && score1 < 5)) {
-                    localError = `Resultado inválido en el set ${setIndex + 1}.`;
-                    newScoreInputErrors[setIndex][0] = true;
-                    newScoreInputErrors[setIndex][1] = true;
-                }
-                return 'p2';
+        // Rule: Win by 2
+        if ((score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) < 2) {
+             // Exception for tiebreak score like 7-6
+            if (!((score1 === tiebreakWinningScore && score2 === winningScore) || (score2 === tiebreakWinningScore && score1 === winningScore))) {
+                 hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break).`);
+                 return null;
             }
         }
+        
+        // Rule: Cannot be 6-5
+        if ((score1 === 6 && score2 === 5) || (score2 === 6 && score1 === 5)) {
+             hasError(`Un set no puede terminar 6-5. El siguiente marcador posible es 7-5 o 6-6.`);
+             return null;
+        }
+
+        // Determine winner
+        if (score1 >= winningScore && score1 >= score2 + 2) return 'p1';
+        if (score2 >= winningScore && score2 >= score1 + 2) return 'p2';
 
         // Tiebreak win (7-6)
-        if (score1 === 7 && score2 === 6) return 'p1';
-        if (score2 === 7 && score1 === 6) return 'p2';
-
+        if (score1 === tiebreakWinningScore && score2 === winningScore && !isSuperTiebreak) return 'p1';
+        if (score2 === tiebreakWinningScore && score1 === winningScore && !isSuperTiebreak) return 'p2';
+        
         // Super Tiebreak win (10+)
         if (isSuperTiebreak) {
-            if (score1 >= 10 && score1 >= score2 + 2) return 'p1';
-            if (score2 >= 10 && score2 >= score1 + 2) return 'p2';
+            if (score1 >= winningScore && score1 >= score2 + 2) return 'p1';
+            if (score2 >= winningScore && score2 >= score1 + 2) return 'p2';
         }
 
-        // Invalid scores
-        if ( (score1 >= 6 || score2 >= 6) && (Math.abs(score1-score2) < 2) && !(score1===7 && score2===6) && !(score1===6 && score2===7) ) {
-             localError = `Un set debe ganarse por 2 juegos de diferencia.`;
-             newScoreInputErrors[setIndex][0] = true;
-             newScoreInputErrors[setIndex][1] = true;
-        }
-
-        return null;
+        return null; // No winner determined yet / score incomplete
     }
 
+    // Validate first two sets
     for (let i = 0; i < 2; i++) {
         const set = scores[i];
+        if (localError) continue; // Stop validation if an error was already found
         const score1 = parseInt(set.p1, 10);
         const score2 = parseInt(set.p2, 10);
         const setWinner = validateSet(score1, score2, i);
@@ -169,12 +164,13 @@ export default function Dashboard() {
         else if (setWinner === 'p2') p2SetsWon++;
     }
     
-    if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
+    // Validate third set (super tiebreak) if necessary
+    if (!localError && isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
         const tiebreak = scores[2];
         const score1 = parseInt(tiebreak.p1, 10);
         const score2 = parseInt(tiebreak.p2, 10);
 
-        if (!isNaN(score1) && !isNaN(score2)) {
+        if (!isNaN(score1) || !isNaN(score2)) { // Only validate if there is input
              const setWinner = validateSet(score1, score2, 2, true);
              if (setWinner === 'p1') {
                 p1SetsWon++;
@@ -187,13 +183,17 @@ export default function Dashboard() {
     setScoreError(localError);
     setScoreInputErrors(newScoreInputErrors);
 
-    if (p1SetsWon === 2 && p2SetsWon < 2) {
-        setWinnerId(p1.uid);
-        setIsWinnerRadioDisabled(true);
-    } else if (p2SetsWon === 2 && p1SetsWon < 2) {
-        setWinnerId(p2.uid);
-        setIsWinnerRadioDisabled(true);
+    // Auto-select winner if validation passes and match is complete
+    if (!localError && (p1SetsWon === 2 || p2SetsWon === 2)) {
+        if (p1SetsWon === 2) {
+            setWinnerId(p1.uid);
+            setIsWinnerRadioDisabled(true);
+        } else if (p2SetsWon === 2) {
+            setWinnerId(p2.uid);
+            setIsWinnerRadioDisabled(true);
+        }
     } else {
+        // If match is not complete or score is invalid, allow manual selection
         setWinnerId(null);
         setIsWinnerRadioDisabled(false);
     }
@@ -280,7 +280,7 @@ export default function Dashboard() {
   const formatScoreString = () => {
     return scores
       .map(set => `${set.p1}-${set.p2}`)
-      .filter(set => set !== '-' && set !== '0-0' && set.p1 !== '' && set.p2 !== '')
+      .filter(set => set !== '-' && set !== '0-0' && set !== '' && set.p1 !== '' && set.p2 !== '')
       .join(', ');
   };
 
@@ -602,7 +602,7 @@ export default function Dashboard() {
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
-              Selecciona el ganador e introduce el marcador de la partida.
+              Introduce el marcador para determinar el ganador.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
@@ -705,3 +705,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
