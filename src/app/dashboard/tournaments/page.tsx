@@ -157,7 +157,12 @@ export default function TournamentsPage() {
                               <DropdownMenuItem asChild>
                                 <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>Editar</Link>
                               </DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClick(tournament.id)}>
+                              <DropdownMenuItem 
+                                className="text-destructive" 
+                                onSelect={(e) => {
+                                  e.preventDefault();
+                                  handleDeleteClick(tournament.id);
+                                }}>
                                 Eliminar
                               </DropdownMenuItem>
                             </>
@@ -179,7 +184,7 @@ export default function TournamentsPage() {
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Esto eliminará permanentemente el torneo
               y todos sus datos asociados de nuestros servidores.
-            </Description>
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
