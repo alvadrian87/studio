@@ -60,6 +60,7 @@ export default function Dashboard() {
     { p1: '', p2: '' }, // Set 2
     { p1: '', p2: '' }, // Set 3
   ]);
+  const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
 
 
   const pendingChallenges = useMemo(() => {
@@ -143,6 +144,93 @@ export default function Dashboard() {
       .join(', ');
   };
 
+  const getPlayerById = (id: string | undefined) => allPlayers?.find(p => p.uid === id);
+
+  const getPlayersForMatch = (match: Match | null) => {
+    if (!match || !allPlayers) return { player1: null, player2: null };
+    const player1 = getPlayerById(match.player1Id);
+    const player2 = getPlayerById(match.player2Id);
+    return { player1, player2 };
+  };
+
+  const handleScoreChange = (setIndex: number, playerKey: 'p1' | 'p2', value: string) => {
+    const newScores = [...scores];
+    newScores[setIndex][playerKey] = value.replace(/[^0-9]/g, '');
+    setScores(newScores);
+  };
+
+  useEffect(() => {
+      if (!isResultDialogOpen) return;
+
+      const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
+      if (!p1 || !p2) return;
+      
+      const tournamentId = selectedMatch?.tournamentId;
+      const tournament = allTournaments?.find(t => t.id === tournamentId);
+      const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
+
+      let p1SetsWon = 0;
+      let p2SetsWon = 0;
+
+      for (let i = 0; i < 2; i++) { // Only check first two sets for match winner
+          const set = scores[i];
+          const score1 = parseInt(set.p1, 10);
+          const score2 = parseInt(set.p2, 10);
+
+          if (isNaN(score1) || isNaN(score2)) continue;
+
+          if (score1 >= 6 && score1 >= score2 + 2) {
+              p1SetsWon++;
+          } else if (score2 >= 6 && score2 >= score1 + 2) {
+              p2SetsWon++;
+          } else if (score1 === 7 && score2 === 6) {
+              p1SetsWon++;
+          } else if (score2 === 7 && score1 === 6) {
+              p2SetsWon++;
+          }
+      }
+
+      if (p1SetsWon === 2) {
+          setWinnerId(p1.uid);
+          setIsWinnerRadioDisabled(true);
+          return;
+      }
+      if (p2SetsWon === 2) {
+          setWinnerId(p2.uid);
+          setIsWinnerRadioDisabled(true);
+          return;
+      }
+
+      // Check for match tiebreak
+      if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
+          const tiebreak = scores[2];
+          const score1 = parseInt(tiebreak.p1, 10);
+          const score2 = parseInt(tiebreak.p2, 10);
+
+          if (isNaN(score1) || isNaN(score2)) {
+               setIsWinnerRadioDisabled(false);
+               setWinnerId(null);
+               return;
+          };
+
+          if (score1 >= 10 && score1 >= score2 + 2) {
+              setWinnerId(p1.uid);
+              setIsWinnerRadioDisabled(true);
+              return;
+          }
+          if (score2 >= 10 && score2 >= score1 + 2) {
+              setWinnerId(p2.uid);
+              setIsWinnerRadioDisabled(true);
+              return;
+          }
+      }
+
+      // Default case if no winner is determined
+      setIsWinnerRadioDisabled(false);
+      setWinnerId(null);
+
+  }, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen]);
+    
   const handleSaveResult = async () => {
     if (!selectedMatch || !winnerId) {
         toast({ variant: "destructive", title: "Error", description: "Debes seleccionar un ganador." });
@@ -310,97 +398,7 @@ export default function Dashboard() {
   }
 
   const totalGames = (player.globalWins || 0) + (player.globalLosses || 0);
-  
-  const getPlayerById = (id: string | undefined) => allPlayers?.find(p => p.uid === id);
-
-  const getPlayersForMatch = (match: Match | null) => {
-    if (!match || !allPlayers) return { player1: null, player2: null };
-    const player1 = getPlayerById(match.player1Id);
-    const player2 = getPlayerById(match.player2Id);
-    return { player1, player2 };
-  };
-
   const { player1: playerInSelectedMatch, player2: opponentInSelectedMatch } = getPlayersForMatch(selectedMatch);
-
-  const handleScoreChange = (setIndex: number, playerKey: 'p1' | 'p2', value: string) => {
-    const newScores = [...scores];
-    newScores[setIndex][playerKey] = value.replace(/[^0-9]/g, '');
-    setScores(newScores);
-  };
-
-  const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
-
-    useEffect(() => {
-        if (!isResultDialogOpen) return;
-
-        const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
-        if (!p1 || !p2) return;
-        
-        const tournamentId = selectedMatch?.tournamentId;
-        const tournament = allTournaments?.find(t => t.id === tournamentId);
-        const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
-
-        let p1SetsWon = 0;
-        let p2SetsWon = 0;
-
-        for (let i = 0; i < 2; i++) { // Only check first two sets for match winner
-            const set = scores[i];
-            const score1 = parseInt(set.p1, 10);
-            const score2 = parseInt(set.p2, 10);
-
-            if (isNaN(score1) || isNaN(score2)) continue;
-
-            if (score1 >= 6 && score1 >= score2 + 2) {
-                p1SetsWon++;
-            } else if (score2 >= 6 && score2 >= score1 + 2) {
-                p2SetsWon++;
-            } else if (score1 === 7 && score2 === 6) {
-                p1SetsWon++;
-            } else if (score2 === 7 && score1 === 6) {
-                p2SetsWon++;
-            }
-        }
-
-        if (p1SetsWon === 2) {
-            setWinnerId(p1.uid);
-            setIsWinnerRadioDisabled(true);
-            return;
-        }
-        if (p2SetsWon === 2) {
-            setWinnerId(p2.uid);
-            setIsWinnerRadioDisabled(true);
-            return;
-        }
-
-        // Check for match tiebreak
-        if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
-            const tiebreak = scores[2];
-            const score1 = parseInt(tiebreak.p1, 10);
-            const score2 = parseInt(tiebreak.p2, 10);
-
-            if (isNaN(score1) || isNaN(score2)) {
-                 setIsWinnerRadioDisabled(false);
-                 setWinnerId(null);
-                 return;
-            };
-
-            if (score1 >= 10 && score1 >= score2 + 2) {
-                setWinnerId(p1.uid);
-                setIsWinnerRadioDisabled(true);
-                return;
-            }
-            if (score2 >= 10 && score2 >= score1 + 2) {
-                setWinnerId(p2.uid);
-                setIsWinnerRadioDisabled(true);
-                return;
-            }
-        }
-
-        // Default case if no winner is determined
-        setIsWinnerRadioDisabled(false);
-        setWinnerId(null);
-
-    }, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen]);
 
 
   return (
@@ -625,10 +623,5 @@ export default function Dashboard() {
     </>
   )
 }
-
-    
-    
-
-    
 
     
