@@ -1,11 +1,12 @@
 
 'use client';
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { doc, updateDoc } from "firebase/firestore";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useDocument } from "@/hooks/use-firestore";
@@ -27,7 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { Loader2, Upload } from "lucide-react";
 
 
 const profileFormSchema = z.object({
@@ -43,11 +44,6 @@ const profileFormSchema = z.object({
 
 type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
-const avatarFormSchema = z.object({
-  avatarUrl: z.string().url({ message: "Por favor, introduce una URL válida." }).or(z.literal('')),
-});
-
-
 export default function ProfilePage() {
   const { user } = useAuth();
   const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
@@ -55,6 +51,8 @@ export default function ProfilePage() {
   
   const [loading, setLoading] = useState(false);
   const [isAvatarDialogOpen, setIsAvatarDialogOpen] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileFormSchema),
@@ -70,13 +68,6 @@ export default function ProfilePage() {
     }
   });
 
-  const avatarForm = useForm<{avatarUrl: string}>({
-     resolver: zodResolver(avatarFormSchema),
-     defaultValues: {
-        avatarUrl: player?.avatar || ""
-     }
-  });
-
   useState(() => {
     if (player) {
       form.reset({
@@ -89,9 +80,6 @@ export default function ProfilePage() {
         dominantHand: player.dominantHand || "",
         club: player.club || "",
       });
-      avatarForm.reset({
-        avatarUrl: player.avatar || ""
-      })
     }
   });
 
@@ -114,17 +102,31 @@ export default function ProfilePage() {
     }
   }
 
-  async function onAvatarSubmit(data: {avatarUrl: string}) {
-    if (!user) return;
+  const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setAvatarFile(e.target.files[0]);
+    }
+  };
+
+  async function onAvatarSubmit() {
+    if (!user || !avatarFile) return;
     setLoading(true);
     
     try {
+        const storage = getStorage();
+        const filePath = `avatars/${user.uid}/${avatarFile.name}`;
+        const storageRef = ref(storage, filePath);
+        
+        await uploadBytes(storageRef, avatarFile);
+        const downloadURL = await getDownloadURL(storageRef);
+
         const userRef = doc(db, "users", user.uid);
         await updateDoc(userRef, {
-            avatar: data.avatarUrl
+            avatar: downloadURL
         });
         toast({ title: "¡Éxito!", description: "Tu avatar ha sido actualizado." });
         setIsAvatarDialogOpen(false);
+        setAvatarFile(null);
     } catch(error) {
         console.error("Error al actualizar el avatar:", error);
         toast({ variant: "destructive", title: "Error", description: "No se pudo actualizar tu avatar." });
@@ -178,33 +180,29 @@ export default function ProfilePage() {
                         <DialogHeader>
                             <DialogTitle>Cambiar Foto de Perfil</DialogTitle>
                             <DialogDescription>
-                                Pega la URL de una nueva imagen para tu avatar.
+                                Sube una nueva imagen para tu avatar.
                             </DialogDescription>
                         </DialogHeader>
-                         <Form {...avatarForm}>
-                            <form onSubmit={avatarForm.handleSubmit(onAvatarSubmit)} className="space-y-4">
-                                <FormField
-                                    control={avatarForm.control}
-                                    name="avatarUrl"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                        <FormLabel>URL de la Imagen</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="https://example.com/image.png" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <DialogFooter>
-                                    <Button type="button" variant="outline" onClick={() => setIsAvatarDialogOpen(false)}>Cancelar</Button>
-                                    <Button type="submit" disabled={loading}>
-                                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                        Guardar Avatar
-                                    </Button>
-                                </DialogFooter>
-                            </form>
-                        </Form>
+                        <div className="space-y-4 py-4">
+                           <div className="grid w-full max-w-sm items-center gap-1.5">
+                                <Label htmlFor="avatar-file">Sube tu Imagen</Label>
+                                <div className="flex items-center gap-2">
+                                     <Input id="avatar-file" type="file" accept="image/*" onChange={handleAvatarFileChange} ref={avatarInputRef} className="hidden" />
+                                     <Button type="button" variant="outline" onClick={() => avatarInputRef.current?.click()}>
+                                        <Upload className="mr-2 h-4 w-4"/>
+                                        Seleccionar Archivo
+                                     </Button>
+                                     {avatarFile && <span className="text-sm text-muted-foreground truncate">{avatarFile.name}</span>}
+                                </div>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setIsAvatarDialogOpen(false)}>Cancelar</Button>
+                            <Button type="button" onClick={onAvatarSubmit} disabled={loading || !avatarFile}>
+                                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                Guardar Avatar
+                            </Button>
+                        </DialogFooter>
                     </DialogContent>
                 </Dialog>
                 </div>
@@ -391,5 +389,3 @@ export default function ProfilePage() {
     </>
   )
 }
-
-    

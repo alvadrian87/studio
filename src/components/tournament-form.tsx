@@ -50,7 +50,7 @@ const formSchema = z.object({
   location: z.string().min(2, {
     message: "La ubicación debe tener al menos 2 caracteres.",
   }),
-  format: z.enum(['Eliminación Simple', 'Doble Eliminación', 'Round Robin']),
+  format: z.enum(['Eliminación Simple', 'Doble Eliminación', 'Round Robin', 'Escalera']),
   numberOfPlayers: z.coerce.number().int().positive(),
   entryFee: z.coerce.number().min(0),
   prizePoolDistribution: z.string().min(10, {
@@ -278,6 +278,7 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
                       <SelectItem value="Eliminación Simple">Eliminación Simple</SelectItem>
                       <SelectItem value="Doble Eliminación">Doble Eliminación</SelectItem>
                       <SelectItem value="Round Robin">Round Robin</SelectItem>
+                      <SelectItem value="Escalera">Escalera</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

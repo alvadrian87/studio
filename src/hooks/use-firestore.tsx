@@ -37,9 +37,9 @@ export interface Match {
 }
 
 export interface Tournament {
-  id: string;
+  id:string;
   name: string;
-  format: 'Eliminación Simple' | 'Doble Eliminación' | 'Round Robin';
+  format: 'Eliminación Simple' | 'Doble Eliminación' | 'Round Robin' | 'Escalera';
   location: string;
   status: 'Próximo' | 'En Curso' | 'Completado';
   startDate: string;

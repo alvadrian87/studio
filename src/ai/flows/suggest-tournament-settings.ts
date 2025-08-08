@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -16,7 +17,7 @@ const SuggestTournamentSettingsInputSchema = z.object({
   startDate: z.string().describe('La fecha de inicio del torneo (YYYY-MM-DD).'),
   endDate: z.string().describe('La fecha de finalización del torneo (YYYY-MM-DD).'),
   location: z.string().describe('El lugar donde se celebrará el torneo.'),
-  format: z.enum(['Eliminación Simple', 'Doble Eliminación', 'Round Robin']).describe('El formato del torneo.'),
+  format: z.enum(['Eliminación Simple', 'Doble Eliminación', 'Round Robin', 'Escalera']).describe('El formato del torneo.'),
   numberOfPlayers: z.number().int().positive().describe('El número de jugadores que participan en el torneo.'),
   entryFee: z.number().min(0).describe('La cuota de inscripción para el torneo.'),
   prizePoolDistribution: z.string().describe('Detalles sobre cómo se distribuirá el pozo de premios entre los ganadores.'),
