@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/card"
 
 export default function EditTournamentPage({ params }: { params: { id: string } }) {
-  const { data: tournament, loading } = useDocument<Tournament>(`tournaments/${params.id}`);
+  const resolvedParams = use(params);
+  const { data: tournament, loading } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
 
   if (loading) {
     return <div>Cargando detalles del torneo...</div>;
