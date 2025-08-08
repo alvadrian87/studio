@@ -35,14 +35,13 @@ import { useRouter } from "next/navigation";
 export default function LadderPage({ params }: { params: { id: string } }) {
   const resolvedParams = use(params);
   const router = useRouter();
-  console.log("LadderPage Params:", resolvedParams);
   
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
   const { data: allChallenges, loading: loadingAllChallenges } = useCollection<Challenge>('challenges');
   const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
   const [events, setEvents] = useState<TournamentEvent[]>([]);
-  const [loadingEventsAndData, setLoadingEventsAndData] = useState(true);
+  const [loadingEvents, setLoadingEvents] = useState(true);
   const [challengingPlayerId, setChallengingPlayerId] = useState<string | null>(null);
 
   
@@ -50,24 +49,19 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const { toast } = useToast();
 
   useEffect(() => {
-    console.log("Tournament Data:", tournament);
-    console.log("Inscriptions Data:", inscriptions);
-    console.log("All Players Data:", allPlayers);
-
     if (tournament) {
       const fetchEvents = async () => {
-        setLoadingEventsAndData(true);
+        setLoadingEvents(true);
         // Fetch Events (Categories/Divisions)
         const eventsQuery = query(collection(db, "eventos"), where("torneoId", "==", tournament.id));
         const eventsSnapshot = await getDocs(eventsQuery);
         const tournamentEvents = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TournamentEvent));
-        console.log("Fetched Events:", tournamentEvents);
         setEvents(tournamentEvents);
-        setLoadingEventsAndData(false);
+        setLoadingEvents(false);
       };
       fetchEvents();
     }
-  }, [tournament, inscriptions, allPlayers]);
+  }, [tournament]);
 
   const getPlayerDetails = (playerId: string) => {
     return allPlayers?.find(p => p.uid === playerId);
@@ -82,7 +76,6 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         playerDetails: getPlayerDetails(i.jugadorId!)
       }))
       .sort((a, b) => a.posicionActual - b.posicionActual);
-    console.log(`Participants for event ${eventId}:`, eventInscriptions);
     return eventInscriptions;
   }
 
@@ -97,30 +90,33 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   }
 
   const handleEnroll = async (eventId: string) => {
-    if (!user) {
+    if (!user || !tournament) {
         toast({ variant: 'destructive', title: 'Error', description: 'Debes iniciar sesión para inscribirte.' });
         return;
     }
     const eventInscriptions = getEventInscriptions(eventId);
     const newPosition = eventInscriptions.length + 1;
     
-    const batch = writeBatch(db);
-    const newInscriptionRef = doc(collection(db, `tournaments/${tournament!.id}/inscriptions`));
+    try {
+        const newInscriptionRef = doc(collection(db, `tournaments/${tournament.id}/inscriptions`));
 
-    batch.set(newInscriptionRef, {
-        torneoId: tournament!.id,
-        eventoId: eventId,
-        jugadorId: user.uid,
-        fechaInscripcion: new Date().toISOString(),
-        status: 'Confirmado',
-        posicionInicial: newPosition,
-        posicionActual: newPosition,
-        indiceActividad: 0,
-        desafioPendienteId: null
-    });
-    
-    await batch.commit();
-    toast({ title: '¡Inscripción Exitosa!', description: 'Te has inscrito correctamente en la categoría.'});
+        await addDoc(collection(db, `tournaments/${tournament.id}/inscriptions`), {
+            torneoId: tournament.id,
+            eventoId: eventId,
+            jugadorId: user.uid,
+            fechaInscripcion: new Date().toISOString(),
+            status: 'Confirmado',
+            posicionInicial: newPosition,
+            posicionActual: newPosition,
+            indiceActividad: 0,
+            desafioPendienteId: null
+        });
+        
+        toast({ title: '¡Inscripción Exitosa!', description: 'Te has inscrito correctamente en la categoría.'});
+    } catch (error) {
+        console.error("Error al inscribirse:", error);
+        toast({ variant: 'destructive', title: 'Error', description: 'No se pudo completar la inscripción.' });
+    }
   };
 
   const canChallenge = (challengerInscription: Inscription | null | undefined, challengedInscription: Inscription) => {
@@ -191,7 +187,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   }
 
 
-  if (loadingTournament || loadingAllPlayers || loadingEventsAndData || loadingAllChallenges || loadingInscriptions) {
+  if (loadingTournament || loadingAllPlayers || loadingEvents || loadingAllChallenges || loadingInscriptions) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /> Cargando datos del torneo...</div>
   }
 
@@ -220,7 +216,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         </div>
       </div>
       
-       {events.length === 0 && !loadingEventsAndData ? (
+       {events.length === 0 && !loadingEvents ? (
          <Card>
             <CardHeader>
                 <CardTitle>Sin Categorías</CardTitle>
