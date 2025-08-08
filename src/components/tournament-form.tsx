@@ -25,11 +25,12 @@ import TournamentStep3LadderRules from "./tournament-steps/TournamentStep3_Ladde
 import TournamentStep4Timing from "./tournament-steps/TournamentStep4_Timing";
 import TournamentStep5Summary from "./tournament-steps/TournamentStep5_Summary";
 
+// Base schemas for individual steps
 const step0Schema = z.object({
     tipoTorneo: z.enum(['Evento por Llaves', 'Evento tipo Escalera'], { required_error: "Debes seleccionar un tipo de torneo." }),
 });
 
-const step1Schema = z.object({}).extend({
+const step1Schema = z.object({
     nombreTorneo: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
     descripcion: z.string().optional(),
     organizacion: z.string().min(2, "La organización es requerida."),
@@ -87,7 +88,7 @@ const step3LadderSchema = z.object({
     formatoScore: z.enum(['2 Sets + Super Tiebreak', '3 Sets Completos']),
 });
 
-const step4Schema = z.object({}).extend({
+const step4Schema = z.object({
     fechaInicioInscripciones: z.string().min(1, "Requerido"),
     fechaCierreInscripciones: z.string().min(1, "Requerido"),
     fechaCierreDesafios: z.string().optional(),
@@ -99,25 +100,19 @@ const step4Schema = z.object({}).extend({
     contactoTelefono: z.string().optional(),
 });
 
+// Full static schemas
+const KeyedTournamentSchema = step0Schema
+    .merge(step1Schema)
+    .merge(step2KeyedSchema)
+    .merge(step4Schema);
 
-const getFullFormSchema = (torneoType: string) => {
-    let schema = step0Schema.merge(step1Schema);
+const LadderTournamentSchema = step0Schema
+    .merge(step1Schema)
+    .merge(step2LadderSchema)
+    .merge(step3LadderSchema)
+    .merge(step4Schema);
 
-    if (torneoType === 'Evento tipo Escalera') {
-        schema = schema
-            .merge(step2LadderSchema)
-            .merge(step3LadderSchema)
-            .merge(step4Schema);
-    } else {
-        // Default to 'Evento por Llaves' if type is not ladder or not set
-        schema = schema
-            .merge(step2KeyedSchema)
-            .merge(step4Schema);
-    }
-    return schema;
-}
-
-type FullFormValues = z.infer<ReturnType<typeof getFullFormSchema>>;
+type FullFormValues = z.infer<typeof KeyedTournamentSchema> | z.infer<typeof LadderTournamentSchema>;
 
 const TOTAL_STEPS = 5;
 
@@ -131,7 +126,10 @@ export function TournamentForm() {
     const [torneoType, setTorneoType] = useState('');
 
     const methods = useForm<FullFormValues>({
-        resolver: zodResolver(getFullFormSchema(torneoType)),
+        resolver: (data, context, options) => {
+            const schema = data.tipoTorneo === 'Evento tipo Escalera' ? LadderTournamentSchema : KeyedTournamentSchema;
+            return zodResolver(schema)(data, context, options);
+        },
         defaultValues: {
             nombreTorneo: "",
             organizacion: "",
@@ -143,7 +141,6 @@ export function TournamentForm() {
             events: [],
             fechaInicioInscripciones: "",
             fechaCierreInscripciones: "",
-            fechaCierreDesafios: "",
             contactoNombre: "",
             contactoEmail: "",
             contactoTelefono: "",
@@ -152,14 +149,13 @@ export function TournamentForm() {
                 posicionesDesafioAbajoPrimerPuesto: 5,
                 posicionesDesafioArribaUltimoPuesto: 5,
             },
-            tiempos: {
-                tiempoLimiteAceptarDesafio: 48,
-                tiempoLimiteJugarPartido: 7,
-                fechaCierreDesafios: "",
-            },
-            maximoInscripciones: undefined,
+            // Opcionales para que no sean undefined
+            fechaCierreDesafios: "", 
             tiempoLimiteAceptarDesafio: 48,
             tiempoLimiteJugarPartido: 7,
+            maximoInscripciones: undefined,
+            formatoScore: undefined,
+            metodoOrdenInicial: undefined,
         },
     });
 
@@ -175,7 +171,9 @@ export function TournamentForm() {
     const handleNext = async () => {
         let schema;
         const isLadder = methods.getValues("tipoTorneo") === 'Evento tipo Escalera';
+        const values = methods.getValues();
 
+        // Determine which schema to use for validation based on the current step
         switch(currentStep) {
             case 0: schema = step0Schema; break;
             case 1: schema = step1Schema; break;
@@ -185,7 +183,7 @@ export function TournamentForm() {
             default: schema = z.object({});
         }
 
-        const result = await schema.safeParseAsync(methods.getValues());
+        const result = await schema.safeParseAsync(values);
         
         methods.clearErrors();
 
@@ -225,7 +223,7 @@ export function TournamentForm() {
             const newTournamentDocRef = doc(collection(db, "tournaments"));
             const batch = writeBatch(db);
             
-            const fullTournamentData = { ...tournamentData };
+            const fullTournamentData: any = { ...tournamentData };
             if (values.tipoTorneo === 'Evento tipo Escalera') {
                  fullTournamentData.tiempos = {
                     tiempoLimiteAceptarDesafio: values.tiempoLimiteAceptarDesafio!,
@@ -242,7 +240,7 @@ export function TournamentForm() {
             };
             batch.set(newTournamentDocRef, tournamentPayload);
 
-            events.forEach(event => {
+            (events || []).forEach(event => {
                 const newEventDocRef = doc(collection(db, "eventos"));
                 const eventPayload: Omit<TournamentEvent, 'id' | 'torneoId'> = { ...event };
                 batch.set(newEventDocRef, { ...eventPayload, torneoId: newTournamentDocRef.id });
@@ -309,3 +307,4 @@ export function TournamentForm() {
     );
 }
 
+    
