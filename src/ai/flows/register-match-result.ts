@@ -3,7 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import * as admin from 'firebase-admin';
+import admin from 'firebase-admin';
 import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
 
 // Initialize Firebase Admin SDK if not already initialized
