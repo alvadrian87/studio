@@ -32,18 +32,13 @@ const RegisterMatchResultOutputSchema = z.object({
 export type RegisterMatchResultOutput = z.infer<typeof RegisterMatchResultOutputSchema>;
 
 
-export async function registerMatchResult(input: RegisterMatchResultInput): Promise<RegisterMatchResultOutput> {
-  return registerMatchResultFlow(input);
-}
-
-
 const calculateElo = (playerRating: number, opponentRating: number, result: number) => {
     const kFactor = 32;
     const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
     return playerRating + kFactor * (result - expectedScore);
 };
 
-const registerMatchResultFlow = ai.defineFlow(
+export const registerMatchResult = ai.defineFlow(
   {
     name: 'registerMatchResultFlow',
     inputSchema: RegisterMatchResultInputSchema,
