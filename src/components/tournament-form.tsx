@@ -10,7 +10,7 @@ import { db } from "@/lib/firebase";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import type { Tournament, TournamentEvent } from "@/hooks/use-firestore";
+import type { Tournament, TournamentEvent } from "@/types";
 
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";

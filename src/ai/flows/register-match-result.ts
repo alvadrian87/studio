@@ -13,7 +13,7 @@ import { ai } from '@/ai/genkit';
 import { z } from 'genkit';
 import { runTransaction, doc, collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Player, Match, Tournament, Challenge, Inscription } from '@/hooks/use-firestore';
+import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
 
 
 const RegisterMatchResultInputSchema = z.object({
@@ -38,7 +38,7 @@ const calculateElo = (playerRating: number, opponentRating: number, result: numb
     return playerRating + kFactor * (result - expectedScore);
 };
 
-export const registerMatchResult = ai.defineFlow(
+const registerMatchResultFlow = ai.defineFlow(
   {
     name: 'registerMatchResultFlow',
     inputSchema: RegisterMatchResultInputSchema,
@@ -136,3 +136,8 @@ export const registerMatchResult = ai.defineFlow(
     }
   }
 );
+
+
+export async function registerMatchResult(input: RegisterMatchResultInput): Promise<RegisterMatchResultOutput> {
+  return registerMatchResultFlow(input);
+}

@@ -10,7 +10,7 @@ import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useDocument } from "@/hooks/use-firestore";
-import type { Player } from "@/hooks/use-firestore";
+import type { Player } from "@/types";
 import { useToast } from "@/hooks/use-toast";
 
 import { Button } from "@/components/ui/button"

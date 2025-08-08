@@ -42,7 +42,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { useCollection } from "@/hooks/use-firestore"
-import type { Tournament } from "@/hooks/use-firestore"
+import type { Tournament } from "@/types"
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { format } from "date-fns";

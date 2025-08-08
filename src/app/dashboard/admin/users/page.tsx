@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { MoreHorizontal } from "lucide-react";
 import { useCollection } from "@/hooks/use-firestore";
-import type { Player } from "@/hooks/use-firestore";
+import type { Player } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";

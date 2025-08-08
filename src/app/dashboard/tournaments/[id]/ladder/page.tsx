@@ -24,7 +24,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Swords, UserPlus, DoorOpen, Play, Trophy, Loader2, Info, Lock } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import type { Player, Tournament, TournamentEvent, Inscription, Challenge } from "@/hooks/use-firestore";
+import type { Player, Tournament, TournamentEvent, Inscription, Challenge } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { format, add } from "date-fns";

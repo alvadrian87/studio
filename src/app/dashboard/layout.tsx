@@ -20,7 +20,7 @@ import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
 import { useDocument } from "@/hooks/use-firestore";
-import type { Player } from "@/hooks/use-firestore";
+import type { Player } from "@/types";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";

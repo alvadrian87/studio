@@ -46,7 +46,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
-import type { Player, Match, Challenge, Tournament, Inscription } from "@/hooks/use-firestore";
+import type { Player, Match, Challenge, Tournament, Inscription } from "@/types";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
 import { doc, updateDoc, addDoc, collection, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -160,12 +160,26 @@ export default function Dashboard() {
                 return null;
             }
              
-            const isFinished = (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) >= 2 || (score1 === tiebreakScore && score2 === tiebreakScore-1) || (score2 === tiebreakScore && score1 === tiebreakScore-1);
-            if (!isFinished) {
-                if(score1 === winningScore && Math.abs(score1 - score2) < 2) hasError('El ganador de un set debe tener una diferencia de 2 juegos (ej. 6-4).');
-                if((score1 === tiebreakScore && score2 !== tiebreakScore - 1) || (score2 === tiebreakScore && score1 !== tiebreakScore - 1) ) hasError('Un tie-break termina 7-6.');
+            const isFinished = (score1 >= winningScore && score1 - score2 >= 2) || 
+                               (score2 >= winningScore && score2 - score1 >= 2) ||
+                               (score1 === tiebreakScore && score2 === tiebreakScore-2) || 
+                               (score2 === tiebreakScore && score1 === tiebreakScore-2) || 
+                               (score1 === tiebreakScore && score2 === winningScore) ||
+                               (score2 === tiebreakScore && score1 === winningScore);
+
+            const isValidScore = (s1:number, s2:number) => (s1 === 6 && s2 <=4) || (s1 === 7 && (s2 === 5 || s2 === 6));
+            
+            if ( (score1 >= winningScore || score2 >= winningScore) ) {
+                if(isValidScore(score1, score2) || isValidScore(score2, score1)) {
+                     // valid score
+                } else {
+                    hasError('Resultado de set inválido. Use 6-0..4, 7-5, o 7-6.');
+                    return null;
+                }
+            } else {
                 return null;
             }
+
             return score1 > score2 ? 'p1' : 'p2';
 
         } else { // Super Tiebreak Validation
@@ -669,6 +683,3 @@ export default function Dashboard() {
     </>
   )
 }
-
-    
-    

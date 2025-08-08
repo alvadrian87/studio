@@ -10,7 +10,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { TennisBallIcon } from '@/components/icons';
 import { useAuth } from '@/hooks/use-auth';
-import type { Player } from '@/hooks/use-firestore';
+import type { Player } from '@/types';
 import { useDocument } from '@/hooks/use-firestore';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase';

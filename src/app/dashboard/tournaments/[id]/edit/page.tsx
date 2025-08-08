@@ -2,7 +2,7 @@
 "use client";
 
 import { use } from "react";
-import type { Tournament } from "@/hooks/use-firestore";
+import type { Tournament } from "@/types";
 import { useDocument } from "@/hooks/use-firestore";
 import {
   Card,
