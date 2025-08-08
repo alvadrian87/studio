@@ -126,7 +126,7 @@ export function TournamentForm() {
             contactoEmail: "",
             contactoTelefono: "",
             maximoInscripciones: undefined,
-            metodoOrdenInicial: undefined,
+            metodoOrdenInicial: "Ordenar por ELO",
             formatoScore: undefined,
             reglasLadder: {
                 posicionesDesafioArriba: 3,
@@ -151,26 +151,24 @@ export function TournamentForm() {
     const finalStep = isLadder ? 5 : 4;
 
     const handleNext = async () => {
-        const schema = methods.getValues("tipoTorneo") === 'Evento tipo Escalera' ? LadderTournamentSchema : KeyedTournamentSchema;
-        const result = await schema.safeParseAsync(methods.getValues());
-
-        if (!result.success) {
-            // A bit of a hack to show errors on the right fields for the current step
-            const fieldMap: any = {
-                 0: ['tipoTorneo'],
-                 1: ['nombreTorneo', 'organizacion', 'ubicacion', 'fechaInicio', 'fechaFin'],
-                 2: ['events'],
-                 3: isLadder ? ['reglasLadder', 'formatoScore'] : ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'],
-                 4: isLadder ? ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'] : [],
-            };
-            const fieldsToValidate = fieldMap[currentStep] || [];
-            await methods.trigger(fieldsToValidate);
+        const fieldsByStep: Record<string, (keyof FullFormValues)[]> = {
+            '0': ['tipoTorneo'],
+            '1': ['nombreTorneo', 'organizacion', 'ubicacion', 'fechaInicio', 'fechaFin'],
+            '2': ['events', 'metodoOrdenInicial'],
+            '3': isLadder ? ['reglasLadder', 'formatoScore'] : ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'],
+            '4': isLadder ? ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'] : [],
+        };
+    
+        const fieldsToValidate = fieldsByStep[currentStep] || [];
+        const result = await methods.trigger(fieldsToValidate);
+    
+        if (!result) {
             console.log("Validation failed", methods.formState.errors);
             return;
         }
-        
+    
         if (currentStep < finalStep) {
-             setCurrentStep(prev => prev + 1);
+            setCurrentStep(prev => prev + 1);
         }
     };
 
@@ -226,6 +224,11 @@ export function TournamentForm() {
             (events || []).forEach(event => {
                 const newEventDocRef = doc(collection(db, "eventos"));
                 const eventPayload: Omit<TournamentEvent, 'id' | 'torneoId'> = { ...event };
+                 Object.keys(eventPayload).forEach(key => {
+                    if ((eventPayload as any)[key] === undefined) {
+                        delete (eventPayload as any)[key];
+                    }
+                });
                 batch.set(newEventDocRef, { ...eventPayload, torneoId: newTournamentDocRef.id });
             });
 
@@ -286,5 +289,3 @@ export function TournamentForm() {
         </FormProvider>
     );
 }
-
-    
