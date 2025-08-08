@@ -1,45 +1,53 @@
-
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-
+  
+    // Helper function to check for admin role
     function isAdmin() {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
+    // Rules for the 'users' collection
     match /users/{userId} {
-      allow create;
-      // Allow any authenticated user to read player profiles for leaderboards, challenges, etc.
-      // Users can only update their own profile. Admins can update any profile.
-      allow read: if request.auth != null;
-      allow update, delete: if request.auth.uid == userId || isAdmin();
+      allow create; // Allow anyone to create a user account (signup)
+      allow read: if request.auth != null; // Allow any authenticated user to read public profile data
+      
+      // Allow a user to update their own document, or an admin to update any user document.
+      // Additionally, allow any authenticated user to update only the specific statistic fields.
+      allow update: if request.auth.uid == userId || isAdmin() || 
+                      (request.auth != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['globalWins', 'globalLosses', 'rankPoints']));
+                      
+      allow delete: if isAdmin(); // Only admins can delete users
     }
     
+    // Rules for the 'tournaments' collection
     match /tournaments/{tournamentId} {
-      allow read: if true;
-      allow create, update, delete: if request.auth != null && isAdmin();
+      allow read: if request.auth != null;
+      allow create, update, delete: if isAdmin(); // Only admins can manage tournaments
+      
+       // Rules for any subcollection within a tournament (like 'inscriptions')
+      match /{allPaths=**} {
+        allow read, write: if request.auth != null;
+      }
+    }
+
+    // Rules for the 'eventos' collection (categories/divisions)
+    match /eventos/{eventId} {
+       allow read: if request.auth != null;
+       allow create, update, delete: if isAdmin(); // Only admins can manage events
     }
     
-    // This rule allows operations on any subcollection within a tournament document
-    match /tournaments/{tournamentId}/{subcollection}/{docId} {
-      allow read, write: if request.auth != null;
-    }
-
+    // Rules for the 'challenges' collection
     match /challenges/{challengeId} {
-        allow create, read: if request.auth != null;
-        allow update: if request.auth != null && (resource.data.retadorId == request.auth.uid || resource.data.desafiadoId == request.auth.uid || isAdmin());
-        allow delete: if request.auth != null && isAdmin();
+      allow read, create, update: if request.auth != null;
+      allow delete: if isAdmin();
     }
-
+    
+    // Rules for the 'matches' collection
     match /matches/{matchId} {
       allow read, create, update: if request.auth != null;
-      allow delete: if request.auth != null && isAdmin();
-    }
-
-    match /eventos/{eventoId} {
-      allow read: if true;
-      allow create, update, delete: if request.auth != null && isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }
