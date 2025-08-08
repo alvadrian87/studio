@@ -54,8 +54,13 @@ export default function Dashboard() {
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
-  const [score, setScore] = useState("");
   const [isSubmittingResult, setIsSubmittingResult] = useState(false);
+  const [scores, setScores] = useState([
+    { p1: '', p2: '' }, // Set 1
+    { p1: '', p2: '' }, // Set 2
+    { p1: '', p2: '' }, // Set 3
+  ]);
+
 
   const pendingChallenges = useMemo(() => {
     if (!allChallenges || !user) return [];
@@ -121,7 +126,7 @@ export default function Dashboard() {
   const handleOpenResultDialog = (match: Match) => {
     setSelectedMatch(match);
     setWinnerId(null);
-    setScore("");
+    setScores([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
     setIsResultDialogOpen(true);
   }
   
@@ -130,6 +135,13 @@ export default function Dashboard() {
       const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
       return playerRating + kFactor * (result - expectedScore);
   };
+  
+  const formatScoreString = () => {
+    return scores
+      .map(set => `${set.p1}-${set.p2}`)
+      .filter(set => set !== '-') // Filter out empty sets
+      .join(', ');
+  };
 
   const handleSaveResult = async () => {
     if (!selectedMatch || !winnerId) {
@@ -137,6 +149,7 @@ export default function Dashboard() {
         return;
     }
     setIsSubmittingResult(true);
+    const finalScore = formatScoreString();
 
     try {
       await runTransaction(db, async (transaction) => {
@@ -201,7 +214,7 @@ export default function Dashboard() {
         const newWinnerWins = (winnerData.globalWins || 0) + 1;
         const newLoserLosses = (loserData.globalLosses || 0) + 1;
         
-        transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score });
+        transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
         transaction.update(winnerRef, { globalWins: newWinnerWins });
         transaction.update(loserRef, { globalLosses: newLoserLosses });
 
@@ -238,8 +251,21 @@ export default function Dashboard() {
   const totalGames = (player.globalWins || 0) + (player.globalLosses || 0);
   
   const getPlayerById = (id: string | undefined) => allPlayers?.find(p => p.uid === id);
-  const playerInSelectedMatch = getPlayerById(selectedMatch?.player1Id);
-  const opponentInSelectedMatch = getPlayerById(selectedMatch?.player2Id);
+
+  const getPlayersForMatch = (match: Match | null) => {
+    if (!match || !allPlayers) return { player1: null, player2: null };
+    const player1 = getPlayerById(match.player1Id);
+    const player2 = getPlayerById(match.player2Id);
+    return { player1, player2 };
+  };
+
+  const { player1: playerInSelectedMatch, player2: opponentInSelectedMatch } = getPlayersForMatch(selectedMatch);
+
+  const handleScoreChange = (setIndex: number, playerKey: 'p1' | 'p2', value: string) => {
+    const newScores = [...scores];
+    newScores[setIndex][playerKey] = value;
+    setScores(newScores);
+  };
 
 
   return (
@@ -382,7 +408,7 @@ export default function Dashboard() {
       </div>
 
        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
@@ -390,30 +416,67 @@ export default function Dashboard() {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-             <RadioGroup onValueChange={setWinnerId} value={winnerId || ""}>
-              {selectedMatch && playerInSelectedMatch && (
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-${selectedMatch.id}`} />
-                  <Label htmlFor={`r1-${selectedMatch.id}`}>{playerInSelectedMatch.displayName}</Label>
-                </div>
-              )}
-              {selectedMatch && opponentInSelectedMatch && (
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-${selectedMatch.id}`} />
-                  <Label htmlFor={`r2-${selectedMatch.id}`}>{opponentInSelectedMatch.displayName}</Label>
-                </div>
-              )}
+             <RadioGroup onValueChange={setWinnerId} value={winnerId || ""} className="grid grid-cols-2 gap-4">
+                {selectedMatch && playerInSelectedMatch && (
+                    <div>
+                        <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-${selectedMatch.id}`} className="sr-only" />
+                        <Label 
+                            htmlFor={`r1-${selectedMatch.id}`}
+                            className={`flex flex-col items-center justify-center rounded-md border-2 p-4 hover:bg-accent hover:text-accent-foreground ${winnerId === playerInSelectedMatch.uid ? 'border-primary' : ''}`}
+                        >
+                            <Avatar className="mb-2">
+                                <AvatarImage src={playerInSelectedMatch.avatar} />
+                                <AvatarFallback>{playerInSelectedMatch.firstName?.substring(0,1)}{playerInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback>
+                            </Avatar>
+                            {playerInSelectedMatch.displayName}
+                        </Label>
+                    </div>
+                )}
+                {selectedMatch && opponentInSelectedMatch && (
+                     <div>
+                        <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-${selectedMatch.id}`} className="sr-only" />
+                        <Label 
+                            htmlFor={`r2-${selectedMatch.id}`}
+                            className={`flex flex-col items-center justify-center rounded-md border-2 p-4 hover:bg-accent hover:text-accent-foreground ${winnerId === opponentInSelectedMatch.uid ? 'border-primary' : ''}`}
+                        >
+                             <Avatar className="mb-2">
+                                <AvatarImage src={opponentInSelectedMatch.avatar} />
+                                <AvatarFallback>{opponentInSelectedMatch.firstName?.substring(0,1)}{opponentInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback>
+                            </Avatar>
+                            {opponentInSelectedMatch.displayName}
+                        </Label>
+                    </div>
+                )}
             </RadioGroup>
-            <div>
-              <Label htmlFor="score">Marcador (Ej: 6-2, 6-3)</Label>
-              <Input 
-                id="score" 
-                value={score} 
-                onChange={(e) => setScore(e.target.value)} 
-                placeholder="Introduce el resultado"
-                className="mt-1"
-                />
+
+            <div className="space-y-2">
+                <Label>Marcador</Label>
+                <div className="flex justify-around items-center">
+                    <div className="w-1/3 text-center font-bold">Jugador</div>
+                    <div className="flex-1 grid grid-cols-3 gap-2">
+                         <div className="text-center text-sm font-medium text-muted-foreground">SET 1</div>
+                         <div className="text-center text-sm font-medium text-muted-foreground">SET 2</div>
+                         <div className="text-center text-sm font-medium text-muted-foreground">SET 3</div>
+                    </div>
+                </div>
+                 <div className="flex justify-around items-center gap-2">
+                    <div className="w-1/3 text-sm truncate">{playerInSelectedMatch?.displayName}</div>
+                    <div className="flex-1 grid grid-cols-3 gap-2">
+                         <Input className="text-center" value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} />
+                         <Input className="text-center" value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} />
+                         <Input className="text-center" value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} />
+                    </div>
+                </div>
+                 <div className="flex justify-around items-center gap-2">
+                    <div className="w-1/3 text-sm truncate">{opponentInSelectedMatch?.displayName}</div>
+                     <div className="flex-1 grid grid-cols-3 gap-2">
+                         <Input className="text-center" value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} />
+                         <Input className="text-center" value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} />
+                         <Input className="text-center" value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} />
+                    </div>
+                </div>
             </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
@@ -427,3 +490,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
