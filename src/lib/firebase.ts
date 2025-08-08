@@ -20,6 +20,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 // Enable offline persistence
+/*
 enableIndexedDbPersistence(db)
   .catch((err) => {
     if (err.code == 'failed-precondition') {
@@ -30,6 +31,6 @@ enableIndexedDbPersistence(db)
       console.log('El navegador actual no soporta la persistencia sin conexión de Firestore.');
     }
   });
-
+*/
 
 export {app, auth, db};
