@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import { useMemo, useState } from "react";
@@ -29,13 +28,14 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
-import type { Player, Match, Challenge, Tournament } from "@/hooks/use-firestore";
+import type { Player, Match, Challenge, Tournament, Inscription } from "@/hooks/use-firestore";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -54,6 +54,7 @@ export default function Dashboard() {
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [score, setScore] = useState("");
   const [isSubmittingResult, setIsSubmittingResult] = useState(false);
 
   const pendingChallenges = useMemo(() => {
@@ -97,6 +98,8 @@ export default function Dashboard() {
           status: 'Pendiente',
           date: format(new Date(), "yyyy-MM-dd HH:mm"),
           tournamentId: challenge.torneoId,
+          score: null,
+          challengeId: challenge.id,
         });
 
         // Update the challenge
@@ -118,6 +121,7 @@ export default function Dashboard() {
   const handleOpenResultDialog = (match: Match) => {
     setSelectedMatch(match);
     setWinnerId(null);
+    setScore("");
     setIsResultDialogOpen(true);
   }
   
@@ -140,9 +144,7 @@ export default function Dashboard() {
         const tournamentRef = doc(db, "tournaments", selectedMatch.tournamentId);
         
         const tournamentDoc = await transaction.get(tournamentRef);
-        if (!tournamentDoc.exists()) {
-          throw new Error("No se encontraron los datos del torneo.");
-        }
+        if (!tournamentDoc.exists()) throw new Error("No se encontraron los datos del torneo.");
         const tournamentData = tournamentDoc.data() as Tournament;
 
         const loserId = selectedMatch.player1Id === winnerId ? selectedMatch.player2Id : selectedMatch.player1Id;
@@ -153,21 +155,54 @@ export default function Dashboard() {
         const winnerDoc = await transaction.get(winnerRef);
         const loserDoc = await transaction.get(loserRef);
 
-        if (!winnerDoc.exists() || !loserDoc.exists()) {
-          throw new Error("No se encontraron los datos de uno de los jugadores.");
-        }
-
+        if (!winnerDoc.exists() || !loserDoc.exists()) throw new Error("No se encontraron los datos de uno de los jugadores.");
+        
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
+        
+        // --- Ladder Position Swap Logic ---
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
+            const challengeRef = doc(db, "challenges", selectedMatch.challengeId);
+            const challengeDoc = await transaction.get(challengeRef);
+            if (!challengeDoc.exists()) throw new Error("Challenge not found for ladder logic");
+            const challengeData = challengeDoc.data() as Challenge;
 
+            // Find inscriptions for both players in the specific event
+            const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
+            const winnerInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId));
+            const loserInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId));
+            
+            const winnerInscriptionsSnap = await getDocs(winnerInscriptionQuery);
+            const loserInscriptionsSnap = await getDocs(loserInscriptionQuery);
+
+            if (!winnerInscriptionsSnap.empty && !loserInscriptionsSnap.empty) {
+                const winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
+                const winnerInscriptionData = winnerInscriptionsSnap.docs[0].data() as Inscription;
+                
+                const loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
+                const loserInscriptionData = loserInscriptionsSnap.docs[0].data() as Inscription;
+                
+                // Challenger is the one with the higher position number (lower rank)
+                const challengerIsWinner = winnerId === challengeData.retadorId;
+
+                if (challengerIsWinner) {
+                    // Swap positions
+                    const winnerOldPosition = winnerInscriptionData.posicionActual;
+                    const loserOldPosition = loserInscriptionData.posicionActual;
+                    transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
+                    transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
+                }
+            }
+             // Update challenge status to 'Jugado'
+             transaction.update(challengeRef, { estado: 'Jugado' });
+        }
+        
+        // --- Stat Updates ---
         const newWinnerWins = (winnerData.globalWins || 0) + 1;
         const newLoserLosses = (loserData.globalLosses || 0) + 1;
         
-        // Update match
-        transaction.update(matchRef, { winnerId: winnerId, status: "Completado" });
-        // Update winner stats
+        transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score });
         transaction.update(winnerRef, { globalWins: newWinnerWins });
-        // Update loser stats
         transaction.update(loserRef, { globalLosses: newLoserLosses });
 
         // Calculate and update ELO if the tournament is ranked
@@ -292,7 +327,12 @@ export default function Dashboard() {
                       <TableCell className="hidden md:table-cell">{format(new Date(match.date), 'dd/MM/yyyy')}</TableCell>
                       <TableCell className="text-right">
                          {match.status === 'Completado' ? (
-                            match.winnerId === user?.uid ? <span className="font-bold text-primary">Victoria</span> : <span className="font-bold text-destructive">Derrota</span>
+                            <div className="flex flex-col items-end">
+                                <span className={`font-bold ${match.winnerId === user?.uid ? 'text-primary' : 'text-destructive'}`}>
+                                {match.winnerId === user?.uid ? 'Victoria' : 'Derrota'}
+                                </span>
+                                {match.score && <span className="text-xs text-muted-foreground">{match.score}</span>}
+                            </div>
                           ) : (
                             <Button variant="outline" size="sm" onClick={() => handleOpenResultDialog(match)}>Registrar</Button>
                           )}
@@ -346,10 +386,10 @@ export default function Dashboard() {
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
-              Selecciona el ganador de la partida entre {playerInSelectedMatch?.displayName} y {opponentInSelectedMatch?.displayName}.
+              Selecciona el ganador e introduce el marcador de la partida.
             </DialogDescription>
           </DialogHeader>
-          <div className="py-4">
+          <div className="py-4 space-y-4">
              <RadioGroup onValueChange={setWinnerId} value={winnerId || ""}>
               {selectedMatch && playerInSelectedMatch && (
                 <div className="flex items-center space-x-2">
@@ -364,6 +404,16 @@ export default function Dashboard() {
                 </div>
               )}
             </RadioGroup>
+            <div>
+              <Label htmlFor="score">Marcador (Ej: 6-2, 6-3)</Label>
+              <Input 
+                id="score" 
+                value={score} 
+                onChange={(e) => setScore(e.target.value)} 
+                placeholder="Introduce el resultado"
+                className="mt-1"
+                />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
