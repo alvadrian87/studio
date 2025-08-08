@@ -1,11 +1,42 @@
+
+'use client';
+
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { BarChart, BrainCircuit, CheckCircle, ListOrdered, Shield, Swords, Trophy, Users } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { BarChart, BrainCircuit, CheckCircle, ListOrdered, LogIn, LogOut, Shield, Swords, Trophy, UserPlus, Users } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { TennisBallIcon } from '@/components/icons';
+import { useAuth } from '@/hooks/use-auth';
+import type { Player } from '@/hooks/use-firestore';
+import { useDocument } from '@/hooks/use-firestore';
+import { signOut } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const { user } = useAuth();
+  const { data: player } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error("Error al cerrar sesión", error);
+    }
+  };
+
+  const getAvatarFallback = () => {
+    if (!player) return user?.email?.substring(0, 1).toUpperCase() || 'U';
+    const first = player.firstName ? player.firstName.substring(0, 1) : '';
+    const last = player.lastName ? player.lastName.substring(0, 1) : '';
+    return `${first}${last}`;
+  }
+
   return (
     <div className="flex flex-col min-h-screen">
       <header className="px-4 lg:px-6 h-16 flex items-center bg-background/95 backdrop-blur-sm sticky top-0 z-50">
@@ -13,19 +44,43 @@ export default function Home() {
           <Trophy className="h-6 w-6 text-primary" />
           <span className="ml-2 text-xl font-bold">Gestor EvoLadder</span>
         </Link>
-        <nav className="ml-auto flex gap-4 sm:gap-6">
-          <Link href="#features" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
-            Características
-          </Link>
-          <Link href="#ai-management" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
-            Gestión con IA
-          </Link>
-          <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
-            Iniciar Sesión
-          </Link>
-          <Button asChild>
-            <Link href="/dashboard">Comenzar</Link>
-          </Button>
+        <nav className="ml-auto flex gap-4 sm:gap-6 items-center">
+          {user ? (
+             <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="relative flex items-center gap-3 pr-4 pl-2 rounded-full">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={player?.avatar || "https://placehold.co/40x40.png"} alt={player?.displayName || "Usuario"} />
+                      <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
+                    </Avatar>
+                    <span className="hidden sm:inline-block font-medium">{player?.displayName || 'Usuario'}</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild><Link href="/dashboard">Panel</Link></DropdownMenuItem>
+                    <DropdownMenuItem asChild><Link href="/dashboard/profile">Perfil</Link></DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+          ) : (
+            <>
+              <Link href="#features" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
+                Características
+              </Link>
+              <Link href="#ai-management" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
+                Gestión con IA
+              </Link>
+              <Link href="/login" className="text-sm font-medium hover:underline underline-offset-4" prefetch={false}>
+                Iniciar Sesión
+              </Link>
+              <Button asChild>
+                <Link href="/signup">Comenzar</Link>
+              </Button>
+            </>
+          )}
         </nav>
       </header>
       <main className="flex-1">
@@ -179,3 +234,5 @@ export default function Home() {
     </div>
   );
 }
+
+    
