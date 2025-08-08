@@ -62,7 +62,6 @@ export default function Dashboard() {
   ]);
   const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
 
-
   const pendingChallenges = useMemo(() => {
     if (!allChallenges || !user) return [];
     return allChallenges.filter(c => c.desafiadoId === user.uid && c.estado === 'Pendiente');
@@ -183,9 +182,9 @@ export default function Dashboard() {
               p1SetsWon++;
           } else if (score2 >= 6 && score2 >= score1 + 2) {
               p2SetsWon++;
-          } else if (score1 === 7 && score2 === 6) {
+          } else if (score1 === 7 && (score2 === 6 || score2 === 5)) {
               p1SetsWon++;
-          } else if (score2 === 7 && score1 === 6) {
+          } else if (score2 === 7 && (score1 === 6 || score1 === 5)) {
               p2SetsWon++;
           }
       }
@@ -229,7 +228,7 @@ export default function Dashboard() {
       setIsWinnerRadioDisabled(false);
       setWinnerId(null);
 
-  }, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen]);
+  }, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch]);
     
   const handleSaveResult = async () => {
     if (!selectedMatch || !winnerId) {
@@ -246,42 +245,41 @@ export default function Dashboard() {
     // Score validation logic
     let p1SetsWon = 0;
     let p2SetsWon = 0;
-    let validSets = 0;
     
     const tournamentDoc = await getDoc(doc(db, "tournaments", selectedMatch.tournamentId));
     const tournamentData = tournamentDoc.data() as Tournament;
     const isSuperTiebreakFormat = tournamentData.formatoScore === '2 Sets + Super Tiebreak';
 
-    for (let i = 0; i < scores.length; i++) {
+    for (let i = 0; i < 2; i++) {
         const set = scores[i];
         const score1 = parseInt(set.p1, 10);
         const score2 = parseInt(set.p2, 10);
 
-        if (!isNaN(score1) && !isNaN(score2)) {
-            validSets++;
-            
-            const isTiebreakSet = i === 2 && isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1;
-            const winPoints = isTiebreakSet ? 10 : 7;
-            const gamePoints = isTiebreakSet ? 0 : 6;
+        if (isNaN(score1) || isNaN(score2)) continue;
 
-            if (score1 >= gamePoints && score1 > score2 + 1) {
-                 if(!isTiebreakSet) p1SetsWon++;
-            } else if (score2 >= gamePoints && score2 > score1 + 1) {
-                 if(!isTiebreakSet) p2SetsWon++;
-            } else if (score1 === 7 && score2 === 6) {
-                 if(!isTiebreakSet) p1SetsWon++;
-            } else if (score2 === 7 && score1 === 6) {
-                 if(!isTiebreakSet) p2SetsWon++;
-            } else if (isTiebreakSet && score1 >= winPoints && score1 >= score2 + 2) {
-                p1SetsWon++;
-            } else if (isTiebreakSet && score2 >= winPoints && score2 >= score1 + 2) {
-                p2SetsWon++;
-            }
+        if (score1 >= 6 && score1 >= score2 + 2) {
+            p1SetsWon++;
+        } else if (score2 >= 6 && score2 >= score1 + 2) {
+            p2SetsWon++;
+        } else if (score1 === 7 && (score2 === 6 || score2 === 5)) {
+            p1SetsWon++;
+        } else if (score2 === 7 && (score1 === 6 || score1 === 5)) {
+            p2SetsWon++;
         }
     }
     
-    if (validSets < 2 || (p1SetsWon < 2 && p2SetsWon < 2)) {
-        toast({ variant: "destructive", title: "Marcador Incompleto", description: "El partido no ha concluido. Registra al menos dos sets ganados por un jugador." });
+    if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
+        const tiebreak = scores[2];
+        const score1 = parseInt(tiebreak.p1, 10);
+        const score2 = parseInt(tiebreak.p2, 10);
+        if (!isNaN(score1) && !isNaN(score2)) {
+            if (score1 >= 10 && score1 >= score2 + 2) p1SetsWon++;
+            if (score2 >= 10 && score2 >= score1 + 2) p2SetsWon++;
+        }
+    }
+    
+    if ((p1SetsWon < 2 && p2SetsWon < 2) || p1SetsWon === p2SetsWon) {
+        toast({ variant: "destructive", title: "Marcador Incompleto o Inválido", description: "El partido no ha concluido o el marcador es inválido. Un jugador debe ganar 2 sets." });
         return;
     }
 
@@ -300,27 +298,7 @@ export default function Dashboard() {
 
     try {
         const loserId = selectedMatch.player1Id === winnerId ? selectedMatch.player2Id : selectedMatch.player1Id;
-        let winnerInscriptionRef: any, loserInscriptionRef: any;
-
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
-            const challengeDoc = await getDoc(doc(db, "challenges", selectedMatch.challengeId));
-            if (!challengeDoc.exists()) throw new Error("Challenge not found for ladder logic");
-            const challengeData = challengeDoc.data() as Challenge;
-
-            const inscriptionsRef = collection(db, `inscriptions`);
-            
-            const winnerInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId), where("torneoId", "==", tournamentData.id));
-            const winnerInscriptionsSnap = await getDocs(winnerInscriptionQuery);
-            if (winnerInscriptionsSnap.empty) throw new Error("Winner inscription not found");
-            winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
-
-            const loserInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId), where("torneoId", "==", tournamentData.id));
-            const loserInscriptionsSnap = await getDocs(loserInscriptionQuery);
-            if (loserInscriptionsSnap.empty) throw new Error("Loser inscription not found");
-            loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
-        }
-
-
+        
       await runTransaction(db, async (transaction) => {
         const matchRef = doc(db, "matches", selectedMatch.id);
         const winnerRef = doc(db, "users", winnerId);
@@ -334,31 +312,43 @@ export default function Dashboard() {
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
         
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId && winnerInscriptionRef && loserInscriptionRef) {
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && selectedMatch.challengeId) {
             const challengeRef = doc(db, "challenges", selectedMatch.challengeId);
             const challengeDoc = await transaction.get(challengeRef);
             if (!challengeDoc.exists()) throw new Error("Challenge not found for ladder logic");
             const challengeData = challengeDoc.data() as Challenge;
-            
-            const challengerIsWinner = winnerId === challengeData.retadorId;
 
-            if (challengerIsWinner) {
-                const winnerInscriptionDoc = await transaction.get(winnerInscriptionRef);
-                const loserInscriptionDoc = await transaction.get(loserInscriptionRef);
+            if (challengeData.eventoId) {
+                const inscriptionsRef = collection(db, "inscriptions");
+                const winnerInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId));
+                const loserInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId));
 
-                if (winnerInscriptionDoc.exists() && loserInscriptionDoc.exists()) {
-                    const winnerInscriptionData = winnerInscriptionDoc.data() as Inscription;
-                    const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
+                const winnerInscriptionsSnap = await getDocs(winnerInscriptionQuery);
+                const loserInscriptionsSnap = await getDocs(loserInscriptionQuery);
+
+                if (!winnerInscriptionsSnap.empty && !loserInscriptionsSnap.empty) {
+                    const winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
+                    const loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
+
+                    const winnerInscriptionDoc = await transaction.get(winnerInscriptionRef);
+                    const loserInscriptionDoc = await transaction.get(loserInscriptionRef);
                     
-                    if(winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
-                        const winnerOldPosition = winnerInscriptionData.posicionActual;
-                        const loserOldPosition = loserInscriptionData.posicionActual;
-                        transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
-                        transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
+                    if (winnerInscriptionDoc.exists() && loserInscriptionDoc.exists()) {
+                        const winnerInscriptionData = winnerInscriptionDoc.data() as Inscription;
+                        const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
+
+                        const challengerIsWinner = winnerId === challengeData.retadorId;
+
+                        if (challengerIsWinner && winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
+                            const winnerOldPosition = winnerInscriptionData.posicionActual;
+                            const loserOldPosition = loserInscriptionData.posicionActual;
+                            transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
+                            transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
+                        }
                     }
                 }
             }
-             transaction.update(challengeRef, { estado: 'Jugado' });
+            transaction.update(challengeRef, { estado: 'Jugado' });
         }
         
         const newWinnerWins = (winnerData.globalWins || 0) + 1;
