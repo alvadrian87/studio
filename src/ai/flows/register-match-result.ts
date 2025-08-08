@@ -66,8 +66,11 @@ export const registerMatchResult = ai.defineFlow(
         const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
         
         console.log('Fetching winner, loser, and tournament documents.');
-        const docsToGet = [winnerRef, loserRef, tournamentRef];
-        const [winnerDoc, loserDoc, tournamentDoc] = await transaction.getAll(...docsToGet);
+        const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
+          transaction.get(winnerRef),
+          transaction.get(loserRef),
+          transaction.get(tournamentRef)
+        ]);
         console.log('Winner, loser, and tournament documents fetched.');
         
         if (!winnerDoc.exists || !loserDoc.exists || !tournamentDoc.exists) {
@@ -92,11 +95,11 @@ export const registerMatchResult = ai.defineFlow(
                 const challengeData = challengeDoc.data() as Challenge;
                 const challengerIsWinner = winnerId === challengeData.retadorId;
 
-                // TODO: Implement efficient position swap.
-                // For now, we are skipping the position swap to prevent timeouts.
-                // We will still mark the challenge as played.
+                // TODO: Implement efficient position swap using a Cloud Function.
+                // The logic to swap positions is removed from this transaction to prevent timeouts.
+                // A Cloud Function should listen for match completions and handle the ladder update.
                 if (challengerIsWinner) {
-                    console.log('Challenger won. Position swap logic needs to be implemented efficiently.');
+                    console.log('Challenger won. Position swap logic needs to be implemented efficiently in a separate process.');
                 }
                 
                 transaction.update(challengeRef, { estado: 'Jugado' });
