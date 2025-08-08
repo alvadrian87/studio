@@ -36,6 +36,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
 import { Label } from "@/components/ui/label";
@@ -125,70 +126,62 @@ export default function Dashboard() {
         const score1 = parseInt(score1Str, 10);
         const score2 = parseInt(score2Str, 10);
 
-        if (isNaN(score1) && isNaN(score2)) return null; // Empty set, not a win for anyone
+        if (isNaN(score1) && isNaN(score2)) return null;
 
-        const hasError = (msg: string) => {
-            localError = msg;
-            newScoreInputErrors[setIndex][0] = true;
-            newScoreInputErrors[setIndex][1] = true;
+        const hasError = (msg: string, p1Error: boolean = true, p2Error: boolean = true) => {
+            if (!localError) { // Only set first error
+                localError = msg;
+            }
+            newScoreInputErrors[setIndex][0] = p1Error;
+            newScoreInputErrors[setIndex][1] = p2Error;
         };
-
+        
         if (isNaN(score1) || isNaN(score2)) {
              hasError('Ambos campos del set deben estar completos.');
              return null;
         }
 
-        if (!isSuperTiebreak) {
-            // Regular Set Validation
-             const winningScore = 6;
-             const tiebreakScore = 7;
-             if (score1 > tiebreakScore || score2 > tiebreakScore) {
-                 hasError(`Un set no puede tener más de ${tiebreakScore} juegos.`);
-                 return null;
-             }
-             if (score1 < 0 || score2 < 0) {
-                 hasError('Los juegos no pueden ser negativos.');
-                 return null;
-             }
-             if (score1 === score2 && score1 >= winningScore) {
-                if(score1 === winningScore) return null; // 6-6 valid for tie-break
-                hasError(`Marcador inválido: ${score1}-${score2}.`);
-                return null;
-             }
-             
-             if ( (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) < 2 ) {
-                 if ( !( (score1 === tiebreakScore && score2 === tiebreakScore - 1) || (score2 === tiebreakScore && score1 === tiebreakScore - 1) || (score1 === tiebreakScore -1 && score2 === tiebreakScore - 2) || (score2 === tiebreakScore -1 && score1 === tiebreakScore - 2)) ) {
-                     hasError('El ganador de un set debe tener una diferencia de 2 juegos, o ganar 7-6/7-5.');
-                     return null;
-                 }
-             }
-             
-             if ( (score1 > score2 && score1 === winningScore && score2 < winningScore -1) || (score2 > score1 && score2 === winningScore && score1 < winningScore -1) ) return score1 > score2 ? 'p1' : 'p2';
-             if ( (score1 === tiebreakScore && (score2 === tiebreakScore - 2 || score2 === tiebreakScore - 1)) || (score2 === tiebreakScore && (score1 === tiebreakScore - 2 || score1 === tiebreakScore - 1)) ) return score1 > score2 ? 'p1' : 'p2';
-
-        } else {
-            // Super Tiebreak Validation
-            const winningScore = 10;
-            if (score1 < 0 || score2 < 0) {
-                 hasError('Los puntos no pueden ser negativos.');
-                 return null;
-            }
-            if (score1 < winningScore && score2 < winningScore) return null; // Not finished
-            
-            if (Math.abs(score1 - score2) < 2) {
-                hasError('El Súper Tiebreak debe ganarse por 2 puntos de diferencia.');
-                return null;
-            }
-             if ((score1 > score2 && score1 >= winningScore) || (score2 > score1 && score2 >= winningScore)) {
-                if (Math.abs(score1 - score2) !== 2 && (score1 > winningScore || score2 > winningScore)) {
-                     hasError(`Resultado inválido. Con más de 10 puntos, la diferencia debe ser 2. (Ej: 11-9, 12-10)`);
-                     return null;
-                }
-                return score1 > score2 ? 'p1' : 'p2';
-             }
+        if (score1 < 0 || score2 < 0) {
+            hasError('Los juegos no pueden ser negativos.');
+            return null;
         }
-        
-        return null;
+
+        if (!isSuperTiebreak) {
+            const winningScore = 6;
+            const tiebreakScore = 7;
+            
+            if (score1 > tiebreakScore || score2 > tiebreakScore) {
+                hasError(`Un set no puede tener más de ${tiebreakScore} juegos.`);
+                return null;
+            }
+             
+            if (score1 === score2 && score1 >= winningScore) {
+                hasError(`Marcador inválido: ${score1}-${score2}. No puede haber empate en 6 o más.`);
+                return null;
+            }
+             
+            const isFinished = (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) >= 2 || (score1 === tiebreakScore && score2 === tiebreakScore-1) || (score2 === tiebreakScore && score1 === tiebreakScore-1);
+            if (!isFinished) {
+                if(score1 === winningScore && Math.abs(score1 - score2) < 2) hasError('El ganador de un set debe tener una diferencia de 2 juegos (ej. 6-4).');
+                if((score1 === tiebreakScore && score2 !== tiebreakScore - 1) || (score2 === tiebreakScore && score1 !== tiebreakScore - 1) ) hasError('Un tie-break termina 7-6.');
+                return null;
+            }
+            return score1 > score2 ? 'p1' : 'p2';
+
+        } else { // Super Tiebreak Validation
+            const winningScore = 10;
+            const isFinished = (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) >= 2;
+            
+            if (!isFinished) {
+                 if( (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) < 2) hasError('El Súper Tiebreak debe ganarse por 2 puntos de diferencia.');
+                 return null;
+            }
+            if ((score1 > winningScore || score2 > winningScore) && Math.abs(score1-score2) !== 2){
+                hasError(`Resultado de tie-break inválido. La diferencia debe ser 2.`);
+                return null;
+            }
+            return score1 > score2 ? 'p1' : 'p2';
+        }
     }
 
     // Validate first two sets
@@ -205,8 +198,8 @@ export default function Dashboard() {
     } else {
         setIsThirdSetDisabled(false);
         // Validate third set only if needed
-        if (!localError) {
-             const isLastSetSuperTiebreak = isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1;
+        if (!localError && (p1SetsWon === 1 && p2SetsWon === 1)) {
+             const isLastSetSuperTiebreak = isSuperTiebreakFormat;
              const set = scores[2];
              const setWinner = validateSet(set.p1, set.p2, 2, isLastSetSuperTiebreak);
              if (setWinner === 'p1') p1SetsWon++;
@@ -346,7 +339,8 @@ export default function Dashboard() {
         let p1SetsWon = 0;
         let p2SetsWon = 0;
         
-        scores.forEach(set => {
+        scores.forEach((set, index) => {
+            if(isThirdSetDisabled && index === 2) return;
             const score1 = parseInt(set.p1);
             const score2 = parseInt(set.p2);
             if(isNaN(score1) || isNaN(score2)) return;
@@ -652,14 +646,14 @@ export default function Dashboard() {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Confirmar Resultado</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                ¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.
-                            </AlertDialogDescription>
+                        <AlertDialogDescription>
+                           ¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                         <div className="py-4 font-medium text-foreground text-sm">
+                            <div><strong>Ganador:</strong> {getPlayerById(winnerId)?.displayName}</div>
+                            <div><strong>Marcador:</strong> {formatScoreString()}</div>
+                        </div>
                     </AlertDialogHeader>
-                     <div className="py-4 font-medium text-foreground text-sm">
-                        <div><strong>Ganador:</strong> {getPlayerById(winnerId)?.displayName}</div>
-                        <div><strong>Marcador:</strong> {formatScoreString()}</div>
-                    </div>
                     <AlertDialogFooter>
                     <AlertDialogCancel>Cancelar</AlertDialogCancel>
                     <AlertDialogAction onClick={handleConfirmAndSave} disabled={isSubmittingResult}>
@@ -676,4 +670,5 @@ export default function Dashboard() {
   )
 }
 
+    
     
