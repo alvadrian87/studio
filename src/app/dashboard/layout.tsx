@@ -15,6 +15,8 @@ import {
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/hooks/use-auth";
+import { useDocument } from "@/hooks/use-firestore";
+import type { Player } from "@/hooks/use-firestore";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -53,6 +55,8 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user } = useAuth();
+  const { data: player } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
+
 
   const handleLogout = async () => {
     try {
@@ -62,6 +66,14 @@ export default function DashboardLayout({
       console.error("Error al cerrar sesión", error);
     }
   };
+  
+  const getAvatarFallback = () => {
+    if (!player) return user?.email?.substring(0, 1).toUpperCase() || 'U';
+    const first = player.firstName ? player.firstName.substring(0, 1) : '';
+    const last = player.lastName ? player.lastName.substring(0, 1) : '';
+    return `${first}${last}`;
+  }
+
 
   return (
     <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
@@ -155,8 +167,8 @@ export default function DashboardLayout({
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="icon" className="rounded-full">
                 <Avatar>
-                  <AvatarImage src={user?.photoURL || "https://placehold.co/40x40.png"} alt={user?.displayName || "Usuario"} />
-                  <AvatarFallback>{user?.displayName?.substring(0, 2) || user?.email?.substring(0, 2) || 'U'}</AvatarFallback>
+                  <AvatarImage src={player?.avatar || "https://placehold.co/40x40.png"} alt={player?.displayName || "Usuario"} />
+                  <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
                 </Avatar>
                 <span className="sr-only">Alternar menú de usuario</span>
               </Button>

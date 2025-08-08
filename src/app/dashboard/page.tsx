@@ -209,7 +209,7 @@ export default function Dashboard() {
   return (
     <>
       <div className="flex items-center justify-between space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">¡Bienvenido de nuevo, {player.displayName || 'Jugador'}!</h1>
+        <h1 className="text-3xl font-bold tracking-tight">¡Bienvenido de nuevo, {player.firstName || 'Jugador'}!</h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -280,7 +280,7 @@ export default function Dashboard() {
                         <div className="flex items-center gap-3">
                            <Avatar>
                               <AvatarImage src={opponent?.avatar} alt={opponent?.displayName} />
-                              <AvatarFallback>{opponent?.displayName?.substring(0, 2) || 'O'}</AvatarFallback>
+                              <AvatarFallback>{opponent?.firstName?.substring(0,1)}{opponent?.lastName?.substring(0,1)}</AvatarFallback>
                            </Avatar>
                            <span className="font-medium">{opponent?.displayName || 'Desconocido'}</span>
                         </div>

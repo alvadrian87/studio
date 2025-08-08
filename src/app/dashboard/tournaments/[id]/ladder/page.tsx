@@ -63,11 +63,17 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                 participantData.push({
                     id: doc.id,
                     uid: data.uid,
+                    firstName: data.firstName,
+                    lastName: data.lastName,
                     displayName: data.displayName,
                     email: data.email,
                     globalWins: data.globalWins || 0,
                     globalLosses: data.globalLosses || 0,
                     rankPoints: data.rankPoints || 1000,
+                    dateOfBirth: data.dateOfBirth,
+                    gender: data.gender,
+                    phoneNumber: data.phoneNumber,
+                    residence: data.residence,
                 } as Player);
             });
         }
@@ -276,7 +282,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                         <div className="flex items-center gap-3">
                         <Avatar>
                             <AvatarImage src={player.avatar} alt={player.displayName} />
-                            <AvatarFallback>{player.displayName?.substring(0, 2)}</AvatarFallback>
+                            <AvatarFallback>{player.firstName?.substring(0,1)}{player.lastName?.substring(0,1)}</AvatarFallback>
                         </Avatar>
                         <span className="font-medium">{player.displayName}</span>
                         </div>

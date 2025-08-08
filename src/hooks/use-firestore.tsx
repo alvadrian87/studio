@@ -9,8 +9,16 @@ import { db } from '@/lib/firebase';
 export interface Player {
   id: string; // This will be the document's ID
   uid: string; // This is the user's UID from auth
-  displayName: string;
+  firstName: string;
+  lastName: string;
+  displayName: string; // Combination of first and last name
   email: string;
+  dateOfBirth: string;
+  gender: string;
+  phoneNumber: string;
+  residence: string;
+  dominantHand?: string;
+  club?: string;
   avatar?: string;
   role: 'player' | 'admin';
   globalWins: number;
