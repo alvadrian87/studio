@@ -110,46 +110,55 @@ export default function Dashboard() {
     const newScoreInputErrors: boolean[][] = [ [false, false], [false, false], [false, false] ];
 
     const validateSet = (score1: number, score2: number, setIndex: number, isSuperTiebreak: boolean = false) => {
-        if (isNaN(score1) || isNaN(score2)) return null; // Incomplete score, no winner yet
-        
+        if (isNaN(score1) || isNaN(score2)) return null;
+
         const winningScore = isSuperTiebreak ? 10 : 6;
         const tiebreakWinningScore = 7;
-        
+
         const hasError = (msg: string) => {
             localError = msg;
             newScoreInputErrors[setIndex][0] = true;
             newScoreInputErrors[setIndex][1] = true;
+        };
+        
+        // Rule: No score in a regular set can be higher than 7
+        if (!isSuperTiebreak && (score1 > tiebreakWinningScore || score2 > tiebreakWinningScore)) {
+            hasError(`Un set no puede tener más de 7 juegos.`);
+            return null;
         }
 
-        // Rule: Win by 2
+        // Rule: If a score is 7, the other must be 5 or 6
+        if (!isSuperTiebreak && ((score1 === tiebreakWinningScore && (score2 < 5 || score2 > 6)) || (score2 === tiebreakWinningScore && (score1 < 5 || score1 > 6)))) {
+             hasError(`Un marcador de 7 juegos solo es posible con 7-5 o 7-6.`);
+             return null;
+        }
+
+        // Rule: Win by 2 (general case)
         if ((score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) < 2) {
-             // Exception for tiebreak score like 7-6
-            if (!((score1 === tiebreakWinningScore && score2 === winningScore) || (score2 === tiebreakWinningScore && score1 === winningScore))) {
-                 hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break).`);
+            // Exception for tiebreak score like 7-6
+            if (!isSuperTiebreak && !((score1 === tiebreakWinningScore && score2 === 6) || (score2 === tiebreakWinningScore && score1 === 6))) {
+                 hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break 7-6).`);
                  return null;
             }
         }
         
         // Rule: Cannot be 6-5
-        if ((score1 === 6 && score2 === 5) || (score2 === 6 && score1 === 5)) {
+        if (!isSuperTiebreak && ((score1 === 6 && score2 === 5) || (score2 === 6 && score1 === 5))) {
              hasError(`Un set no puede terminar 6-5. El siguiente marcador posible es 7-5 o 6-6.`);
              return null;
         }
 
         // Determine winner
-        if (score1 >= winningScore && score1 >= score2 + 2) return 'p1';
-        if (score2 >= winningScore && score2 >= score1 + 2) return 'p2';
-
-        // Tiebreak win (7-6)
-        if (score1 === tiebreakWinningScore && score2 === winningScore && !isSuperTiebreak) return 'p1';
-        if (score2 === tiebreakWinningScore && score1 === winningScore && !isSuperTiebreak) return 'p2';
-        
-        // Super Tiebreak win (10+)
         if (isSuperTiebreak) {
             if (score1 >= winningScore && score1 >= score2 + 2) return 'p1';
             if (score2 >= winningScore && score2 >= score1 + 2) return 'p2';
+        } else {
+             if (score1 === tiebreakWinningScore && (score2 === 6 || score2 === 5)) return 'p1'; // 7-6, 7-5
+             if (score2 === tiebreakWinningScore && (score1 === 6 || score1 === 5)) return 'p2'; // 7-6, 7-5
+             if (score1 === winningScore && score2 < 5) return 'p1'; // 6-0 to 6-4
+             if (score2 === winningScore && score1 < 5) return 'p2'; // 6-0 to 6-4
         }
-
+        
         return null; // No winner determined yet / score incomplete
     }
 
