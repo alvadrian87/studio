@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link"
@@ -78,7 +79,6 @@ export default function TournamentsPage() {
     }
   };
 
-
   if (loading) {
     return <div>Cargando torneos...</div>
   }
@@ -124,6 +124,7 @@ export default function TournamentsPage() {
             <TableBody>
               {tournaments?.map((tournament) => {
                 const canManage = userRole === 'admin' || tournament.creatorId === user?.uid;
+                
                 return (
                   <TableRow key={tournament.id}>
                     <TableCell className="font-medium">{tournament.name}</TableCell>
@@ -174,7 +175,7 @@ export default function TournamentsPage() {
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+            <AlertDialogTitle>¿Estás absolutely seguro?</AlertDialogTitle>
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Esto eliminará permanentemente el torneo
               y todos sus datos asociados de nuestros servidores.
