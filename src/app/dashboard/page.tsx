@@ -82,6 +82,14 @@ export default function Dashboard() {
     [false, false],
   ]);
 
+  const getPlayerById = (id: string | undefined) => allPlayers?.find(p => p.uid === id);
+
+  const getPlayersForMatch = (match: Match | null) => {
+    if (!match || !allPlayers) return { player1: null, player2: null };
+    const player1 = getPlayerById(match.player1Id);
+    const player2 = getPlayerById(match.player2Id);
+    return { player1, player2 };
+  };
 
   // Call all hooks unconditionally at the top level
   useEffect(() => {
@@ -272,15 +280,6 @@ export default function Dashboard() {
       .map(set => `${set.p1}-${set.p2}`)
       .filter(set => set !== '-' && set !== '0-0' && set.p1 !== '' && set.p2 !== '')
       .join(', ');
-  };
-
-  const getPlayerById = (id: string | undefined) => allPlayers?.find(p => p.uid === id);
-
-  const getPlayersForMatch = (match: Match | null) => {
-    if (!match || !allPlayers) return { player1: null, player2: null };
-    const player1 = getPlayerById(match.player1Id);
-    const player2 = getPlayerById(match.player2Id);
-    return { player1, player2 };
   };
 
   const handleScoreChange = (setIndex: number, playerKey: 'p1' | 'p2', value: string) => {
