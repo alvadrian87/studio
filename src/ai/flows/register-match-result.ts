@@ -38,7 +38,7 @@ export const registerMatchResult = ai.defineFlow(
     inputSchema: RegisterMatchResultInputSchema,
     outputSchema: RegisterMatchResultOutputSchema,
   },
-  async ({ matchId, winnerId, score }) => {
+  async ({ matchId, winnerId, score, isRetirement }) => {
     try {
       await db.runTransaction(async (transaction) => {
         const matchRef = db.collection("matches").doc(matchId);
@@ -47,6 +47,11 @@ export const registerMatchResult = ai.defineFlow(
         if (!matchDoc.exists) throw new Error("Match not found.");
 
         const matchData = matchDoc.data() as Match;
+        if(matchData.status === 'Completado') {
+          // Prevent re-submitting results
+          return;
+        }
+
         const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
 
         const winnerRef = db.collection("users").doc(winnerId);
@@ -86,20 +91,15 @@ export const registerMatchResult = ai.defineFlow(
                 if (!winnerInscriptionsSnap.empty && !loserInscriptionsSnap.empty) {
                     const winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
                     const loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
-                    const winnerInscriptionDoc = await transaction.get(winnerInscriptionRef);
-                    const loserInscriptionDoc = await transaction.get(loserInscriptionRef);
-
-                    if (winnerInscriptionDoc.exists && loserInscriptionDoc.exists) {
-                        const winnerInscriptionData = winnerInscriptionDoc.data() as Inscription;
-                        const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
-                        const challengerIsWinner = winnerId === challengeData.retadorId;
+                    const winnerInscriptionData = winnerInscriptionsSnap.docs[0].data() as Inscription;
+                    const loserInscriptionData = loserInscriptionsSnap.docs[0].data() as Inscription;
+                    const challengerIsWinner = winnerId === challengeData.retadorId;
                         
-                        if (challengerIsWinner && winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
-                            const winnerOldPosition = winnerInscriptionData.posicionActual;
-                            const loserOldPosition = loserInscriptionData.posicionActual;
-                            transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
-                            transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
-                        }
+                    if (challengerIsWinner && winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
+                        const winnerOldPosition = winnerInscriptionData.posicionActual;
+                        const loserOldPosition = loserInscriptionData.posicionActual;
+                        transaction.update(winnerInscriptionRef, { posicionActual: loserOldPosition });
+                        transaction.update(loserInscriptionRef, { posicionActual: winnerOldPosition });
                     }
                 }
             }

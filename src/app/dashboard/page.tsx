@@ -162,39 +162,53 @@ export default function Dashboard() {
              
             const isFinished = (score1 >= winningScore && score1 - score2 >= 2) || 
                                (score2 >= winningScore && score2 - score1 >= 2) ||
-                               (score1 === tiebreakScore && score2 === tiebreakScore-2) || 
-                               (score2 === tiebreakScore && score1 === tiebreakScore-2) || 
-                               (score1 === tiebreakScore && score2 === winningScore) ||
-                               (score2 === tiebreakScore && score1 === winningScore);
+                               (score1 === tiebreakScore && score2 <= tiebreakScore -2) || 
+                               (score2 === tiebreakScore && score1 <= tiebreakScore -2) ||
+                               (score1 === tiebreakScore && score2 === (winningScore-1)) || // 7-5
+                               (score2 === tiebreakScore && score1 === (winningScore-1)) || // 5-7
+                               (score1 === tiebreakScore && score2 === winningScore) || // 7-6
+                               (score2 === tiebreakScore && score1 === winningScore); // 6-7
 
-            const isValidScore = (s1:number, s2:number) => (s1 === 6 && s2 <=4) || (s1 === 7 && (s2 === 5 || s2 === 6));
-            
-            if ( (score1 >= winningScore || score2 >= winningScore) ) {
-                if(isValidScore(score1, score2) || isValidScore(score2, score1)) {
-                     // valid score
-                } else {
-                    hasError('Resultado de set inválido. Use 6-0..4, 7-5, o 7-6.');
-                    return null;
-                }
-            } else {
-                return null;
+            const isValidScore = (s1:number, s2:number) => {
+                if(s1 < winningScore && s2 < winningScore) return true; // not finished yet
+                if(s1 === winningScore && s2 <= winningScore - 2) return true; // 6-4, 6-3, etc.
+                if(s1 === tiebreakScore && (s2 === winningScore -1 || s2 === winningScore)) return true; // 7-5 or 7-6
+                return false;
             }
-
-            return score1 > score2 ? 'p1' : 'p2';
+            
+            if (!isValidScore(score1, score2) && !isValidScore(score2, score1)) {
+                 hasError('Resultado de set inválido. Use 6-0..4, 7-5, o 7-6.');
+                 return null;
+            }
+            
+            if((score1 >= winningScore || score2 >= winningScore) && Math.abs(score1-score2) >= 2) {
+                 if (score1 > score2) return 'p1'; else return 'p2';
+            }
+            if(score1 === tiebreakScore || score2 === tiebreakScore) {
+                 if (score1 > score2) return 'p1'; else return 'p2';
+            }
+            
+            return null;
 
         } else { // Super Tiebreak Validation
             const winningScore = 10;
             const isFinished = (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) >= 2;
             
-            if (!isFinished) {
-                 if( (score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) < 2) hasError('El Súper Tiebreak debe ganarse por 2 puntos de diferencia.');
-                 return null;
+            if(isFinished) {
+                const high = Math.max(score1, score2);
+                const low = Math.min(score1, score2);
+                if(high > winningScore && high - low !== 2) {
+                     hasError(`Resultado de tie-break inválido. La diferencia debe ser 2.`);
+                     return null;
+                }
+                 return score1 > score2 ? 'p1' : 'p2';
             }
-            if ((score1 > winningScore || score2 > winningScore) && Math.abs(score1-score2) !== 2){
-                hasError(`Resultado de tie-break inválido. La diferencia debe ser 2.`);
-                return null;
+            
+            if((score1 >= winningScore || score2 >= winningScore) && Math.abs(score1-score2) < 2) {
+                hasError('El Súper Tiebreak debe ganarse por 2 puntos de diferencia.');
             }
-            return score1 > score2 ? 'p1' : 'p2';
+            
+            return null;
         }
     }
 
@@ -312,7 +326,7 @@ export default function Dashboard() {
   const formatScoreString = () => {
     let scoreStr = scores
       .map(set => `${set.p1}-${set.p2}`)
-      .filter(set => set !== '-' && set !== '0-0' && set !== '' && set.p1 !== '' && set.p2 !== '')
+      .filter(setStr => setStr !== "-" && setStr !== "0-0" && setStr !== "" && !setStr.startsWith('-') && !setStr.endsWith('-') )
       .join(', ');
     if (isRetirement) {
         scoreStr += " (Ret.)";
@@ -360,7 +374,7 @@ export default function Dashboard() {
             if(isNaN(score1) || isNaN(score2)) return;
 
             if (score1 > score2) p1SetsWon++;
-            else if (score2 > p1SetsWon) p2SetsWon++;
+            else if (score2 > score1) p2SetsWon++; // Changed from p1SetsWon to score1
         });
         
         const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : (p2SetsWon > p1SetsWon ? p2.uid : null);
@@ -660,10 +674,10 @@ export default function Dashboard() {
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Confirmar Resultado</AlertDialogTitle>
-                        <AlertDialogDescription>
+                         <AlertDialogDescription>
                            ¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.
                         </AlertDialogDescription>
-                         <div className="py-4 font-medium text-foreground text-sm">
+                         <div className="py-4 font-medium text-foreground text-sm text-left">
                             <div><strong>Ganador:</strong> {getPlayerById(winnerId)?.displayName}</div>
                             <div><strong>Marcador:</strong> {formatScoreString()}</div>
                         </div>
