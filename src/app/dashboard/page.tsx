@@ -123,21 +123,25 @@ export default function Dashboard() {
         
         // Rule: No score in a regular set can be higher than 7
         if (!isSuperTiebreak && (score1 > tiebreakWinningScore || score2 > tiebreakWinningScore)) {
-            hasError(`Un set no puede tener más de 7 juegos.`);
+            hasError(`Un set no puede tener más de ${tiebreakWinningScore} juegos.`);
             return null;
         }
 
         // Rule: If a score is 7, the other must be 5 or 6
         if (!isSuperTiebreak && ((score1 === tiebreakWinningScore && (score2 < 5 || score2 > 6)) || (score2 === tiebreakWinningScore && (score1 < 5 || score1 > 6)))) {
-             hasError(`Un marcador de 7 juegos solo es posible con 7-5 o 7-6.`);
+             hasError(`Un marcador de ${tiebreakWinningScore} juegos solo es posible con ${tiebreakWinningScore}-5 o ${tiebreakWinningScore}-6.`);
              return null;
         }
 
-        // Rule: Win by 2 (general case)
+        // Rule: Win by 2 (general case), except for tie-breaks
         if ((score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) < 2) {
+             if (isSuperTiebreak) {
+                hasError(`El super tie-break debe ganarse por 2 puntos de diferencia.`);
+                return null;
+             }
             // Exception for tiebreak score like 7-6
-            if (!isSuperTiebreak && !((score1 === tiebreakWinningScore && score2 === 6) || (score2 === tiebreakWinningScore && score1 === 6))) {
-                 hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break 7-6).`);
+            if (!((score1 === tiebreakWinningScore && score2 === 6) || (score2 === tiebreakWinningScore && score1 === 6))) {
+                 hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break ${tiebreakWinningScore}-6).`);
                  return null;
             }
         }
@@ -714,5 +718,7 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
 
     
