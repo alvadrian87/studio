@@ -11,6 +11,7 @@ import {
   Trophy,
   User,
   Users,
+  ShieldCheck,
 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -47,6 +48,10 @@ const navItems = [
   { href: "/dashboard/profile", label: "Perfil", icon: User },
 ];
 
+const adminNavItems = [
+    { href: "/dashboard/admin/users", label: "Usuarios", icon: ShieldCheck },
+]
+
 export default function DashboardLayout({
   children,
 }: {
@@ -54,7 +59,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { data: player } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
 
 
@@ -101,6 +106,28 @@ export default function DashboardLayout({
                 </Link>
               ))}
             </nav>
+            {userRole === 'admin' && (
+              <>
+                <div className="my-2 px-4">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase">Admin</p>
+                </div>
+                <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
+                   {adminNavItems.map((item) => (
+                        <Link
+                        key={item.label}
+                        href={item.href}
+                        className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary",
+                            pathname.startsWith(item.href) && "bg-muted text-primary"
+                        )}
+                        >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                        </Link>
+                    ))}
+                </nav>
+              </>
+            )}
           </div>
           <div className="mt-auto p-4">
              <div className="flex items-center gap-4">
@@ -148,6 +175,26 @@ export default function DashboardLayout({
                     {item.label}
                   </Link>
                 ))}
+                 {userRole === 'admin' && (
+                    <>
+                        <div className="my-2 px-4">
+                            <p className="text-sm font-semibold text-muted-foreground uppercase">Admin</p>
+                        </div>
+                        {adminNavItems.map((item) => (
+                            <Link
+                                key={item.label}
+                                href={item.href}
+                                className={cn(
+                                "mx-[-0.65rem] flex items-center gap-4 rounded-xl px-3 py-2 text-muted-foreground hover:text-foreground",
+                                pathname.startsWith(item.href) && "bg-muted text-foreground"
+                                )}
+                            >
+                                <item.icon className="h-5 w-5" />
+                                {item.label}
+                            </Link>
+                        ))}
+                    </>
+                 )}
               </nav>
               <div className="mt-auto">
                 <div className="flex items-center gap-4">
