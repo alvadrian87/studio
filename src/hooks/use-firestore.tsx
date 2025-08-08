@@ -6,12 +6,14 @@ import { db } from '@/lib/firebase';
 
 // Type definitions based on your data structure
 export interface Player {
-  id: string;
-  name: string;
-  rank: number;
-  wins: number;
-  losses: number;
-  avatar: string;
+  id: string; // This will be the user's UID from auth
+  displayName: string;
+  email: string;
+  avatar?: string;
+  // Tournament-specific stats could be stored in a subcollection or another document
+  // For simplicity, we can add some top-level stats if they are general
+  globalWins: number;
+  globalLosses: number;
 }
 
 export interface Match {
@@ -36,6 +38,7 @@ export interface Tournament {
   prizePoolDistribution: string;
   rules: string;
   creatorId: string; // To track who created the tournament
+  participants: string[]; // Array of player UIDs
 }
 
 export interface Challenge {

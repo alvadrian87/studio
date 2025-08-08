@@ -30,6 +30,14 @@ export default function SignupPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!username) {
+        toast({
+            variant: "destructive",
+            title: "Error de Registro",
+            description: "El nombre de usuario es obligatorio.",
+        });
+        return;
+    }
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -45,6 +53,8 @@ export default function SignupPage() {
         displayName: username,
         email: user.email,
         role: "player", // Default role
+        globalWins: 0,
+        globalLosses: 0,
       });
 
       toast({
@@ -74,7 +84,7 @@ export default function SignupPage() {
           <CardTitle className="text-2xl text-center">Crea tu Cuenta</CardTitle>
           <CardDescription className="text-center">
             Introduce tu información para crear una cuenta
-          </Description>
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup}>

@@ -90,7 +90,7 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
   })
 
    useEffect(() => {
-    if (isEditMode) {
+    if (isEditMode && tournament) {
       form.reset({
         tournamentName: tournament.name,
         startDate: tournament.startDate,
@@ -145,22 +145,24 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
     }
     
     try {
-      if (isEditMode) {
+      const tournamentData = {
+        name: values.tournamentName,
+        ...values,
+      };
+
+      if (isEditMode && tournament) {
         const tournamentRef = doc(db, "tournaments", tournament.id);
-        await updateDoc(tournamentRef, {
-            name: values.tournamentName,
-            ...values,
-        });
+        await updateDoc(tournamentRef, tournamentData);
         toast({
             title: "¡Torneo Actualizado!",
             description: "El torneo ha sido actualizado exitosamente.",
         });
       } else {
          const newTournament = {
-            name: values.tournamentName,
-            ...values,
+            ...tournamentData,
             status: 'Próximo',
             creatorId: user.uid,
+            participants: [],
         };
         await addDoc(collection(db, "tournaments"), newTournament);
         toast({

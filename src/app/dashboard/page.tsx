@@ -21,25 +21,28 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Check, Clock, Swords, Trophy, X } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge } from "@/hooks/use-firestore";
-import { useCollection } from "@/hooks/use-firestore";
+import { useCollection, useDocument } from "@/hooks/use-firestore";
 
 
 export default function Dashboard() {
   const { user } = useAuth();
-  // TODO: Fetch only the current user's player data
-  const { data: players, loading: loadingPlayers } = useCollection<Player>('players');
+  // Fetch the current user's player data from the 'users' collection
+  const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
   const { data: matches, loading: loadingMatches } = useCollection<Match>('matches');
   const { data: challenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
   
-  const player = players?.[0]; // Mock current player until we have user-specific data
 
-  if (loadingPlayers || loadingMatches || loadingChallenges) {
+  if (loadingPlayer || loadingMatches || loadingChallenges) {
     return <div>Cargando...</div>
   }
   
   if (!player) {
+    // This can happen if the user doc hasn't been created yet.
+    // You might want to show a different message or guide them.
     return <div>No se encontraron datos del jugador.</div>
   }
+
+  const totalGames = player.globalWins + player.globalLosses;
 
   return (
     <>
@@ -49,12 +52,12 @@ export default function Dashboard() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clasificación Actual</CardTitle>
+            <CardTitle className="text-sm font-medium">Clasificación Global</CardTitle>
             <Trophy className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">#{player.rank}</div>
-            <p className="text-xs text-muted-foreground">Top 1% de todos los jugadores</p>
+            <div className="text-2xl font-bold">#1</div>
+            <p className="text-xs text-muted-foreground">Pendiente de implementación</p>
           </CardContent>
         </Card>
         <Card>
@@ -63,8 +66,8 @@ export default function Dashboard() {
             <Check className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{player.wins}</div>
-            <p className="text-xs text-muted-foreground">2 más para el siguiente rango</p>
+            <div className="text-2xl font-bold">{player.globalWins}</div>
+            <p className="text-xs text-muted-foreground">Totales en todos los torneos</p>
           </CardContent>
         </Card>
         <Card>
@@ -73,7 +76,7 @@ export default function Dashboard() {
             <X className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{player.losses}</div>
+            <div className="text-2xl font-bold">{player.globalLosses}</div>
             <p className="text-xs text-muted-foreground">Tu historial de rendimiento</p>
           </CardContent>
         </Card>
@@ -84,9 +87,9 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {player.wins + player.losses > 0 ? ((player.wins / (player.wins + player.losses)) * 100).toFixed(1) : 0}%
+              {totalGames > 0 ? ((player.globalWins / totalGames) * 100).toFixed(1) : 0}%
             </div>
-            <p className="text-xs text-muted-foreground">Comparado con la temporada pasada</p>
+            <p className="text-xs text-muted-foreground">Rendimiento general</p>
           </CardContent>
         </Card>
       </div>
@@ -107,28 +110,12 @@ export default function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {matches?.slice(0, 5).map((match) => (
-                  <TableRow key={match.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={match.player2?.avatar} alt={match.player2?.name} />
-                          <AvatarFallback>{match.player2?.name?.substring(0, 2)}</AvatarFallback>
-                        </Avatar>
-                        <div className="font-medium">{match.player2?.name}</div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">
-                      <Badge variant={match.status === 'Completado' ? 'default' : 'secondary'}>{match.status}</Badge>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell">{match.date}</TableCell>
-                    <TableCell className="text-right">
-                       <Badge variant={match.winnerId === player.id ? "default" : "destructive"}>
-                        {match.winnerId === player.id ? 'Victoria' : 'Derrota'}
-                      </Badge>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {/* Matches need to be fetched and filtered for the current user */}
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                    No hay partidas recientes.
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           </CardContent>
@@ -139,25 +126,9 @@ export default function Dashboard() {
             <CardDescription>Desafíos que esperan tu acción.</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className=" space-y-4">
-              {challenges?.map((challenge) => (
-                <div key={challenge.id} className="flex items-center">
-                  <Avatar className="h-9 w-9">
-                    <AvatarImage src={challenge.from?.avatar} alt="Avatar" />
-                    <AvatarFallback>{challenge.from?.name?.substring(0, 2)}</AvatarFallback>
-                  </Avatar>
-                  <div className="ml-4 space-y-1">
-                    <p className="text-sm font-medium leading-none">
-                      {challenge.from?.name} desafió a {challenge.to?.name}
-                    </p>
-                    <p className="text-sm text-muted-foreground">Estado: {challenge.status}</p>
-                  </div>
-                  <div className="ml-auto font-medium flex gap-2">
-                    <Button size="sm" variant="outline"><Check className="h-4 w-4 mr-1"/> Aceptar</Button>
-                    <Button size="sm" variant="destructive"><X className="h-4 w-4 mr-1"/> Rechazar</Button>
-                  </div>
-                </div>
-              ))}
+            {/* Challenges need to be fetched and filtered for the current user */}
+            <div className="text-center py-8 text-muted-foreground">
+              No tienes desafíos activos.
             </div>
           </CardContent>
         </Card>
