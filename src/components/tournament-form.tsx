@@ -5,6 +5,9 @@ import { useForm } from "react-hook-form"
 import { z } from "zod"
 import { useState } from "react"
 import type { SuggestTournamentSettingsOutput } from "@/ai/flows/suggest-tournament-settings"
+import { addDoc, collection } from "firebase/firestore"
+import { db } from "@/lib/firebase"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -28,6 +31,7 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Loader2, Sparkles, CheckCircle, AlertCircle } from "lucide-react"
 import { suggestTournamentSettings } from "@/ai/flows/suggest-tournament-settings"
+import { useToast } from "@/hooks/use-toast"
 
 const formSchema = z.object({
   tournamentName: z.string().min(2, {
@@ -55,7 +59,10 @@ const formSchema = z.object({
 
 export function TournamentForm() {
   const [loading, setLoading] = useState(false)
+  const [submitLoading, setSubmitLoading] = useState(false);
   const [aiResult, setAiResult] = useState<SuggestTournamentSettingsOutput | null>(null)
+  const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -85,20 +92,57 @@ export function TournamentForm() {
     try {
       const result = await suggestTournamentSettings({
         ...validation.data,
-        format: values.format as 'Eliminación Simple' | 'Doble Eliminación' | 'Round Robin'
+        tournamentName: values.tournamentName,
+        startDate: values.startDate,
+        endDate: values.endDate,
+        location: values.location,
+        format: values.format as 'Eliminación Simple' | 'Doble Eliminación' | 'Round Robin',
+        numberOfPlayers: values.numberOfPlayers,
+        entryFee: values.entryFee,
+        prizePoolDistribution: values.prizePoolDistribution,
+        rules: values.rules,
       })
       setAiResult(result)
     } catch (error) {
       console.error("La sugerencia de IA falló:", error)
-      // Puedes añadir una notificación toast aquí para el error
+      toast({
+        variant: "destructive",
+        title: "Error de IA",
+        description: "No se pudieron obtener las sugerencias. Por favor, inténtalo de nuevo.",
+      });
     } finally {
       setLoading(false)
     }
   }
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
-    console.log(values)
-    // Aquí normalmente enviarías los datos a tu backend para crear el torneo
+  async function onSubmit(values: z.infer<typeof formSchema>) {
+    setSubmitLoading(true);
+    try {
+      const newTournament = {
+        name: values.tournamentName,
+        ...values,
+        status: 'Próximo',
+      };
+      
+      const docRef = await addDoc(collection(db, "tournaments"), newTournament);
+      
+      toast({
+        title: "¡Torneo Creado!",
+        description: "El torneo ha sido creado exitosamente.",
+      });
+
+      router.push('/dashboard/tournaments');
+
+    } catch (error) {
+      console.error("Error al crear el torneo: ", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo crear el torneo. Por favor, inténtalo de nuevo.",
+      });
+    } finally {
+      setSubmitLoading(false);
+    }
   }
 
   return (
@@ -260,7 +304,10 @@ export function TournamentForm() {
               )}
               Sugerencias de IA
             </Button>
-            <Button type="submit">Crear Torneo</Button>
+            <Button type="submit" disabled={submitLoading}>
+               {submitLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+               Crear Torneo
+            </Button>
           </div>
         </form>
       </Form>
