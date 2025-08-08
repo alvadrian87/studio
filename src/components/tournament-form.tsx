@@ -70,7 +70,6 @@ const baseTournamentSchema = z.object({
     contactoTelefono: z.string().optional(),
 });
 
-
 const KeyedTournamentSchema = baseTournamentSchema.extend({
     events: z.array(eventSchema).min(1, "Debes agregar al menos una categoría o división."),
 }).refine(data => new Date(data.fechaFin) >= new Date(data.fechaInicio), {
@@ -96,8 +95,6 @@ const LadderTournamentSchema = baseTournamentSchema.extend({
 });
 
 type FullFormValues = z.infer<typeof KeyedTournamentSchema> | z.infer<typeof LadderTournamentSchema>;
-
-const TOTAL_STEPS = 5;
 
 export function TournamentForm() {
     const [currentStep, setCurrentStep] = useState(0);
@@ -153,25 +150,21 @@ export function TournamentForm() {
     const isLadder = methods.getValues("tipoTorneo") === 'Evento tipo Escalera';
     const finalStep = isLadder ? 5 : 4;
 
-
     const handleNext = async () => {
-        const fieldMap: any = {
-            0: ['tipoTorneo'],
-            1: ['nombreTorneo', 'organizacion', 'ubicacion', 'fechaInicio', 'fechaFin'],
-            2: ['events'],
-            3: isLadder ? ['reglasLadder', 'formatoScore'] : ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'],
-            4: isLadder ? ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'] : [],
-        };
+        const schema = methods.getValues("tipoTorneo") === 'Evento tipo Escalera' ? LadderTournamentSchema : KeyedTournamentSchema;
+        const result = await schema.safeParseAsync(methods.getValues());
 
-        const fieldsToValidate = fieldMap[currentStep] || [];
-        if (fieldsToValidate.length === 0 && currentStep < finalStep) {
-             setCurrentStep(prev => prev + 1);
-             return;
-        }
-
-        const isValid = await methods.trigger(fieldsToValidate);
-        
-        if (!isValid) {
+        if (!result.success) {
+            // A bit of a hack to show errors on the right fields for the current step
+            const fieldMap: any = {
+                 0: ['tipoTorneo'],
+                 1: ['nombreTorneo', 'organizacion', 'ubicacion', 'fechaInicio', 'fechaFin'],
+                 2: ['events'],
+                 3: isLadder ? ['reglasLadder', 'formatoScore'] : ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'],
+                 4: isLadder ? ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'] : [],
+            };
+            const fieldsToValidate = fieldMap[currentStep] || [];
+            await methods.trigger(fieldsToValidate);
             console.log("Validation failed", methods.formState.errors);
             return;
         }
@@ -180,6 +173,7 @@ export function TournamentForm() {
              setCurrentStep(prev => prev + 1);
         }
     };
+
 
     const handlePrevious = () => {
         if (currentStep > 0) {
@@ -200,14 +194,26 @@ export function TournamentForm() {
             const newTournamentDocRef = doc(collection(db, "tournaments"));
             const batch = writeBatch(db);
             
-            const fullTournamentData: any = { ...tournamentData };
+            let fullTournamentData: any = { ...tournamentData };
+            
             if (values.tipoTorneo === 'Evento tipo Escalera') {
                  fullTournamentData.tiempos = {
-                    tiempoLimiteAceptarDesafio: values.tiempoLimiteAceptarDesafio!,
-                    tiempoLimiteJugarPartido: values.tiempoLimiteJugarPartido!,
-                    fechaCierreDesafios: values.fechaCierreDesafios!
+                    tiempoLimiteAceptarDesafio: values.tiempoLimiteAceptarDesafio || 48,
+                    tiempoLimiteJugarPartido: values.tiempoLimiteJugarPartido || 7,
+                    fechaCierreDesafios: values.fechaCierreDesafios || ""
                 }
+                // remove original fields
+                delete fullTournamentData.tiempoLimiteAceptarDesafio;
+                delete fullTournamentData.tiempoLimiteJugarPartido;
+                delete fullTournamentData.fechaCierreDesafios;
             }
+
+            // Clean up undefined values before sending to Firestore
+            Object.keys(fullTournamentData).forEach(key => {
+                if (fullTournamentData[key] === undefined) {
+                    delete fullTournamentData[key];
+                }
+            });
 
 
             const tournamentPayload: Omit<Tournament, 'id'> = {
@@ -215,7 +221,7 @@ export function TournamentForm() {
                 creatorId: user.uid,
                 status: 'Próximo',
             };
-            batch.set(newTournamentDocRef, tournamentPayload);
+            batch.set(newTournamentDocRef, tournamentPayload as any);
 
             (events || []).forEach(event => {
                 const newEventDocRef = doc(collection(db, "eventos"));
@@ -280,7 +286,5 @@ export function TournamentForm() {
         </FormProvider>
     );
 }
-
-    
 
     
