@@ -45,6 +45,14 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const { user } = useAuth();
   const { toast } = useToast();
 
+  const fetchInscriptions = async () => {
+      if (!tournament) return;
+      const inscriptionsQuery = query(collection(db, "inscriptions"), where("torneoId", "==", tournament.id));
+      const inscriptionsSnapshot = await getDocs(inscriptionsQuery);
+      const tournamentInscriptions = inscriptionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Inscription));
+      setInscriptions(tournamentInscriptions);
+  }
+
   useEffect(() => {
     if (tournament) {
       const fetchEventsAndInscriptions = async () => {
@@ -56,10 +64,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         setEvents(tournamentEvents);
 
         // Fetch Inscriptions for the whole tournament
-        const inscriptionsQuery = query(collection(db, "inscriptions"), where("torneoId", "==", tournament.id));
-        const inscriptionsSnapshot = await getDocs(inscriptionsQuery);
-        const tournamentInscriptions = inscriptionsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Inscription));
-        setInscriptions(tournamentInscriptions);
+        await fetchInscriptions();
 
         setLoadingEventsAndData(false);
       };
@@ -114,12 +119,11 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         desafioPendienteId: null
     });
     
-    // Potentially update the tournament's inscription count
-    // const tournamentRef = doc(db, "tournaments", tournament.id);
-    // batch.update(tournamentRef, { ... });
-
     await batch.commit();
     toast({ title: '¡Inscripción Exitosa!', description: 'Te has inscrito correctamente en la categoría.'});
+    
+    // Re-fetch inscriptions to show the new player
+    await fetchInscriptions();
   };
 
   const canChallenge = (challengerInscription: Inscription | null | undefined, challengedInscription: Inscription) => {
@@ -329,3 +333,5 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    
