@@ -29,10 +29,12 @@ import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { format, add } from "date-fns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useRouter } from "next/navigation";
 
 
 export default function LadderPage({ params }: { params: { id: string } }) {
   const resolvedParams = use(params);
+  const router = useRouter();
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
   const { data: allChallenges, loading: loadingAllChallenges } = useCollection<Challenge>('challenges');
@@ -122,8 +124,8 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     await batch.commit();
     toast({ title: '¡Inscripción Exitosa!', description: 'Te has inscrito correctamente en la categoría.'});
     
-    // Re-fetch inscriptions to show the new player
-    await fetchInscriptions();
+    // Force a reload to ensure all data is fresh and consistent
+    router.refresh();
   };
 
   const canChallenge = (challengerInscription: Inscription | null | undefined, challengedInscription: Inscription) => {
@@ -333,5 +335,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    
 
     
