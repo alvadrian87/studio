@@ -36,12 +36,12 @@ export default function TournamentStep5Summary() {
       <Card>
         <CardHeader><CardTitle className="text-lg">Detalles Generales</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p><strong>Nombre:</strong> {values.nombreTorneo}</p>
-          <p><strong>Tipo:</strong> <Badge>{values.tipoTorneo}</Badge></p>
-          <p><strong>Organización:</strong> {values.organizacion}</p>
-          <p><strong>Ubicación:</strong> {values.ubicacion}</p>
-          <p><strong>Fechas del Torneo:</strong> {formatDate(values.fechaInicio)} - {formatDate(values.fechaFin)}</p>
-          <p><strong>Descripción:</strong> {values.descripcion || "N/A"}</p>
+          <div><strong>Nombre:</strong> {values.nombreTorneo}</div>
+          <div><strong>Tipo:</strong> <Badge>{values.tipoTorneo}</Badge></div>
+          <div><strong>Organización:</strong> {values.organizacion}</div>
+          <div><strong>Ubicación:</strong> {values.ubicacion}</div>
+          <div><strong>Fechas del Torneo:</strong> {formatDate(values.fechaInicio)} - {formatDate(values.fechaFin)}</div>
+          <div><strong>Descripción:</strong> {values.descripcion || "N/A"}</div>
         </CardContent>
       </Card>
 
@@ -73,9 +73,9 @@ export default function TournamentStep5Summary() {
         <Card>
             <CardHeader><CardTitle className="text-lg">Reglas de Escalera</CardTitle></CardHeader>
             <CardContent className="space-y-2 text-sm">
-                <p><strong>Orden Inicial:</strong> {values.metodoOrdenInicial}</p>
-                <p><strong>Formato de Score:</strong> {values.formatoScore}</p>
-                <p><strong>Reglas de Desafío:</strong> Arriba ({values.reglasLadder?.posicionesDesafioArriba}), 1er Puesto ({values.reglasLadder?.posicionesDesafioAbajoPrimerPuesto}), Último Puesto ({values.reglasLadder?.posicionesDesafioArribaUltimoPuesto})</p>
+                <div><strong>Orden Inicial:</strong> {values.metodoOrdenInicial}</div>
+                <div><strong>Formato de Score:</strong> {values.formatoScore}</div>
+                <div><strong>Reglas de Desafío:</strong> Arriba ({values.reglasLadder?.posicionesDesafioArriba}), 1er Puesto ({values.reglasLadder?.posicionesDesafioAbajoPrimerPuesto}), Último Puesto ({values.reglasLadder?.posicionesDesafioArribaUltimoPuesto})</div>
             </CardContent>
         </Card>
       )}
@@ -83,12 +83,12 @@ export default function TournamentStep5Summary() {
        <Card>
         <CardHeader><CardTitle className="text-lg">Registro y Contacto</CardTitle></CardHeader>
         <CardContent className="space-y-2 text-sm">
-          <p><strong>Período de Inscripción:</strong> {formatDateTime(values.fechaInicioInscripciones)} - {formatDateTime(values.fechaCierreInscripciones)}</p>
-          {isLadder && <p><strong>Cierre de Desafíos:</strong> {formatDateTime(values.fechaCierreDesafios)}</p>}
-          <p><strong>Límite de Inscripciones:</strong> {values.maximoInscripciones || 'Sin límite'}</p>
-          <p><strong>Nombre de Contacto:</strong> {values.contactoNombre}</p>
-          <p><strong>Email de Contacto:</strong> {values.contactoEmail}</p>
-          <p><strong>Teléfono de Contacto:</strong> {values.contactoTelefono || "N/A"}</p>
+          <div><strong>Período de Inscripción:</strong> {formatDateTime(values.fechaInicioInscripciones)} - {formatDateTime(values.fechaCierreInscripciones)}</div>
+          {isLadder && <div><strong>Cierre de Desafíos:</strong> {formatDateTime(values.fechaCierreDesafios)}</div>}
+          <div><strong>Límite de Inscripciones:</strong> {values.maximoInscripciones || 'Sin límite'}</div>
+          <div><strong>Nombre de Contacto:</strong> {values.contactoNombre}</div>
+          <div><strong>Email de Contacto:</strong> {values.contactoEmail}</div>
+          <div><strong>Teléfono de Contacto:</strong> {values.contactoTelefono || "N/A"}</div>
         </CardContent>
       </Card>
     </div>
