@@ -13,7 +13,8 @@ import { useDocument } from "@/hooks/use-firestore";
 import type { Tournament } from "@/hooks/use-firestore";
 
 export default function EditTournamentPage({ params }: { params: { id: string } }) {
-  const { data: tournament, loading } = useDocument<Tournament>(`tournaments/${params.id}`);
+  const { id } = params;
+  const { data: tournament, loading } = useDocument<Tournament>(`tournaments/${id}`);
 
   if (loading) {
     return <div>Cargando detalles del torneo...</div>;
