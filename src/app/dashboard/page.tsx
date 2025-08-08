@@ -134,15 +134,17 @@ export default function Dashboard() {
         }
 
         // Rule: Win by 2 (general case), except for tie-breaks
-        if ((score1 >= winningScore || score2 >= winningScore) && Math.abs(score1 - score2) < 2) {
-             if (isSuperTiebreak) {
-                hasError(`El super tie-break debe ganarse por 2 puntos de diferencia.`);
-                return null;
-             }
-            // Exception for tiebreak score like 7-6
-            if (!((score1 === tiebreakWinningScore && score2 === 6) || (score2 === tiebreakWinningScore && score1 === 6))) {
-                 hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break ${tiebreakWinningScore}-6).`);
-                 return null;
+        if ((score1 >= winningScore || score2 >= winningScore)) {
+            if (isSuperTiebreak) {
+                if (Math.abs(score1 - score2) < 2) {
+                    hasError(`El super tie-break debe ganarse por 2 puntos de diferencia.`);
+                    return null;
+                }
+            } else {
+                 if (Math.abs(score1 - score2) < 2 && !((score1 === tiebreakWinningScore && score2 === 6) || (score2 === tiebreakWinningScore && score1 === 6))) {
+                    hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break ${tiebreakWinningScore}-6).`);
+                    return null;
+                }
             }
         }
         
@@ -696,10 +698,10 @@ export default function Dashboard() {
                     <AlertDialogHeader>
                     <AlertDialogTitle>Confirmar Resultado</AlertDialogTitle>
                     <AlertDialogDescription>
-                        ¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.
+                        <div>¿Estás seguro de que quieres registrar este resultado? Esta acción no se puede deshacer.</div>
                         <div className="py-4 font-medium text-foreground">
-                            <p>Ganador: {getPlayerById(winnerId)?.displayName}</p>
-                            <p>Marcador: {formatScoreString()}</p>
+                            <div>Ganador: {getPlayerById(winnerId)?.displayName}</div>
+                            <div>Marcador: {formatScoreString()}</div>
                         </div>
                     </AlertDialogDescription>
                     </AlertDialogHeader>
