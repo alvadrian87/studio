@@ -360,32 +360,34 @@ export default function ProfilePage() {
                     </Button>
                 </CardFooter>
             </Card>
-
+       
             <Card>
-            <CardHeader>
-                <CardTitle>Contraseña</CardTitle>
-                <CardDescription>Cambia tu contraseña aquí. Es una buena idea usar una contraseña segura que no estés usando en otro lugar. (Funcionalidad no implementada aún).</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-                <div className="grid gap-2">
-                    <Label htmlFor="current-password">Contraseña Actual</Label>
-                    <Input id="current-password" type="password" disabled />
-                </div>
-                <div className="grid gap-2">
-                    <Label htmlFor="new-password">Nueva Contraseña</Label>
-                    <Input id="new-password" type="password" disabled />
-                </div>
-                <div className="grid gap-2">
-                    <Label htmlFor="confirm-password">Confirmar Nueva Contraseña</Label>
-                    <Input id="confirm-password" type="password" disabled />
-                </div>
-            </CardContent>
-            <CardFooter className="border-t px-6 py-4">
-                <Button disabled>Actualizar Contraseña</Button>
-            </CardFooter>
+                <CardHeader>
+                    <CardTitle>Contraseña</CardTitle>
+                    <CardDescription>Cambia tu contraseña aquí. Es una buena idea usar una contraseña segura que no estés usando en otro lugar. (Funcionalidad no implementada aún).</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-6">
+                    <div className="grid gap-2">
+                        <Label htmlFor="current-password">Contraseña Actual</Label>
+                        <Input id="current-password" type="password" disabled />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="new-password">Nueva Contraseña</Label>
+                        <Input id="new-password" type="password" disabled />
+                    </div>
+                    <div className="grid gap-2">
+                        <Label htmlFor="confirm-password">Confirmar Nueva Contraseña</Label>
+                        <Input id="confirm-password" type="password" disabled />
+                    </div>
+                </CardContent>
+                <CardFooter className="border-t px-6 py-4">
+                    <Button disabled>Actualizar Contraseña</Button>
+                </CardFooter>
             </Card>
         </form>
       </Form>
     </>
   )
 }
+
+    
