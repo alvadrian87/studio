@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useMemo, useState } from "react";
@@ -125,7 +126,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const handleStartTournament = async () => {
     if (!tournament || !canManageTournament) return;
     
-    if (tournament.participants.length < 2) {
+    if (participants.length < 2) {
       toast({
         variant: "destructive",
         title: "No se puede iniciar el torneo",
