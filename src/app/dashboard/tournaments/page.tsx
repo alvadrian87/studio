@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link"
 import { PlusCircle, MoreHorizontal } from "lucide-react"
 
@@ -25,9 +27,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { tournaments } from "@/lib/data"
+import { useCollection } from "@/hooks/use-firestore"
+import type { Tournament } from "@/hooks/use-firestore"
 
 export default function TournamentsPage() {
+  const { data: tournaments, loading } = useCollection<Tournament>('tournaments');
+
+  if (loading) {
+    return <div>Cargando torneos...</div>
+  }
+
   return (
     <>
       <div className="flex items-center">
@@ -65,7 +74,7 @@ export default function TournamentsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {tournaments.map((tournament) => (
+              {tournaments?.map((tournament) => (
                 <TableRow key={tournament.id}>
                   <TableCell className="font-medium">{tournament.name}</TableCell>
                   <TableCell>

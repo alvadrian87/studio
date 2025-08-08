@@ -1,3 +1,5 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,17 +17,34 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { challenges, matches, players } from "@/lib/data"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Check, Clock, Swords, Trophy, X } from "lucide-react"
+import { useAuth } from "@/hooks/use-auth";
+import type { Player, Match, Challenge } from "@/hooks/use-firestore";
+import { useCollection } from "@/hooks/use-firestore";
+
 
 export default function Dashboard() {
-  const player = players[0]; // Mock current player
+  const { user } = useAuth();
+  // TODO: Fetch only the current user's player data
+  const { data: players, loading: loadingPlayers } = useCollection<Player>('players');
+  const { data: matches, loading: loadingMatches } = useCollection<Match>('matches');
+  const { data: challenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
+  
+  const player = players?.[0]; // Mock current player until we have user-specific data
+
+  if (loadingPlayers || loadingMatches || loadingChallenges) {
+    return <div>Cargando...</div>
+  }
+  
+  if (!player) {
+    return <div>No se encontraron datos del jugador.</div>
+  }
 
   return (
     <>
       <div className="flex items-center justify-between space-y-2">
-        <h1 className="text-3xl font-bold tracking-tight">¡Bienvenido de nuevo, {player.name}!</h1>
+        <h1 className="text-3xl font-bold tracking-tight">¡Bienvenido de nuevo, {user?.displayName || 'Jugador'}!</h1>
       </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -65,7 +84,7 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {((player.wins / (player.wins + player.losses)) * 100).toFixed(1)}%
+              {player.wins + player.losses > 0 ? ((player.wins / (player.wins + player.losses)) * 100).toFixed(1) : 0}%
             </div>
             <p className="text-xs text-muted-foreground">Comparado con la temporada pasada</p>
           </CardContent>
@@ -88,15 +107,15 @@ export default function Dashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {matches.slice(0, 5).map((match) => (
+                {matches?.slice(0, 5).map((match) => (
                   <TableRow key={match.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
                         <Avatar className="h-8 w-8">
-                          <AvatarImage src={match.player2.avatar} alt={match.player2.name} />
-                          <AvatarFallback>{match.player2.name.substring(0, 2)}</AvatarFallback>
+                          <AvatarImage src={match.player2?.avatar} alt={match.player2?.name} />
+                          <AvatarFallback>{match.player2?.name?.substring(0, 2)}</AvatarFallback>
                         </Avatar>
-                        <div className="font-medium">{match.player2.name}</div>
+                        <div className="font-medium">{match.player2?.name}</div>
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell">
@@ -121,15 +140,15 @@ export default function Dashboard() {
           </CardHeader>
           <CardContent>
             <div className=" space-y-4">
-              {challenges.map((challenge) => (
+              {challenges?.map((challenge) => (
                 <div key={challenge.id} className="flex items-center">
                   <Avatar className="h-9 w-9">
-                    <AvatarImage src={challenge.from.avatar} alt="Avatar" />
-                    <AvatarFallback>{challenge.from.name.substring(0, 2)}</AvatarFallback>
+                    <AvatarImage src={challenge.from?.avatar} alt="Avatar" />
+                    <AvatarFallback>{challenge.from?.name?.substring(0, 2)}</AvatarFallback>
                   </Avatar>
                   <div className="ml-4 space-y-1">
                     <p className="text-sm font-medium leading-none">
-                      {challenge.from.name} desafió a {challenge.to.name}
+                      {challenge.from?.name} desafió a {challenge.to?.name}
                     </p>
                     <p className="text-sm text-muted-foreground">Estado: {challenge.status}</p>
                   </div>

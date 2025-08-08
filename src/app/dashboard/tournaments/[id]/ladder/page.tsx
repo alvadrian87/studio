@@ -1,3 +1,5 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -15,12 +17,24 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { players, tournaments } from "@/lib/data"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Swords } from "lucide-react"
+import { useCollection, useDocument } from "@/hooks/use-firestore";
+import type { Player, Tournament } from "@/hooks/use-firestore";
 
 export default function LadderPage({ params }: { params: { id: string } }) {
-  const tournament = tournaments.find(t => t.id === params.id) || tournaments[0];
+  const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${params.id}`);
+  const { data: players, loading: loadingPlayers } = useCollection<Player>('players');
+
+  if (loadingTournament || loadingPlayers) {
+    return <div>Cargando...</div>
+  }
+
+  if (!tournament) {
+    return <div>Torneo no encontrado.</div>
+  }
+
+  const sortedPlayers = players?.sort((a, b) => a.rank - b.rank);
 
   return (
     <>
@@ -47,7 +61,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {players.sort((a, b) => a.rank - b.rank).map((player) => (
+              {sortedPlayers?.map((player) => (
                 <TableRow key={player.id}>
                   <TableCell className="font-bold text-lg text-muted-foreground">#{player.rank}</TableCell>
                   <TableCell>
