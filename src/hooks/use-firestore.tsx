@@ -35,6 +35,7 @@ export interface Tournament {
   entryFee: number;
   prizePoolDistribution: string;
   rules: string;
+  creatorId: string; // To track who created the tournament
 }
 
 export interface Challenge {

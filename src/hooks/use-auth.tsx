@@ -8,26 +8,41 @@ import {
   type ReactNode,
 } from 'react';
 import {onAuthStateChanged, type User} from 'firebase/auth';
-import {auth} from '@/lib/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import {useRouter, usePathname} from 'next/navigation';
 import {Loader2} from 'lucide-react';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
+  userRole: string | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({children}: {children: ReactNode}) {
   const [user, setUser] = useState<User | null>(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        setUser(user);
+        const userDocRef = doc(db, 'users', user.uid);
+        const userDoc = await getDoc(userDocRef);
+        if (userDoc.exists()) {
+          setUserRole(userDoc.data().role);
+        } else {
+          setUserRole('player'); // Default role if doc not found
+        }
+      } else {
+        setUser(null);
+        setUserRole(null);
+      }
       setLoading(false);
     });
 
@@ -54,7 +69,7 @@ export function AuthProvider({children}: {children: ReactNode}) {
     );
   }
 
-  return <AuthContext.Provider value={{user, loading}}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{user, loading, userRole}}>{children}</AuthContext.Provider>;
 }
 
 export function useAuth() {

@@ -43,13 +43,15 @@ import {
 import { useCollection } from "@/hooks/use-firestore"
 import type { Tournament } from "@/hooks/use-firestore"
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 export default function TournamentsPage() {
   const { data: tournaments, loading } = useCollection<Tournament>('tournaments');
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedTournamentId, setSelectedTournamentId] = useState<string | null>(null);
   const { toast } = useToast();
-
+  const { userRole, user } = useAuth();
+  
   const handleDeleteClick = (tournamentId: string) => {
     setSelectedTournamentId(tournamentId);
     setIsDeleteDialogOpen(true);
@@ -81,6 +83,12 @@ export default function TournamentsPage() {
     return <div>Cargando torneos...</div>
   }
 
+  const canManageTournament = (tournament: Tournament) => {
+    // Admins can manage any tournament, creators can manage their own.
+    // Assuming a 'creatorId' field exists on the tournament document.
+    return userRole === 'admin' || tournament.creatorId === user?.uid;
+  }
+
   return (
     <>
       <div className="flex items-center">
@@ -88,16 +96,18 @@ export default function TournamentsPage() {
             <h1 className="text-3xl font-bold tracking-tight">Torneos</h1>
             <p className="text-muted-foreground">Gestiona tus torneos y mira su estado.</p>
         </div>
-        <div className="ml-auto flex items-center gap-2">
-          <Button size="sm" className="h-8 gap-1" asChild>
-            <Link href="/dashboard/tournaments/new">
-              <PlusCircle className="h-3.5 w-3.5" />
-              <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
-                Crear Torneo
-              </span>
-            </Link>
-          </Button>
-        </div>
+        {userRole === 'admin' && (
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" className="h-8 gap-1" asChild>
+              <Link href="/dashboard/tournaments/new">
+                <PlusCircle className="h-3.5 w-3.5" />
+                <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+                  Crear Torneo
+                </span>
+              </Link>
+            </Button>
+          </div>
+        )}
       </div>
       <Card>
         <CardHeader>
@@ -145,12 +155,16 @@ export default function TournamentsPage() {
                          <DropdownMenuItem asChild>
                             <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>Ver Clasificación</Link>
                         </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                           <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>Editar</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClick(tournament.id)}>
-                          Eliminar
-                        </DropdownMenuItem>
+                        {canManageTournament(tournament) && (
+                          <>
+                            <DropdownMenuItem asChild>
+                              <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>Editar</Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteClick(tournament.id)}>
+                              Eliminar
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -167,7 +181,7 @@ export default function TournamentsPage() {
             <AlertDialogDescription>
               Esta acción no se puede deshacer. Esto eliminará permanentemente el torneo
               y todos sus datos asociados de nuestros servidores.
-            </AlertDialogDescription>
+            </Description>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>

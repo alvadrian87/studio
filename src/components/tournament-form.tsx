@@ -9,6 +9,7 @@ import { addDoc, collection, doc, updateDoc } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 import type { Tournament } from "@/hooks/use-firestore"
+import { useAuth } from "@/hooks/use-auth"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -69,6 +70,7 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
   const [aiResult, setAiResult] = useState<SuggestTournamentSettingsOutput | null>(null)
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const isEditMode = !!tournament;
 
@@ -132,6 +134,16 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setSubmitLoading(true);
+    if (!user) {
+        toast({
+            variant: "destructive",
+            title: "Error de autenticación",
+            description: "Debes iniciar sesión para realizar esta acción.",
+        });
+        setSubmitLoading(false);
+        return;
+    }
+    
     try {
       if (isEditMode) {
         const tournamentRef = doc(db, "tournaments", tournament.id);
@@ -148,6 +160,7 @@ export function TournamentForm({ tournament }: TournamentFormProps) {
             name: values.tournamentName,
             ...values,
             status: 'Próximo',
+            creatorId: user.uid,
         };
         await addDoc(collection(db, "tournaments"), newTournament);
         toast({

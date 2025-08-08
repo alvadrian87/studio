@@ -4,7 +4,8 @@ import Link from "next/link"
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createUserWithEmailAndPassword, updateProfile } from "firebase/auth";
-import { auth } from "@/lib/firebase";
+import { doc, setDoc } from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
 import { Button } from "@/components/ui/button"
 import {
@@ -32,9 +33,20 @@ export default function SignupPage() {
     setLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, {
+      const user = userCredential.user;
+      
+      await updateProfile(user, {
         displayName: username,
       });
+
+      // Create a document for the user in the 'users' collection
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        displayName: username,
+        email: user.email,
+        role: "player", // Default role
+      });
+
       toast({
         title: "¡Cuenta Creada!",
         description: "Tu cuenta ha sido creada exitosamente.",
@@ -62,7 +74,7 @@ export default function SignupPage() {
           <CardTitle className="text-2xl text-center">Crea tu Cuenta</CardTitle>
           <CardDescription className="text-center">
             Introduce tu información para crear una cuenta
-          </CardDescription>
+          </Description>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup}>
