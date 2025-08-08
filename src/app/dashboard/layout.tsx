@@ -13,6 +13,8 @@ import {
   User,
   Users,
   ShieldCheck,
+  LogIn,
+  UserPlus,
 } from "lucide-react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
@@ -133,10 +135,12 @@ export default function DashboardLayout({
           <div className="mt-auto p-4">
              <div className="flex items-center gap-4">
                 <ThemeToggle />
-                <Button variant="ghost" size="icon" className="rounded-full" onClick={handleLogout}>
-                    <LogOut className="h-5 w-5" />
-                    <span className="sr-only">Cerrar Sesión</span>
-                </Button>
+                {user && (
+                    <Button variant="ghost" size="icon" className="rounded-full" onClick={handleLogout}>
+                        <LogOut className="h-5 w-5" />
+                        <span className="sr-only">Cerrar Sesión</span>
+                    </Button>
+                )}
              </div>
           </div>
         </div>
@@ -201,10 +205,12 @@ export default function DashboardLayout({
               <div className="mt-auto">
                 <div className="flex items-center gap-4">
                     <ThemeToggle />
-                    <Button variant="ghost" size="icon" className="rounded-full" onClick={handleLogout}>
-                        <LogOut className="h-5 w-5" />
-                        <span className="sr-only">Cerrar Sesión</span>
-                    </Button>
+                    {user && (
+                        <Button variant="ghost" size="icon" className="rounded-full" onClick={handleLogout}>
+                            <LogOut className="h-5 w-5" />
+                            <span className="sr-only">Cerrar Sesión</span>
+                        </Button>
+                    )}
                 </div>
               </div>
             </SheetContent>
@@ -216,19 +222,40 @@ export default function DashboardLayout({
             <DropdownMenuTrigger asChild>
               <Button variant="secondary" size="icon" className="rounded-full">
                 <Avatar>
-                  <AvatarImage src={player?.avatar || "https://placehold.co/40x40.png"} alt={player?.displayName || "Usuario"} />
-                  <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
+                  <AvatarImage src={user ? (player?.avatar || "https://placehold.co/40x40.png") : "https://placehold.co/40x40.png"} alt={user ? (player?.displayName || "Usuario") : "Guest"} />
+                  <AvatarFallback>{user ? getAvatarFallback() : 'G'}</AvatarFallback>
                 </Avatar>
                 <span className="sr-only">Alternar menú de usuario</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem asChild><Link href="/dashboard/profile">Perfil</Link></DropdownMenuItem>
-              <DropdownMenuItem asChild><Link href="/dashboard/settings">Configuración</Link></DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
+                {user ? (
+                    <>
+                        <DropdownMenuLabel>Mi Cuenta</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild><Link href="/dashboard/profile">Perfil</Link></DropdownMenuItem>
+                        <DropdownMenuItem disabled>Configuración</DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={handleLogout}>Cerrar Sesión</DropdownMenuItem>
+                    </>
+                ) : (
+                    <>
+                        <DropdownMenuLabel>Invitado</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem asChild>
+                            <Link href="/login" className="flex items-center">
+                                <LogIn className="mr-2 h-4 w-4" />
+                                Iniciar Sesión
+                            </Link>
+                        </DropdownMenuItem>
+                         <DropdownMenuItem asChild>
+                           <Link href="/signup" className="flex items-center">
+                                <UserPlus className="mr-2 h-4 w-4" />
+                                Registrarse
+                            </Link>
+                        </DropdownMenuItem>
+                    </>
+                )}
             </DropdownMenuContent>
           </DropdownMenu>
         </header>

@@ -53,12 +53,18 @@ export function AuthProvider({children}: {children: ReactNode}) {
     if (loading) return;
 
     const isAuthPage = pathname === '/login' || pathname === '/signup';
+    const isPublicPage = pathname === '/' || isAuthPage;
+    const isPublicDashboardPage = pathname === '/dashboard/tournaments' || /^\/dashboard\/tournaments\/[^/]+\/ladder$/.test(pathname);
 
-    if (!user && !isAuthPage && pathname !== '/') {
-      router.push('/login');
-    } else if (user && isAuthPage) {
+    if (user && isAuthPage) {
       router.push('/dashboard');
+      return;
     }
+    
+    if (!user && !isPublicPage && !isPublicDashboardPage) {
+        router.push('/signup');
+    }
+
   }, [user, loading, router, pathname]);
 
   if (loading) {

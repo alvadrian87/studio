@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -68,7 +68,7 @@ export default function ProfilePage() {
     }
   });
 
-  useState(() => {
+ useEffect(() => {
     if (player) {
       form.reset({
         firstName: player.firstName || "",
@@ -81,7 +81,7 @@ export default function ProfilePage() {
         club: player.club || "",
       });
     }
-  });
+  }, [player, form]);
 
   async function onSubmit(data: ProfileFormValues) {
     if (!user) return;
@@ -352,7 +352,7 @@ export default function ProfilePage() {
                 <CardHeader>
                     <CardTitle>Guardar todo</CardTitle>
                     <CardDescription>Haz clic a continuación para guardar todos los cambios realizados en tu perfil.</CardDescription>
-                </CardHeader>
+                </Header>
                 <CardFooter className="border-t px-6 py-4">
                     <Button type="submit" disabled={loading}>
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -389,5 +389,3 @@ export default function ProfilePage() {
     </>
   )
 }
-
-    
