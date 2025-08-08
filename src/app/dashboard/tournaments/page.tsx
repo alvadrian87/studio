@@ -84,8 +84,7 @@ export default function TournamentsPage() {
   }
 
   const canManageTournament = (tournament: Tournament) => {
-    // Admins can manage any tournament, creators can manage their own.
-    // Assuming a 'creatorId' field exists on the tournament document.
+    {/* Admins can manage any tournament, creators can manage their own. */}
     return userRole === 'admin' || tournament.creatorId === user?.uid;
   }
 
