@@ -41,6 +41,7 @@ import {
 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } from "lucide-react"
@@ -81,6 +82,7 @@ export default function Dashboard() {
     [false, false],
     [false, false],
   ]);
+  const [isRetirement, setIsRetirement] = useState(false);
 
   const getPlayerById = useCallback((id: string | undefined) => {
     return allPlayers?.find(p => p.uid === id);
@@ -99,6 +101,14 @@ export default function Dashboard() {
 
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
+    
+    // Bypass validation if it's a retirement case
+    if (isRetirement) {
+        setScoreError(null);
+        setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
+        setIsWinnerRadioDisabled(false);
+        return;
+    }
     
     const tournamentId = selectedMatch?.tournamentId;
     const tournament = allTournaments?.find(t => t.id === tournamentId);
@@ -121,57 +131,53 @@ export default function Dashboard() {
             newScoreInputErrors[setIndex][1] = true;
         };
         
-        // Rule: No score in a regular set can be higher than 7
         if (!isSuperTiebreak && (score1 > tiebreakWinningScore || score2 > tiebreakWinningScore)) {
             hasError(`Un set no puede tener más de ${tiebreakWinningScore} juegos.`);
             return null;
         }
 
-        // Rule: If a score is 7, the other must be 5 or 6
         if (!isSuperTiebreak && ((score1 === tiebreakWinningScore && (score2 < 5 || score2 > 6)) || (score2 === tiebreakWinningScore && (score1 < 5 || score1 > 6)))) {
              hasError(`Un marcador de ${tiebreakWinningScore} juegos solo es posible con ${tiebreakWinningScore}-5 o ${tiebreakWinningScore}-6.`);
              return null;
         }
 
-        // Rule: Win by 2 (general case), except for tie-breaks
         if ((score1 >= winningScore || score2 >= winningScore)) {
             if (isSuperTiebreak) {
+                if (score1 < winningScore && score2 < winningScore) return null; // Not won yet
                 if (Math.abs(score1 - score2) < 2) {
                     hasError(`El super tie-break debe ganarse por 2 puntos de diferencia.`);
                     return null;
                 }
             } else {
-                 if (Math.abs(score1 - score2) < 2 && !((score1 === tiebreakWinningScore && score2 === 6) || (score2 === tiebreakWinningScore && score1 === 6))) {
-                    hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break ${tiebreakWinningScore}-6).`);
+                 if (Math.abs(score1 - score2) < 2 && !(score1 === tiebreakWinningScore || score2 === tiebreakWinningScore)) {
+                    hasError(`Un set debe ganarse por 2 juegos de diferencia (o ganar un tie-break).`);
                     return null;
                 }
             }
         }
         
-        // Rule: Cannot be 6-5
         if (!isSuperTiebreak && ((score1 === 6 && score2 === 5) || (score2 === 6 && score1 === 5))) {
              hasError(`Un set no puede terminar 6-5. El siguiente marcador posible es 7-5 o 6-6.`);
              return null;
         }
 
-        // Determine winner
         if (isSuperTiebreak) {
             if (score1 >= winningScore && score1 >= score2 + 2) return 'p1';
             if (score2 >= winningScore && score2 >= score1 + 2) return 'p2';
         } else {
-             if (score1 === tiebreakWinningScore && (score2 === 6 || score2 === 5)) return 'p1'; // 7-6, 7-5
-             if (score2 === tiebreakWinningScore && (score1 === 6 || score1 === 5)) return 'p2'; // 7-6, 7-5
-             if (score1 === winningScore && score2 < 5) return 'p1'; // 6-0 to 6-4
-             if (score2 === winningScore && score1 < 5) return 'p2'; // 6-0 to 6-4
+             if (score1 === tiebreakWinningScore) return 'p1';
+             if (score2 === tiebreakWinningScore) return 'p2';
+             if (score1 === winningScore && score2 <= winningScore - 2) return 'p1';
+             if (score2 === winningScore && score1 <= winningScore - 2) return 'p2';
         }
         
-        return null; // No winner determined yet / score incomplete
+        return null;
     }
 
-    // Validate first two sets
-    for (let i = 0; i < 2; i++) {
+    const setsToValidate = (isSuperTiebreakFormat) ? 2 : 3;
+    for (let i = 0; i < setsToValidate; i++) {
+        if (localError || p1SetsWon === 2 || p2SetsWon === 2) continue;
         const set = scores[i];
-        if (localError) continue; // Stop validation if an error was already found
         const score1 = parseInt(set.p1, 10);
         const score2 = parseInt(set.p2, 10);
         const setWinner = validateSet(score1, score2, i);
@@ -179,41 +185,31 @@ export default function Dashboard() {
         else if (setWinner === 'p2') p2SetsWon++;
     }
     
-    // Validate third set (super tiebreak) if necessary
     if (!localError && isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
         const tiebreak = scores[2];
         const score1 = parseInt(tiebreak.p1, 10);
         const score2 = parseInt(tiebreak.p2, 10);
 
-        if (!isNaN(score1) || !isNaN(score2)) { // Only validate if there is input
+        if (!isNaN(score1) || !isNaN(score2)) {
              const setWinner = validateSet(score1, score2, 2, true);
-             if (setWinner === 'p1') {
-                p1SetsWon++;
-             } else if (setWinner === 'p2') {
-                p2SetsWon++;
-             }
+             if (setWinner === 'p1') p1SetsWon++;
+             else if (setWinner === 'p2') p2SetsWon++;
         }
     }
     
     setScoreError(localError);
     setScoreInputErrors(newScoreInputErrors);
 
-    // Auto-select winner if validation passes and match is complete
     if (!localError && (p1SetsWon === 2 || p2SetsWon === 2)) {
-        if (p1SetsWon === 2) {
-            setWinnerId(p1.uid);
-            setIsWinnerRadioDisabled(true);
-        } else if (p2SetsWon === 2) {
-            setWinnerId(p2.uid);
-            setIsWinnerRadioDisabled(true);
-        }
+        if (p1SetsWon === 2) setWinnerId(p1.uid);
+        else if (p2SetsWon === 2) setWinnerId(p2.uid);
+        setIsWinnerRadioDisabled(true);
     } else {
-        // If match is not complete or score is invalid, allow manual selection
         setWinnerId(null);
         setIsWinnerRadioDisabled(false);
     }
 
-}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch]);
+}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch, isRetirement]);
 
 
   const pendingChallenges = useMemo(() => {
@@ -283,6 +279,7 @@ export default function Dashboard() {
     setScores([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
     setScoreError(null);
     setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
+    setIsRetirement(false);
     setIsResultDialogOpen(true);
   }
   
@@ -293,10 +290,14 @@ export default function Dashboard() {
   };
   
   const formatScoreString = () => {
-    return scores
+    let scoreStr = scores
       .map(set => `${set.p1}-${set.p2}`)
       .filter(set => set !== '-' && set !== '0-0' && set !== '' && set.p1 !== '' && set.p2 !== '')
       .join(', ');
+    if (isRetirement) {
+        scoreStr += " (Ret.)";
+    }
+    return scoreStr;
   };
 
   const handleScoreChange = (setIndex: number, playerKey: 'p1' | 'p2', value: string) => {
@@ -328,40 +329,41 @@ export default function Dashboard() {
         return;
     }
 
-    // Final validation before submitting
-    let p1SetsWon = 0;
-    let p2SetsWon = 0;
-    const tournament = allTournaments?.find(t => t.id === selectedMatch.tournamentId);
-    const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
+    if (!isRetirement) {
+        let p1SetsWon = 0;
+        let p2SetsWon = 0;
+        const tournament = allTournaments?.find(t => t.id === selectedMatch.tournamentId);
+        const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
 
-    for (let i = 0; i < 2; i++) {
-        const set = scores[i];
-        const score1 = parseInt(set.p1, 10);
-        const score2 = parseInt(set.p2, 10);
+        for (let i = 0; i < 2; i++) {
+            const set = scores[i];
+            const score1 = parseInt(set.p1, 10);
+            const score2 = parseInt(set.p2, 10);
 
-        if (isNaN(score1) || isNaN(score2)) continue;
-        if ((score1 >= 6 && score1 >= score2 + 2) || (score1 === 7 && (score2 === 5 || score2 === 6))) p1SetsWon++;
-        else if ((score2 >= 6 && score2 >= score1 + 2) || (score2 === 7 && (score1 === 5 || score1 === 6))) p2SetsWon++;
-    }
-    
-    if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
-        const tiebreak = scores[2];
-        const score1 = parseInt(tiebreak.p1, 10);
-        const score2 = parseInt(tiebreak.p2, 10);
-        if (!isNaN(score1) && !isNaN(score2)) {
-            if (score1 >= 10 && score1 >= score2 + 2) p1SetsWon++;
-            else if (score2 >= 10 && score2 >= score1 + 2) p2SetsWon++;
+            if (isNaN(score1) || isNaN(score2)) continue;
+            if ((score1 >= 6 && score1 >= score2 + 2) || (score1 === 7 && (score2 === 5 || score2 === 6))) p1SetsWon++;
+            else if ((score2 >= 6 && score2 >= score1 + 2) || (score2 === 7 && (score1 === 5 || score1 === 6))) p2SetsWon++;
         }
-    }
-    
-    const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : (p2SetsWon > p1SetsWon ? p2.uid : null);
-    if (calculatedWinnerId !== winnerId) {
-        toast({
-            variant: "destructive",
-            title: "Error de Validación",
-            description: "El marcador no coincide con el ganador seleccionado o está incompleto. Por favor, revisa los datos.",
-        });
-        return;
+        
+        if (isSuperTiebreakFormat && p1SetsWon === 1 && p2SetsWon === 1) {
+            const tiebreak = scores[2];
+            const score1 = parseInt(tiebreak.p1, 10);
+            const score2 = parseInt(tiebreak.p2, 10);
+            if (!isNaN(score1) && !isNaN(score2)) {
+                if (score1 >= 10 && score1 >= score2 + 2) p1SetsWon++;
+                else if (score2 >= 10 && score2 >= score1 + 2) p2SetsWon++;
+            }
+        }
+        
+        const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : (p2SetsWon > p1SetsWon ? p2.uid : null);
+        if (calculatedWinnerId !== winnerId) {
+            toast({
+                variant: "destructive",
+                title: "Error de Validación",
+                description: "El marcador no coincide con el ganador seleccionado o está incompleto. Por favor, revisa los datos.",
+            });
+            return;
+        }
     }
     
     setIsSubmittingResult(true);
@@ -399,26 +401,27 @@ export default function Dashboard() {
 
             if (challengeData.eventoId) {
                 const inscriptionsRef = collection(db, "inscriptions");
-                const winnerInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId));
-                const loserInscriptionQuery = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId));
-
-                const winnerInscriptionsSnap = await getDocs(winnerInscriptionQuery);
-                const loserInscriptionsSnap = await getDocs(loserInscriptionQuery);
+                const qWinner = query(inscriptionsRef, where("jugadorId", "==", winnerId), where("eventoId", "==", challengeData.eventoId));
+                const qLoser = query(inscriptionsRef, where("jugadorId", "==", loserId), where("eventoId", "==", challengeData.eventoId));
+                
+                const [winnerInscriptionsSnap, loserInscriptionsSnap] = await Promise.all([
+                    getDocs(qWinner),
+                    getDocs(qLoser)
+                ]);
 
                 if (!winnerInscriptionsSnap.empty && !loserInscriptionsSnap.empty) {
                     const winnerInscriptionRef = winnerInscriptionsSnap.docs[0].ref;
                     const loserInscriptionRef = loserInscriptionsSnap.docs[0].ref;
-
+                    
                     const winnerInscriptionDoc = await transaction.get(winnerInscriptionRef);
                     const loserInscriptionDoc = await transaction.get(loserInscriptionRef);
-                    
+
                     if (winnerInscriptionDoc.exists() && loserInscriptionDoc.exists()) {
                         const winnerInscriptionData = winnerInscriptionDoc.data() as Inscription;
                         const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
 
                         const challengerIsWinner = winnerId === challengeData.retadorId;
                         
-                        // Challenger must be ranked lower to swap positions
                         if (challengerIsWinner && winnerInscriptionData.posicionActual > loserInscriptionData.posicionActual) {
                             const winnerOldPosition = winnerInscriptionData.posicionActual;
                             const loserOldPosition = loserInscriptionData.posicionActual;
@@ -471,6 +474,7 @@ export default function Dashboard() {
 
   const totalGames = (player.globalWins || 0) + (player.globalLosses || 0);
   const { player1: playerInSelectedMatch, player2: opponentInSelectedMatch } = getPlayersForMatch(selectedMatch);
+  const tournamentInSelectedMatch = allTournaments?.find(t => t.id === selectedMatch?.tournamentId);
 
 
   return (
@@ -655,7 +659,12 @@ export default function Dashboard() {
             </RadioGroup>
 
             <div className="space-y-2">
-                <Label>Marcador</Label>
+                <div className="flex justify-between items-center">
+                    <Label>Marcador</Label>
+                    {tournamentInSelectedMatch && (
+                        <Badge variant="outline">{tournamentInSelectedMatch.formatoScore || 'Sets estándar'}</Badge>
+                    )}
+                </div>
                 <div className="flex justify-around items-center">
                     <div className="w-1/3 text-center font-bold">Jugador</div>
                     <div className="flex-1 grid grid-cols-3 gap-2">
@@ -667,22 +676,37 @@ export default function Dashboard() {
                  <div className="flex justify-around items-center gap-2">
                     <div className="w-1/3 text-sm truncate">{playerInSelectedMatch?.displayName}</div>
                     <div className="flex-1 grid grid-cols-3 gap-2">
-                         <Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} />
-                         <Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} />
-                         <Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} />
+                         <Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} disabled={isRetirement} />
+                         <Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} disabled={isRetirement} />
+                         <Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isRetirement} />
                     </div>
                 </div>
                  <div className="flex justify-around items-center gap-2">
                     <div className="w-1/3 text-sm truncate">{opponentInSelectedMatch?.displayName}</div>
                      <div className="flex-1 grid grid-cols-3 gap-2">
-                         <Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} />
-                         <Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} />
-                         <Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} />
+                         <Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} disabled={isRetirement}/>
+                         <Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} disabled={isRetirement}/>
+                         <Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isRetirement}/>
                     </div>
                 </div>
                 {scoreError && (
                     <p className="text-sm font-medium text-destructive text-center pt-2">{scoreError}</p>
                 )}
+            </div>
+
+            <div className="items-top flex space-x-2 pt-4">
+                <Checkbox id="retirement" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
+                <div className="grid gap-1.5 leading-none">
+                    <label
+                    htmlFor="retirement"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                    Partido finalizado por retiro
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                    Marca esta casilla si un jugador se retiró. Podrás guardar un resultado incompleto.
+                    </p>
+                </div>
             </div>
 
           </div>
@@ -720,7 +744,3 @@ export default function Dashboard() {
     </>
   )
 }
-
-    
-
-    
