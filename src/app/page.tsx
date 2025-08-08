@@ -38,12 +38,12 @@ export default function Home() {
                     El Sistema Definitivo de Clasificación de Torneos
                   </h1>
                   <p className="max-w-[600px] text-muted-foreground md:text-xl">
-                    El Gestor EvoLadder proporciona una plataforma fluida, atractiva y justa para todas tus necesidades de juego competitivo. Crea, gestiona y participa en torneos con facilidad.
+                    EvoLadder Manager te ofrece una plataforma fluida, atractiva y justa para todas tus necesidades de juego competitivo. Encuentra torneos, compite y sigue tu progreso con facilidad.
                   </p>
                 </div>
                 <div className="flex flex-col gap-2 min-[400px]:flex-row">
                   <Button asChild size="lg">
-                    <Link href="/dashboard">Crear un Torneo</Link>
+                    <Link href="/dashboard/tournaments">Explorar Torneos</Link>
                   </Button>
                   <Button asChild size="lg" variant="outline">
                     <Link href="#features">Aprende Más</Link>
@@ -66,9 +66,9 @@ export default function Home() {
             <div className="flex flex-col items-center justify-center space-y-4 text-center">
               <div className="space-y-2">
                 <div className="inline-block rounded-lg bg-muted px-3 py-1 text-sm">Características Clave</div>
-                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Todo lo que Necesitas para Organizar un Torneo</h2>
+                <h2 className="text-3xl font-bold tracking-tighter sm:text-5xl">Todo lo que Necesitas para Competir al Máximo Nivel</h2>
                 <p className="max-w-[900px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                  Desde paneles de jugador hasta herramientas de gestión inteligentes, te tenemos cubierto.
+                  Desde paneles de jugador personalizados hasta un sistema de desafíos dinámico, tenemos todo lo que necesitas para llevar tu juego al siguiente nivel.
                 </p>
               </div>
             </div>
@@ -104,9 +104,9 @@ export default function Home() {
                 <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary/10 mb-4">
                   <Shield className="h-8 w-8 text-primary" />
                 </div>
-                <h3 className="text-xl font-bold">Operaciones CRUD</h3>
+                <h3 className="text-xl font-bold">Gestión de Perfil</h3>
                 <p className="text-sm text-muted-foreground">
-                  Control total sobre usuarios, torneos y partidas con una funcionalidad completa de Crear, Leer, Actualizar y Eliminar.
+                  Control total sobre tu información personal, estadísticas de juego y configuración de la cuenta.
                 </p>
               </div>
               <div className="grid gap-1 text-center">
@@ -134,10 +134,10 @@ export default function Home() {
           <div className="container grid items-center justify-center gap-4 px-4 text-center md:px-6">
             <div className="space-y-3">
               <h2 className="text-3xl font-bold tracking-tighter md:text-4xl/tight">
-                Gestión de Torneos más Inteligente con <span className="text-primary">IA</span>
+                Organización de Torneos más Inteligente con <span className="text-primary">IA</span>
               </h2>
               <p className="mx-auto max-w-[600px] text-muted-foreground md:text-xl/relaxed lg:text-base/relaxed xl:text-xl/relaxed">
-                Deja que nuestro asistente de IA valide las configuraciones de tu torneo, detecte configuraciones incorrectas y sugiera mejoras para un evento perfectamente equilibrado.
+                Nuestros administradores de torneos utilizan un asistente de IA para validar las configuraciones, detectar desequilibrios y sugerir mejoras para un evento perfectamente equilibrado.
               </p>
             </div>
             <div className="mx-auto w-full max-w-4xl">
@@ -150,12 +150,12 @@ export default function Home() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-left space-y-4">
-                      <p className="text-muted-foreground">Simplemente introduce los detalles de tu torneo y nuestra IA analizará la configuración en busca de equidad, equilibrio y solidez logística. Es como tener un organizador de torneos profesional a tu lado.</p>
+                      <p className="text-muted-foreground">La IA analiza la configuración de cada torneo en busca de equidad, equilibrio y solidez logística. Es como tener un organizador de torneos profesional garantizando la calidad de cada evento.</p>
                       <div className="flex items-start space-x-4 rounded-md bg-secondary p-4">
                         <CheckCircle className="h-5 w-5 text-green-500 mt-1" />
                         <div>
                           <p className="font-semibold">Ejemplo de Sugerencia</p>
-                          <p className="text-sm text-muted-foreground">Considera cambiar el formato a Doble Eliminación para un torneo de este tamaño para aumentar la participación de los jugadores.</p>
+                          <p className="text-sm text-muted-foreground">"Considera cambiar el formato a Doble Eliminación para un torneo de este tamaño para aumentar la participación de los jugadores."</p>
                         </div>
                       </div>
                   </div>
