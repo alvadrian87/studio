@@ -162,197 +162,197 @@ export default function ProfilePage() {
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="grid gap-6">
             <Card>
-            <CardHeader>
-                <CardTitle>Información Personal</CardTitle>
-                <CardDescription>Actualiza aquí la información de tu perfil público.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-6">
-                <div className="flex items-center gap-4">
-                <Avatar className="h-20 w-20">
-                    <AvatarImage src={player.avatar || 'https://placehold.co/80x80.png'} />
-                    <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
-                </Avatar>
-                <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
-                    <DialogTrigger asChild>
-                        <Button type="button">Cambiar Foto</Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Cambiar Foto de Perfil</DialogTitle>
-                            <DialogDescription>
-                                Sube una nueva imagen para tu avatar.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-4 py-4">
-                           <div className="grid w-full max-w-sm items-center gap-1.5">
-                                <Label htmlFor="avatar-file">Sube tu Imagen</Label>
-                                <div className="flex items-center gap-2">
-                                     <Input id="avatar-file" type="file" accept="image/*" onChange={handleAvatarFileChange} ref={avatarInputRef} className="hidden" />
-                                     <Button type="button" variant="outline" onClick={() => avatarInputRef.current?.click()}>
-                                        <Upload className="mr-2 h-4 w-4"/>
-                                        Seleccionar Archivo
-                                     </Button>
-                                     {avatarFile && <span className="text-sm text-muted-foreground truncate">{avatarFile.name}</span>}
+                <CardHeader>
+                    <CardTitle>Información Personal</CardTitle>
+                    <CardDescription>Actualiza aquí la información de tu perfil público.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid gap-6">
+                    <div className="flex items-center gap-4">
+                        <Avatar className="h-20 w-20">
+                            <AvatarImage src={player.avatar || 'https://placehold.co/80x80.png'} />
+                            <AvatarFallback>{getAvatarFallback()}</AvatarFallback>
+                        </Avatar>
+                        <Dialog open={isAvatarDialogOpen} onOpenChange={setIsAvatarDialogOpen}>
+                            <DialogTrigger asChild>
+                                <Button type="button">Cambiar Foto</Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                                <DialogHeader>
+                                    <DialogTitle>Cambiar Foto de Perfil</DialogTitle>
+                                    <DialogDescription>
+                                        Sube una nueva imagen para tu avatar.
+                                    </DialogDescription>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                <div className="grid w-full max-w-sm items-center gap-1.5">
+                                        <Label htmlFor="avatar-file">Sube tu Imagen</Label>
+                                        <div className="flex items-center gap-2">
+                                            <Input id="avatar-file" type="file" accept="image/*" onChange={handleAvatarFileChange} ref={avatarInputRef} className="hidden" />
+                                            <Button type="button" variant="outline" onClick={() => avatarInputRef.current?.click()}>
+                                                <Upload className="mr-2 h-4 w-4"/>
+                                                Seleccionar Archivo
+                                            </Button>
+                                            {avatarFile && <span className="text-sm text-muted-foreground truncate">{avatarFile.name}</span>}
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                        </div>
-                        <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setIsAvatarDialogOpen(false)}>Cancelar</Button>
-                            <Button type="button" onClick={onAvatarSubmit} disabled={loading || !avatarFile}>
-                                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Guardar Avatar
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                        control={form.control}
-                        name="firstName"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Nombre</FormLabel>
-                            <FormControl>
-                                <Input placeholder="Tu nombre" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="lastName"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Apellido</FormLabel>
-                            <FormControl>
-                                <Input placeholder="Tu apellido" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <div className="grid gap-2">
-                        <Label htmlFor="email">Correo electrónico</Label>
-                        <Input id="email" type="email" defaultValue={user.email || ""} disabled />
+                                <DialogFooter>
+                                    <Button type="button" variant="outline" onClick={() => setIsAvatarDialogOpen(false)}>Cancelar</Button>
+                                    <Button type="button" onClick={onAvatarSubmit} disabled={loading || !avatarFile}>
+                                        {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                                        Guardar Avatar
+                                    </Button>
+                                </DialogFooter>
+                            </DialogContent>
+                        </Dialog>
                     </div>
-                     <FormField
-                        control={form.control}
-                        name="phoneNumber"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Celular</FormLabel>
-                            <FormControl>
-                                <Input type="tel" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                     <FormField
-                        control={form.control}
-                        name="dateOfBirth"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Fecha de Nacimiento</FormLabel>
-                            <FormControl>
-                                <Input type="date" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                    />
-                    <FormField
-                        control={form.control}
-                        name="gender"
-                        render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Género</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Selecciona tu género" />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="masculino">Masculino</SelectItem>
-                                    <SelectItem value="femenino">Femenino</SelectItem>
-                                    <SelectItem value="otro">Otro</SelectItem>
-                                    <SelectItem value="prefiero-no-decir">Prefiero no decir</SelectItem>
-                                </SelectContent>
-                            </Select>
-                            <FormMessage />
-                            </FormItem>
-                        )}
-                        />
-                    <div className="grid gap-2 md:col-span-2">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField
                             control={form.control}
-                            name="residence"
+                            name="firstName"
                             render={({ field }) => (
                                 <FormItem>
-                                <FormLabel>Lugar de Residencia</FormLabel>
+                                <FormLabel>Nombre</FormLabel>
                                 <FormControl>
-                                    <Input {...field} />
+                                    <Input placeholder="Tu nombre" {...field} />
                                 </FormControl>
                                 <FormMessage />
                                 </FormItem>
                             )}
                         />
+                        <FormField
+                            control={form.control}
+                            name="lastName"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Apellido</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="Tu apellido" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <div className="grid gap-2">
+                            <Label htmlFor="email">Correo electrónico</Label>
+                            <Input id="email" type="email" defaultValue={user.email || ""} disabled />
+                        </div>
+                        <FormField
+                            control={form.control}
+                            name="phoneNumber"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Celular</FormLabel>
+                                <FormControl>
+                                    <Input type="tel" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="dateOfBirth"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Fecha de Nacimiento</FormLabel>
+                                <FormControl>
+                                    <Input type="date" {...field} />
+                                </FormControl>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="gender"
+                            render={({ field }) => (
+                                <FormItem>
+                                <FormLabel>Género</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Selecciona tu género" />
+                                    </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        <SelectItem value="masculino">Masculino</SelectItem>
+                                        <SelectItem value="femenino">Femenino</SelectItem>
+                                        <SelectItem value="otro">Otro</SelectItem>
+                                        <SelectItem value="prefiero-no-decir">Prefiero no decir</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                                </FormItem>
+                            )}
+                            />
+                        <div className="grid gap-2 md:col-span-2">
+                            <FormField
+                                control={form.control}
+                                name="residence"
+                                render={({ field }) => (
+                                    <FormItem>
+                                    <FormLabel>Lugar de Residencia</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} />
+                                    </FormControl>
+                                    <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
                     </div>
-                </div>
-            </CardContent>
+                </CardContent>
             </Card>
             <Card>
-            <CardHeader>
-                <CardTitle>Información del Jugador (Opcional)</CardTitle>
-                <CardDescription>Detalles adicionales sobre tu estilo de juego.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid md:grid-cols-2 gap-6">
-                 <FormField
-                    control={form.control}
-                    name="dominantHand"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Mano Hábil</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                           <FormControl>
-                            <SelectTrigger>
-                                <SelectValue placeholder="Selecciona tu mano hábil" />
-                            </SelectTrigger>
-                           </FormControl>
-                            <SelectContent>
-                                <SelectItem value="diestro">Diestro/a</SelectItem>
-                                <SelectItem value="zurdo">Zurdo/a</SelectItem>
-                                <SelectItem value="ambidiestro">Ambidiestro/a</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                 <FormField
-                    control={form.control}
-                    name="club"
-                    render={({ field }) => (
-                        <FormItem>
-                        <FormLabel>Club donde Juegas</FormLabel>
-                        <FormControl>
-                            <Input {...field} />
-                        </FormControl>
-                        <FormMessage />
-                        </FormItem>
-                    )}
-                />
-            </CardContent>
+                <CardHeader>
+                    <CardTitle>Información del Jugador (Opcional)</CardTitle>
+                    <CardDescription>Detalles adicionales sobre tu estilo de juego.</CardDescription>
+                </CardHeader>
+                <CardContent className="grid md:grid-cols-2 gap-6">
+                    <FormField
+                        control={form.control}
+                        name="dominantHand"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Mano Hábil</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Selecciona tu mano hábil" />
+                                </SelectTrigger>
+                            </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="diestro">Diestro/a</SelectItem>
+                                    <SelectItem value="zurdo">Zurdo/a</SelectItem>
+                                    <SelectItem value="ambidiestro">Ambidiestro/a</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="club"
+                        render={({ field }) => (
+                            <FormItem>
+                            <FormLabel>Club donde Juegas</FormLabel>
+                            <FormControl>
+                                <Input {...field} />
+                            </FormControl>
+                            <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </CardContent>
             </Card>
 
             <Card>
                 <CardHeader>
                     <CardTitle>Guardar todo</CardTitle>
                     <CardDescription>Haz clic a continuación para guardar todos los cambios realizados en tu perfil.</CardDescription>
-                </Header>
+                </CardHeader>
                 <CardFooter className="border-t px-6 py-4">
                     <Button type="submit" disabled={loading}>
                         {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
@@ -360,7 +360,7 @@ export default function ProfilePage() {
                     </Button>
                 </CardFooter>
             </Card>
-       
+        
             <Card>
                 <CardHeader>
                     <CardTitle>Contraseña</CardTitle>
@@ -389,5 +389,3 @@ export default function ProfilePage() {
     </>
   )
 }
-
-    
