@@ -68,6 +68,7 @@ async function updateLadderPositions(db: admin.firestore.Firestore, matchData: M
         ]);
         
         if (retadorSnapshot.empty || desafiadoSnapshot.empty) {
+            console.error("[LADDER_UPDATE] No se encontraron las inscripciones de uno o ambos jugadores.");
             throw new Error("No se encontraron las inscripciones de los jugadores para el intercambio de posiciones.");
         }
 
