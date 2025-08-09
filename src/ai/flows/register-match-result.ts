@@ -35,25 +35,28 @@ const calculateElo = (playerRating: number, opponentRating: number, result: numb
 };
 
 async function updateLadderPositions(db: admin.firestore.Firestore, matchData: Match, winnerId: string) {
+    console.log(`[LADDER_UPDATE] Iniciando actualización de escalera para la partida: ${matchData.id}`);
     if (!matchData.challengeId || !matchData.tournamentId) {
-        console.warn(`Match ${matchData.id} has no challenge or tournament ID. Skipping ladder update.`);
+        console.warn(`[LADDER_UPDATE] La partida ${matchData.id} no tiene ID de desafío o torneo. Saltando actualización de escalera.`);
         return;
     }
 
     const batch = db.batch();
 
-    // 1. Update challenge status
+    // 1. Actualizar estado del desafío
     const challengeRef = db.collection("challenges").doc(matchData.challengeId);
     const challengeDoc = await challengeRef.get();
     if (!challengeDoc.exists) {
-        console.warn(`Challenge ${matchData.challengeId} not found for match ${matchData.id}. Skipping ladder update.`);
-        return; // The challenge might have been deleted, but we can still proceed without this update.
+        console.warn(`[LADDER_UPDATE] Desafío ${matchData.challengeId} no encontrado para la partida ${matchData.id}. Saltando actualización.`);
+        return; 
     }
     const challengeData = challengeDoc.data() as Challenge;
     batch.update(challengeRef, { estado: 'Jugado' });
+    console.log(`[LADDER_UPDATE] Desafío ${challengeData.id} marcado como 'Jugado'.`);
     
-    // 2. Position Swap Logic only if challenger wins
+    // 2. Lógica de intercambio de posiciones solo si el retador gana
     if (winnerId === challengeData.retadorId) {
+        console.log(`[LADDER_UPDATE] El retador ${winnerId} ganó. Iniciando intercambio de posiciones.`);
         const inscriptionsRef = db.collection(`tournaments/${matchData.tournamentId}/inscriptions`);
         
         const retadorInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.retadorId).where('eventoId', '==', challengeData.eventoId).limit(1);
@@ -76,12 +79,17 @@ async function updateLadderPositions(db: admin.firestore.Firestore, matchData: M
         const retadorPosition = retadorInscriptionData.posicionActual;
         const desafiadoPosition = desafiadoInscriptionData.posicionActual;
         
-        // Perform the swap
+        console.log(`[LADDER_UPDATE] Intercambiando posiciones: Retador (${retadorPosition}) <-> Desafiado (${desafiadoPosition})`);
+        
+        // Realizar el intercambio
         batch.update(retadorInscriptionDoc.ref, { posicionActual: desafiadoPosition });
         batch.update(desafiadoInscriptionDoc.ref, { posicionActual: retadorPosition });
+    } else {
+         console.log(`[LADDER_UPDATE] El desafiado ${winnerId} ganó. No hay intercambio de posiciones.`);
     }
 
     await batch.commit();
+    console.log(`[LADDER_UPDATE] Actualización de la escalera completada para la partida: ${matchData.id}`);
 }
 
 
@@ -92,13 +100,14 @@ export const registerMatchResult = ai.defineFlow(
     outputSchema: RegisterMatchResultOutputSchema,
   },
   async ({ matchId, winnerId, score, isRetirement }) => {
+    console.log(`[REGISTER_RESULT] Iniciando flujo para la partida: ${matchId}`);
     const db = getFirestore();
-    // These variables will hold data needed for post-transaction logic.
-    let matchDataForPostLogic: Match; 
-    let tournamentDataForPostLogic: Tournament;
+    let matchDataForPostLogic: Match | null = null;
+    let tournamentDataForPostLogic: Tournament | null = null;
     let needsLadderUpdate = false;
 
     try {
+        console.log("[REGISTER_RESULT] Iniciando transacción en la base de datos...");
         await db.runTransaction(async (transaction) => {
             const matchRef = db.collection("matches").doc(matchId);
             const matchDoc = await transaction.get(matchRef);
@@ -107,7 +116,7 @@ export const registerMatchResult = ai.defineFlow(
                 throw new Error("La partida no fue encontrada.");
             }
             const localMatchData = { id: matchDoc.id, ...matchDoc.data() } as Match;
-            matchDataForPostLogic = localMatchData; // Store for later use
+            matchDataForPostLogic = localMatchData;
 
             if (localMatchData.status === 'Completado') {
                 throw new Error("Este resultado ya ha sido registrado.");
@@ -122,7 +131,7 @@ export const registerMatchResult = ai.defineFlow(
             const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
                 transaction.get(winnerRef),
                 transaction.get(loserRef),
-                transaction.get(tournamentRef) // Tournament data is needed for isRanked and type checks
+                transaction.get(tournamentRef)
             ]);
 
             if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) {
@@ -131,22 +140,17 @@ export const registerMatchResult = ai.defineFlow(
 
             const winnerData = winnerDoc.data() as Player;
             const loserData = loserDoc.data() as Player;
-            const tournamentData = tournamentDoc.data() as Tournament;
-            tournamentDataForPostLogic = tournamentData; // Store for later use
-
-            // --- ALL WRITES WITHIN THE TRANSACTION ---
+            const localTournamentData = tournamentDoc.data() as Tournament;
+            tournamentDataForPostLogic = localTournamentData;
             
-            // 1. Update Match
             transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
             
-            // 2. Update player global stats
             const newWinnerWins = (winnerData.globalWins || 0) + 1;
             const newLoserLosses = (loserData.globalLosses || 0) + 1;
             transaction.update(winnerRef, { globalWins: newWinnerWins });
             transaction.update(loserRef, { globalLosses: newLoserLosses });
 
-            // 3. Update ELO if it's a ranked tournament
-            if (tournamentData.isRanked) {
+            if (localTournamentData.isRanked) {
                 const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
                 const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
                 
@@ -154,20 +158,20 @@ export const registerMatchResult = ai.defineFlow(
                 transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
             }
 
-            // Decide if a ladder update is needed after the transaction completes
-            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && localMatchData.challengeId) {
+            if (localTournamentData.tipoTorneo === 'Evento tipo Escalera' && localMatchData.challengeId) {
                 needsLadderUpdate = true;
             }
         });
+        console.log("[REGISTER_RESULT] Transacción completada exitosamente.");
 
-      // --- Post-Transaction Logic (executes only if transaction was successful) ---
-      if (needsLadderUpdate) {
-         await updateLadderPositions(db, matchDataForPostLogic!, winnerId);
+      if (needsLadderUpdate && matchDataForPostLogic) {
+         await updateLadderPositions(db, matchDataForPostLogic, winnerId);
       }
-
+      
+      console.log(`[REGISTER_RESULT] Flujo completado exitosamente para la partida: ${matchId}.`);
       return { success: true, message: "Resultado guardado exitosamente." };
     } catch (error: any) {
-      console.error("Error in registerMatchResultFlow: ", error);
+      console.error("[REGISTER_RESULT] Error en registerMatchResultFlow: ", error);
       return { success: false, message: error.message || "No se pudo guardar el resultado." };
     }
   }
