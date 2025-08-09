@@ -70,16 +70,16 @@ export default function TournamentLayout({
       <div className="border-b mb-4">
         <nav className="flex items-center space-x-2 lg:space-x-4 px-1 -mb-px overflow-x-auto">
           {navItems.map((item) => (
-            <Link key={item.href} href={item.href} legacyBehavior passHref>
-              <a
-                className={cn(
-                  'flex items-center gap-2 whitespace-nowrap px-3 py-3 border-b-2 border-transparent text-sm font-medium text-muted-foreground hover:text-primary hover:border-primary transition-colors',
-                  pathname === item.href ? 'text-primary border-primary' : ''
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </a>
+            <Link
+              key={item.href}
+              href={item.href}
+              className={cn(
+                'flex items-center gap-2 whitespace-nowrap px-3 py-3 border-b-2 border-transparent text-sm font-medium text-muted-foreground hover:text-primary hover:border-primary transition-colors',
+                pathname === item.href ? 'text-primary border-primary' : ''
+              )}
+            >
+              <item.icon className="h-4 w-4" />
+              {item.label}
             </Link>
           ))}
         </nav>
