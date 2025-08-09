@@ -61,7 +61,7 @@ export default function LoginPage() {
           <div className="flex justify-center mb-4">
             <Trophy className="h-8 w-8 text-primary" />
           </div>
-          <CardTitle className="text-2xl text-center">Inicia Sesión en EvoLadder</CardTitle>
+          <CardTitle className="text-2xl text-center">Inicia Sesión en Evolution Tenis</CardTitle>
           <CardDescription className="text-center">
             Introduce tu correo electrónico para iniciar sesión en tu cuenta
           </CardDescription>

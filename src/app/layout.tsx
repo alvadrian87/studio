@@ -5,7 +5,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { AuthProvider } from '@/hooks/use-auth';
 
 export const metadata: Metadata = {
-  title: 'Gestor de EvoLadder',
+  title: 'Gestor de Evolution Tenis',
   description: 'La solución definitiva para gestionar tus clasificaciones de torneos.',
 };
 

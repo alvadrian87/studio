@@ -40,7 +40,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetDescription } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -90,7 +90,7 @@ export default function DashboardLayout({
           <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
             <Link href="/" className="flex items-center gap-2 font-semibold">
               <Trophy className="h-6 w-6 text-primary" />
-              <span className="">EvoLadder</span>
+              <span className="">Evolution Tenis</span>
             </Link>
           </div>
           <div className="flex-1">
@@ -171,7 +171,7 @@ export default function DashboardLayout({
                   className="flex items-center gap-2 text-lg font-semibold mb-4"
                 >
                   <Trophy className="h-6 w-6 text-primary" />
-                  <span className="">EvoLadder</span>
+                  <span className="">Evolution Tenis</span>
                 </Link>
                 {navItems.map((item) => (
                   <Link
