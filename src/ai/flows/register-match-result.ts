@@ -3,9 +3,14 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Player, Match, Tournament, Challenge } from '@/types';
 
+// Safely initialize the Firebase Admin SDK
+if (!admin.apps.length) {
+  admin.initializeApp();
+}
 
 const RegisterMatchResultInputSchema = z.object({
   matchId: z.string().describe("The ID of the match to update."),
@@ -13,7 +18,6 @@ const RegisterMatchResultInputSchema = z.object({
   score: z.string().describe("The final score string, e.g., '6-4, 6-4'."),
   isRetirement: z.boolean().describe("Whether the match ended due to a player retiring."),
 });
-
 
 const RegisterMatchResultOutputSchema = z.object({
   success: z.boolean(),
@@ -68,7 +72,6 @@ export const registerMatchResult = ai.defineFlow(
         const tournamentData = tournamentDoc.data() as Tournament;
 
         await db.runTransaction(async (transaction) => {
-            // Write operations only inside the transaction
             transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
             
             const newWinnerWins = (winnerData.globalWins || 0) + 1;
@@ -87,8 +90,6 @@ export const registerMatchResult = ai.defineFlow(
 
             if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
                 const challengeRef = db.collection("challenges").doc(matchData.challengeId);
-                // We just update the state. The complex ladder logic is now out of the transaction.
-                // TODO: Implement efficient position swap using a Cloud Function triggered by this update.
                 transaction.update(challengeRef, { estado: 'Jugado' });
             }
       });
