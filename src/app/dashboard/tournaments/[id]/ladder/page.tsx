@@ -29,7 +29,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Swords, UserPlus, DoorOpen, Play, Trophy, Loader2, Info, Lock, Settings } from "lucide-react"
+import { Swords, UserPlus, DoorOpen, Play, Trophy, Loader2, Info, Lock, Settings, ShieldQuestion } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
 import type { Player, Tournament, TournamentEvent, Inscription, Challenge } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
@@ -70,7 +70,8 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     }
   }, [tournament]);
 
-  const getPlayerDetails = (playerId: string) => {
+  const getPlayerDetails = (playerId: string | undefined) => {
+    if (!playerId) return null;
     return allPlayers?.find(p => p.uid === playerId);
   };
   
@@ -127,7 +128,8 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const hasPendingChallenge = (challengerInscription: Inscription | null | undefined) => {
       if (!challengerInscription || !allChallenges) return false;
       return allChallenges.some(c => 
-        (c.retadorId === challengerInscription.jugadorId || c.desafiadoId === challengerInscription.jugadorId) && c.estado === 'Pendiente'
+        (c.retadorId === challengerInscription.jugadorId || c.desafiadoId === challengerInscription.jugadorId) && 
+        (c.estado === 'Pendiente' || c.estado === 'Aceptado')
     );
   }
 
@@ -300,6 +302,13 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                             const isSelf = user?.uid === inscription.jugadorId;
                                             const isChallengable = canChallenge(currentUserInscription, inscription);
                                             const isChallenging = challengingPlayerId === inscription.jugadorId;
+                                            
+                                            const activeChallenge = allChallenges?.find(c => 
+                                                (c.desafiadoId === inscription.jugadorId || c.retadorId === inscription.jugadorId) &&
+                                                (c.estado === 'Pendiente' || c.estado === 'Aceptado') &&
+                                                c.eventoId === event.id
+                                            );
+
 
                                             return (
                                             <TableRow key={inscription.id}>
@@ -316,7 +325,19 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                             <TableCell className="hidden md:table-cell">{inscription.playerDetails?.rankPoints || 'N/A'}</TableCell>
                                             <TableCell className="text-right">
                                                 {isLadderTournament && !isSelf && enrolled && (
-                                                    isChallengable ? (
+                                                   activeChallenge ? (
+                                                        <Badge variant={activeChallenge.estado === 'Aceptado' ? 'default' : 'secondary'}>
+                                                          <ShieldQuestion className="mr-2 h-4 w-4"/>
+                                                            {activeChallenge.estado === 'Pendiente' && (
+                                                                activeChallenge.retadorId === user?.uid 
+                                                                    ? `Desafiaste a ${getPlayerDetails(activeChallenge.desafiadoId)?.displayName}` 
+                                                                    : `Desafiado por ${getPlayerDetails(activeChallenge.retadorId)?.displayName}`
+                                                            )}
+                                                            {activeChallenge.estado === 'Aceptado' && (
+                                                                `Partida pendiente vs ${getPlayerDetails(activeChallenge.retadorId === user?.uid ? activeChallenge.desafiadoId : activeChallenge.retadorId)?.displayName}`
+                                                            )}
+                                                        </Badge>
+                                                   ) : isChallengable ? (
                                                         <Button 
                                                             size="sm"
                                                             disabled={isChallenging}
@@ -330,7 +351,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                                             Desafiar
                                                         </Button>
                                                     ) : (
-                                                        <Badge variant="secondary">
+                                                        <Badge variant="outline">
                                                             <Lock className="mr-2 h-3 w-3"/>
                                                             Bloqueado
                                                         </Badge>
@@ -358,5 +379,3 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
-
-    
