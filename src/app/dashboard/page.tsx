@@ -64,17 +64,7 @@ const calculateElo = (playerRating: number, opponentRating: number, result: numb
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  
-  // All hooks are now at the top
-  const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
-  const { data: allMatches, loading: loadingMatches } = useCollection<Match>('matches');
-  const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
-  const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
-  const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
-  // Fetch all inscriptions for all tournaments. This could be optimized if it becomes too large.
-  const { data: allInscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${selectedMatch?.tournamentId}/inscriptions`);
 
-  
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
@@ -94,6 +84,15 @@ export default function Dashboard() {
     [false, false],
   ]);
   const [isRetirement, setIsRetirement] = useState(false);
+  
+  // All hooks are now at the top
+  const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
+  const { data: allMatches, loading: loadingMatches } = useCollection<Match>('matches');
+  const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
+  const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
+  const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
+  // Fetch all inscriptions for all tournaments. This could be optimized if it becomes too large.
+  const { data: allInscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${selectedMatch?.tournamentId}/inscriptions`);
 
   const getPlayerById = useCallback((id: string | undefined) => {
     if (!id) return null;
@@ -802,3 +801,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
