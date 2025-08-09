@@ -48,7 +48,7 @@ import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } fr
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge, Tournament, Inscription } from "@/types";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc, query, where, getDocs, QuerySnapshot, DocumentData } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc, query, where, getDocs, QuerySnapshot, DocumentData, DocumentSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -385,7 +385,7 @@ export default function Dashboard() {
             if(isNaN(score1) || isNaN(score2)) return;
 
             if (score1 > score2) p1SetsWon++;
-            else if (score2 > score1) p2SetsWon++;
+            else if (score2 > p1SetsWon) p2SetsWon++;
         });
         
         const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : (p2SetsWon > p1SetsWon ? p2.uid : null);
@@ -403,16 +403,18 @@ export default function Dashboard() {
     const finalScore = formatScoreString();
 
     try {
+        // --- 1. All Reads ---
         const matchRef = doc(db, "matches", selectedMatch.id);
         const matchDoc = await getDoc(matchRef);
-
         if (!matchDoc.exists()) throw new Error("La partida no fue encontrada.");
         if (matchDoc.data().status === 'Completado') throw new Error("Este resultado ya ha sido registrado.");
-        
-        const loserId = matchDoc.data().player1Id === winnerId ? matchDoc.data().player2Id : matchDoc.data().player1Id;
+
+        const matchData = matchDoc.data();
+        const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
+
         const winnerRef = doc(db, "users", winnerId);
         const loserRef = doc(db, "users", loserId);
-        const tournamentRef = doc(db, "tournaments", matchDoc.data().tournamentId);
+        const tournamentRef = doc(db, "tournaments", matchData.tournamentId);
 
         const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
             getDoc(winnerRef),
@@ -422,68 +424,74 @@ export default function Dashboard() {
 
         if (!winnerDoc.exists() || !loserDoc.exists()) throw new Error("No se pudieron encontrar los datos de uno o ambos jugadores.");
         if (!tournamentDoc.exists()) throw new Error("Torneo no encontrado.");
-
+        
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
         const tournamentData = tournamentDoc.data() as Tournament;
-        
-        let challengeDoc: DocumentData | null = null;
-        let inscriptionsSnapshot: QuerySnapshot<DocumentData> | null = null;
 
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchDoc.data().challengeId) {
-            const challengeRef = doc(db, "challenges", matchDoc.data().challengeId);
+        let challengeDoc: DocumentSnapshot<DocumentData> | null = null;
+        let inscriptionsSnapshot: QuerySnapshot<DocumentData> | null = null;
+        
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
+            const challengeRef = doc(db, "challenges", matchData.challengeId);
             challengeDoc = await getDoc(challengeRef);
             if (!challengeDoc.exists()) throw new Error("Desafío asociado no encontrado.");
             
             const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
             const q = query(
                 inscriptionsRef,
-                where("eventoId", "==", challengeDoc.data().eventoId),
-                where("jugadorId", "in", [challengeDoc.data().retadorId, challengeDoc.data().desafiadoId])
+                where("eventoId", "==", challengeDoc.data()!.eventoId),
+                where("jugadorId", "in", [challengeDoc.data()!.retadorId, challengeDoc.data()!.desafiadoId])
             );
             inscriptionsSnapshot = await getDocs(q);
 
             if (inscriptionsSnapshot.docs.length !== 2) {
+                console.error("DEBUG: Failed to find inscriptions.", {
+                    tournamentId: tournamentData.id,
+                    eventoId: challengeDoc.data()!.eventoId,
+                    retadorId: challengeDoc.data()!.retadorId,
+                    desafiadoId: challengeDoc.data()!.desafiadoId
+                });
                 throw new Error("No se encontraron las inscripciones para el intercambio de posiciones.");
             }
         }
-
+        
+        // --- 2. Transaction (Writes Only) ---
         await runTransaction(db, async (transaction) => {
-            let challengerInscriptionDoc: DocumentData | undefined;
-            let challengedInscriptionDoc: DocumentData | undefined;
-            
-            if (inscriptionsSnapshot) {
-                 challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeDoc!.data().retadorId);
-                 challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeDoc!.data().desafiadoId);
-            }
-            
+            // Update match
             transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
 
+            // Update player stats
             const newWinnerWins = (winnerData.globalWins || 0) + 1;
             const newLoserLosses = (loserData.globalLosses || 0) + 1;
-            
             transaction.update(winnerRef, { globalWins: newWinnerWins });
             transaction.update(loserRef, { globalLosses: newLoserLosses });
 
+            // Update ELO if ranked
             if (tournamentData.isRanked) {
                 const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
                 const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
-                
                 transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
                 transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
             }
 
-            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc) {
+            // Handle ladder logic
+            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc && inscriptionsSnapshot) {
                 transaction.update(challengeDoc.ref, { estado: 'Jugado' });
                 
-                const challengerId = challengeDoc.data().retadorId;
-                if (winnerId === challengerId && challengerInscriptionDoc && challengedInscriptionDoc) {
-                    const challengerPos = challengerInscriptionDoc.data().posicionActual;
-                    const challengedPos = challengedInscriptionDoc.data().posicionActual;
+                const challengerId = challengeDoc.data()!.retadorId;
+                if (winnerId === challengerId) { // Only swap if challenger wins
+                    const challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengerId);
+                    const challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId !== challengerId);
 
-                    if (challengerPos > challengedPos) {
-                        transaction.update(challengerInscriptionDoc.ref, { posicionActual: challengedPos });
-                        transaction.update(challengedInscriptionDoc.ref, { posicionActual: challengerPos });
+                    if (challengerInscriptionDoc && challengedInscriptionDoc) {
+                        const challengerPos = challengerInscriptionDoc.data().posicionActual;
+                        const challengedPos = challengedInscriptionDoc.data().posicionActual;
+
+                        if (challengerPos > challengedPos) {
+                            transaction.update(challengerInscriptionDoc.ref, { posicionActual: challengedPos });
+                            transaction.update(challengedInscriptionDoc.ref, { posicionActual: challengerPos });
+                        }
                     }
                 }
             }
@@ -784,3 +792,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
