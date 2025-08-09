@@ -51,6 +51,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 
 
@@ -73,8 +74,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const [isThirdSetDisabled, setIsThirdSetDisabled] = useState(true);
   const [scoreError, setScoreError] = useState<string | null>(null);
   const [scoreInputErrors, setScoreInputErrors] = useState<boolean[][]>([ [false, false], [false, false], [false, false] ]);
-  const [matchEndState, setMatchEndState] = useState<'completed' | 'p1_retired' | 'p2_retired'>('completed');
-  const isRetirement = useMemo(() => matchEndState !== 'completed', [matchEndState]);
+  const [isRetirement, setIsRetirement] = useState(false);
   
   useEffect(() => {
     if (!loadingTournament && tournament) {
@@ -101,26 +101,17 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
 
   // Score validation logic (re-used from dashboard)
    useEffect(() => {
-    if (!isResultDialogOpen) return;
+    if (!isResultDialogOpen || isRetirement) {
+         if (isRetirement) {
+             setScoreError(null);
+             setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
+        }
+        return;
+    };
+
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
-
-    if (matchEndState === 'p1_retired') {
-        setWinnerId(p2.uid);
-        setIsWinnerRadioDisabled(true);
-    } else if (matchEndState === 'p2_retired') {
-        setWinnerId(p1.uid);
-        setIsWinnerRadioDisabled(true);
-    } else {
-        setIsWinnerRadioDisabled(false);
-    }
     
-    if (isRetirement) {
-        setScoreError(null);
-        setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-        return;
-    }
-
     const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
     let p1SetsWon = 0; let p2SetsWon = 0; let localError: string | null = null;
     const newScoreInputErrors: boolean[][] = [ [false, false], [false, false], [false, false] ];
@@ -177,8 +168,8 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     if (!localError && (p1SetsWon >= 2 || p2SetsWon >= 2)) {
         if (p1SetsWon >= 2) setWinnerId(p1.uid); else if (p2SetsWon >= 2) setWinnerId(p2.uid);
         setIsWinnerRadioDisabled(true);
-    } else if (matchEndState === 'completed') { setWinnerId(null); setIsWinnerRadioDisabled(false); }
-  }, [scores, selectedMatch, allPlayers, tournament, isResultDialogOpen, getPlayersForMatch, isRetirement, matchEndState]);
+    } else { setWinnerId(null); setIsWinnerRadioDisabled(false); }
+  }, [scores, selectedMatch, allPlayers, tournament, isResultDialogOpen, getPlayersForMatch, isRetirement]);
 
   const handleOpenResultDialog = (match: Match) => {
     setSelectedMatch(match);
@@ -186,7 +177,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     setScores([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
     setScoreError(null);
     setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-    setMatchEndState('completed');
+    setIsRetirement(false);
     setIsThirdSetDisabled(true);
     setIsWinnerRadioDisabled(false);
     setIsResultDialogOpen(true);
@@ -321,11 +312,11 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
       </Card>
       
        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
-              Introduce el marcador y el estado final de la partida para determinar el ganador.
+              Introduce el marcador final. El ganador se calculará automáticamente.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
@@ -336,27 +327,28 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
                 <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p2InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} disabled={isRetirement}/><Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} disabled={isRetirement}/><Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isRetirement || isThirdSetDisabled}/></div></div>
                 {scoreError && !isRetirement && (<p className="text-sm font-medium text-destructive text-center pt-2">{scoreError}</p>)}
             </div>
-            <RadioGroup onValueChange={(value) => {
-                setMatchEndState(value as any)
-                 const { player1, player2 } = getPlayersForMatch(selectedMatch);
-                if (value === 'p1_retired') setWinnerId(player2!.uid);
-                else if (value === 'p2_retired') setWinnerId(player1!.uid);
-                else setWinnerId(null);
-            }} defaultValue={matchEndState} className="space-y-1 pt-4">
-                <Label className="font-medium">Estado Final de la Partida</Label>
-                <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="completed" id="admin-state-completed" />
-                    <Label htmlFor="admin-state-completed">Resultado Final (Se jugó completo)</Label>
-                </div>
-                 <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="p1_retired" id="admin-state-p1-retired" />
-                    <Label htmlFor="admin-state-p1-retired">{`Retiro de ${p1InSelectedMatch?.displayName}`}</Label>
-                </div>
-                 <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="p2_retired" id="admin-state-p2-retired" />
-                    <Label htmlFor="admin-state-p2-retired">{`Retiro de ${p2InSelectedMatch?.displayName}`}</Label>
-                </div>
-            </RadioGroup>
+            
+            <div className="space-y-2">
+                <Label>Ganador</Label>
+                <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value={p1InSelectedMatch?.uid || ''} id={`admin-p1-winner-${p1InSelectedMatch?.uid}`} />
+                    <Label htmlFor={`admin-p1-winner-${p1InSelectedMatch?.uid}`}>{p1InSelectedMatch?.displayName}</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value={p2InSelectedMatch?.uid || ''} id={`admin-p2-winner-${p2InSelectedMatch?.uid}`} />
+                    <Label htmlFor={`admin-p2-winner-${p2InSelectedMatch?.uid}`}>{p2InSelectedMatch?.displayName}</Label>
+                  </div>
+                </RadioGroup>
+            </div>
+
+            <div className="flex items-center space-x-2 pt-2">
+                <Checkbox id="admin-retirement" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
+                <label htmlFor="admin-retirement" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    ¿El partido finalizó por retiro?
+                </label>
+            </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
@@ -375,5 +367,3 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     </>
   )
 }
-
-    

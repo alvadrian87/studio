@@ -41,6 +41,7 @@ import {
 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } from "lucide-react"
@@ -76,8 +77,7 @@ export default function Dashboard() {
     [false, false],
     [false, false],
   ]);
-  const [matchEndState, setMatchEndState] = useState<'completed' | 'p1_retired' | 'p2_retired'>('completed');
-  const isRetirement = useMemo(() => matchEndState !== 'completed', [matchEndState]);
+  const [isRetirement, setIsRetirement] = useState(false);
   
   // All hooks are now at the top
   const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
@@ -99,29 +99,16 @@ export default function Dashboard() {
   }, [allPlayers, getPlayerById]);
 
   useEffect(() => {
-    if (!isResultDialogOpen) return;
+    if (!isResultDialogOpen || isRetirement) {
+        if (isRetirement) {
+             setScoreError(null);
+             setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
+        }
+        return;
+    };
 
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
-    
-    // Handle retirement logic
-    if (matchEndState === 'p1_retired') {
-        setWinnerId(p2.uid);
-        setIsWinnerRadioDisabled(true);
-    } else if (matchEndState === 'p2_retired') {
-        setWinnerId(p1.uid);
-        setIsWinnerRadioDisabled(true);
-    } else {
-        // This will be handled by score validation below if not a retirement
-        setIsWinnerRadioDisabled(false);
-    }
-
-    if (isRetirement) {
-        setScoreError(null);
-        setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-        // Scores are not strictly validated on retirement
-        return;
-    }
     
     const tournamentId = selectedMatch?.tournamentId;
     const tournament = allTournaments?.find(t => t.id === tournamentId);
@@ -250,12 +237,12 @@ export default function Dashboard() {
         if (p1SetsWon >= 2) setWinnerId(p1.uid);
         else if (p2SetsWon >= 2) setWinnerId(p2.uid);
         setIsWinnerRadioDisabled(true);
-    } else if (matchEndState === 'completed') { // only reset if not retirement
+    } else {
         setWinnerId(null);
         setIsWinnerRadioDisabled(false);
     }
 
-}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch, isRetirement, matchEndState]);
+}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch, isRetirement]);
 
 
   const pendingChallenges = useMemo(() => {
@@ -325,7 +312,7 @@ export default function Dashboard() {
     setScores([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
     setScoreError(null);
     setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-    setMatchEndState('completed');
+    setIsRetirement(false);
     setIsThirdSetDisabled(true); // Disable by default
     setIsWinnerRadioDisabled(false);
     setIsResultDialogOpen(true);
@@ -587,11 +574,11 @@ export default function Dashboard() {
       </div>
 
        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
-              Introduce el marcador y el estado final de la partida para determinar el ganador.
+              Introduce el marcador final. El ganador se calculará automáticamente.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
@@ -631,27 +618,26 @@ export default function Dashboard() {
                 )}
             </div>
 
-            <RadioGroup onValueChange={(value) => {
-                setMatchEndState(value as any);
-                const { player1, player2 } = getPlayersForMatch(selectedMatch);
-                if (value === 'p1_retired') setWinnerId(player2!.uid);
-                else if (value === 'p2_retired') setWinnerId(player1!.uid);
-                else setWinnerId(null);
-            }} defaultValue={matchEndState} className="space-y-1 pt-4">
-                <Label className="font-medium">Estado Final de la Partida</Label>
-                <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="completed" id="state-completed" />
-                    <Label htmlFor="state-completed">Resultado Final (Se jugó completo)</Label>
-                </div>
-                 <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="p1_retired" id="state-p1-retired" />
-                    <Label htmlFor="state-p1-retired">{`Retiro de ${p1InSelectedMatch?.displayName}`}</Label>
-                </div>
-                 <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="p2_retired" id="state-p2-retired" />
-                    <Label htmlFor="state-p2-retired">{`Retiro de ${p2InSelectedMatch?.displayName}`}</Label>
-                </div>
-            </RadioGroup>
+            <div className="space-y-2">
+                <Label>Ganador</Label>
+                <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value={p1InSelectedMatch?.uid || ''} id={`p1-winner-${p1InSelectedMatch?.uid}`} />
+                    <Label htmlFor={`p1-winner-${p1InSelectedMatch?.uid}`}>{p1InSelectedMatch?.displayName}</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value={p2InSelectedMatch?.uid || ''} id={`p2-winner-${p2InSelectedMatch?.uid}`} />
+                    <Label htmlFor={`p2-winner-${p2InSelectedMatch?.uid}`}>{p2InSelectedMatch?.displayName}</Label>
+                  </div>
+                </RadioGroup>
+            </div>
+            
+            <div className="flex items-center space-x-2 pt-2">
+                <Checkbox id="retirement" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
+                <label htmlFor="retirement" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    ¿El partido finalizó por retiro?
+                </label>
+            </div>
 
           </div>
           <DialogFooter>
@@ -688,5 +674,3 @@ export default function Dashboard() {
     </>
   )
 }
-
-    
