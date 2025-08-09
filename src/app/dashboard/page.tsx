@@ -48,7 +48,7 @@ import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } fr
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge, Tournament, Inscription } from "@/types";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc, query, where, getDocs } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc, query, where, getDocs, QuerySnapshot, DocumentData } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -245,8 +245,8 @@ export default function Dashboard() {
     setScoreInputErrors(newScoreInputErrors);
 
     if (!localError && (p1SetsWon >= 2 || p2SetsWon >= 2)) {
-        if (p1SetsWon >= 2) setWinnerId(p1.uid);
-        else if (p2SetsWon >= 2) setWinnerId(p2.uid);
+        if (p1SetsWon > p2SetsWon) setWinnerId(p1.uid);
+        else if (p2SetsWon > p1SetsWon) setWinnerId(p2.uid);
         setIsWinnerRadioDisabled(true);
     } else {
         setWinnerId(null);
@@ -404,39 +404,59 @@ export default function Dashboard() {
 
     try {
         await runTransaction(db, async (transaction) => {
+            // --- ALL READS FIRST ---
             const matchRef = doc(db, "matches", selectedMatch.id);
             const matchDoc = await transaction.get(matchRef);
 
-            if (!matchDoc.exists()) {
-                throw new Error("La partida no fue encontrada.");
-            }
-            if (matchDoc.data().status === 'Completado') {
-                throw new Error("Este resultado ya ha sido registrado.");
-            }
-
+            if (!matchDoc.exists()) throw new Error("La partida no fue encontrada.");
+            if (matchDoc.data().status === 'Completado') throw new Error("Este resultado ya ha sido registrado.");
+            
             const loserId = matchDoc.data().player1Id === winnerId ? matchDoc.data().player2Id : matchDoc.data().player1Id;
-
             const winnerRef = doc(db, "users", winnerId);
             const loserRef = doc(db, "users", loserId);
-            
-            const [winnerDoc, loserDoc] = await Promise.all([
+            const tournamentRef = doc(db, "tournaments", matchDoc.data().tournamentId);
+
+            const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
                 transaction.get(winnerRef),
                 transaction.get(loserRef),
+                transaction.get(tournamentRef),
             ]);
-            
-             if (!winnerDoc.exists() || !loserDoc.exists()) {
-                throw new Error("No se pudieron encontrar los datos de uno o ambos jugadores.");
-            }
-            
+
+            if (!winnerDoc.exists() || !loserDoc.exists()) throw new Error("No se pudieron encontrar los datos de uno o ambos jugadores.");
+            if (!tournamentDoc.exists()) throw new Error("Torneo no encontrado.");
+
             const winnerData = winnerDoc.data() as Player;
             const loserData = loserDoc.data() as Player;
-
-            const tournamentRef = doc(db, "tournaments", matchDoc.data().tournamentId);
-            const tournamentDoc = await transaction.get(tournamentRef);
-            if (!tournamentDoc.exists()) throw new Error("Torneo no encontrado.");
             const tournamentData = tournamentDoc.data() as Tournament;
 
-            // --- ALL WRITES ---
+            let challengeDoc: any = null;
+            let challengerInscriptionDoc: any = null;
+            let challengedInscriptionDoc: any = null;
+
+            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchDoc.data().challengeId) {
+                const challengeRef = doc(db, "challenges", matchDoc.data().challengeId);
+                challengeDoc = await transaction.get(challengeRef);
+                if (!challengeDoc.exists()) throw new Error("Desafío asociado no encontrado.");
+
+                const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
+                const inscriptionsQuery = query(
+                    inscriptionsRef,
+                    where("eventoId", "==", challengeDoc.data().eventoId),
+                    where("jugadorId", "in", [challengeDoc.data().retadorId, challengeDoc.data().desafiadoId])
+                );
+                const inscriptionsSnapshot = await getDocs(inscriptionsQuery);
+
+                if (inscriptionsSnapshot.docs.length !== 2) throw new Error("No se encontraron las inscripciones para el intercambio de posiciones.");
+                
+                challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeDoc.data().retadorId);
+                challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeDoc.data().desafiadoId);
+
+                if (!challengerInscriptionDoc || !challengedInscriptionDoc) {
+                    throw new Error("No se pudo encontrar la inscripción de uno de los jugadores del desafío.");
+                }
+            }
+            
+            // --- ALL WRITES LAST ---
             transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
 
             const newWinnerWins = (winnerData.globalWins || 0) + 1;
@@ -453,41 +473,17 @@ export default function Dashboard() {
                 transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
             }
 
-            // Ladder Logic Re-implementation
-            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchDoc.data().challengeId) {
-                const challengeRef = doc(db, "challenges", matchDoc.data().challengeId);
-                const challengeDoc = await transaction.get(challengeRef);
-                if (!challengeDoc.exists()) throw new Error("Desafío asociado no encontrado.");
-                
-                transaction.update(challengeRef, { estado: 'Jugado' });
+            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc) {
+                transaction.update(challengeDoc.ref, { estado: 'Jugado' });
                 
                 const challengerId = challengeDoc.data().retadorId;
-                const challengedId = challengeDoc.data().desafiadoId;
+                if (winnerId === challengerId) { // Only swap if challenger wins
+                    const challengerPos = challengerInscriptionDoc.data().posicionActual;
+                    const challengedPos = challengedInscriptionDoc.data().posicionActual;
 
-                // Only swap positions if the challenger wins
-                if(winnerId === challengerId) {
-                    const inscriptionsQuery = query(
-                        collection(db, `tournaments/${tournamentData.id}/inscriptions`),
-                        where("eventoId", "==", challengeDoc.data().eventoId)
-                    );
-                    const inscriptionsSnapshot = await getDocs(inscriptionsQuery);
-                    
-                    const challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengerId);
-                    const challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengedId);
-                    
-                    if (challengerInscriptionDoc && challengedInscriptionDoc) {
-                        const challengerPos = challengerInscriptionDoc.data().posicionActual;
-                        const challengedPos = challengedInscriptionDoc.data().posicionActual;
-
-                        // Swap positions
-                        if (challengerPos > challengedPos) {
-                           transaction.update(challengerInscriptionDoc.ref, { posicionActual: challengedPos });
-                           transaction.update(challengedInscriptionDoc.ref, { posicionActual: challengerPos });
-                        }
-                    } else {
-                        // This case should ideally not happen if data is consistent.
-                        // We log it but don't fail the transaction.
-                        console.warn("No se encontraron las inscripciones para el intercambio de posiciones.");
+                    if (challengerPos > challengedPos) {
+                        transaction.update(challengerInscriptionDoc.ref, { posicionActual: challengedPos });
+                        transaction.update(challengedInscriptionDoc.ref, { posicionActual: challengerPos });
                     }
                 }
             }
