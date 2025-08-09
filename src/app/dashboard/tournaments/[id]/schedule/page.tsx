@@ -74,7 +74,6 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const [isThirdSetDisabled, setIsThirdSetDisabled] = useState(true);
   const [scoreError, setScoreError] = useState<string | null>(null);
   const [scoreInputErrors, setScoreInputErrors] = useState<boolean[][]>([ [false, false], [false, false], [false, false] ]);
-  const [isRetirement, setIsRetirement] = useState(false);
   
   useEffect(() => {
     if (!loadingTournament && tournament) {
@@ -103,13 +102,6 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
    useEffect(() => {
     if (!isResultDialogOpen) return;
 
-    if (isRetirement) {
-        setScoreError(null);
-        setScoreInputErrors([[false, false], [false, false], [false, false]]);
-        setIsWinnerRadioDisabled(false); // Allow manual winner selection
-        return;
-    }
-    
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
     
@@ -170,7 +162,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
         if (p1SetsWon >= 2) setWinnerId(p1.uid); else if (p2SetsWon >= 2) setWinnerId(p2.uid);
         setIsWinnerRadioDisabled(true);
     } else { setWinnerId(null); setIsWinnerRadioDisabled(false); }
-  }, [scores, selectedMatch, allPlayers, tournament, isResultDialogOpen, getPlayersForMatch, isRetirement]);
+  }, [scores, selectedMatch, allPlayers, tournament, isResultDialogOpen, getPlayersForMatch]);
 
   const handleOpenResultDialog = (match: Match) => {
     setSelectedMatch(match);
@@ -178,7 +170,6 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     setScores([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
     setScoreError(null);
     setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-    setIsRetirement(false);
     setIsThirdSetDisabled(true);
     setIsWinnerRadioDisabled(false);
     setIsResultDialogOpen(true);
@@ -186,7 +177,6 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   
   const formatScoreString = () => {
     let scoreStr = scores.map(set => `${set.p1}-${set.p2}`).filter(setStr => setStr !== "-" && setStr !== "0-0" && setStr !== "" && !setStr.startsWith('-') && !setStr.endsWith('-')).join(', ');
-    if (isRetirement) { scoreStr += " (Ret.)"; }
     return scoreStr;
   };
 
@@ -197,22 +187,12 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   };
   
   const handleSaveResult = async () => {
-    if (!selectedMatch || !winnerId) { toast({ variant: "destructive", title: "Error", description: "Debes seleccionar un ganador." }); return; }
+    if (!selectedMatch || !winnerId) { toast({ variant: "destructive", title: "Error", description: "Debes seleccionar un ganador o el marcador está incompleto/inválido." }); return; }
     if (!user) { toast({ variant: "destructive", title: "Error de autenticación" }); return; }
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) { toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los jugadores." }); return; }
-    if (scoreError && !isRetirement) { toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError }); return; }
-    if (!isRetirement) {
-        let p1SetsWon = 0, p2SetsWon = 0;
-        scores.forEach((set, index) => {
-            if(isThirdSetDisabled && index === 2) return;
-            const score1 = parseInt(set.p1); const score2 = parseInt(set.p2);
-            if(isNaN(score1) || isNaN(score2)) return;
-            if (score1 > score2) p1SetsWon++; else if (score2 > score1) p2SetsWon++;
-        });
-        const calculatedWinnerId = p1SetsWon > p2SetsWon ? p1.uid : (p2SetsWon > p1SetsWon ? p2.uid : null);
-        if (calculatedWinnerId !== winnerId) { toast({ variant: "destructive", title: "Error de Validación", description: "El marcador no coincide con el ganador seleccionado." }); return; }
-    }
+    if (scoreError) { toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError }); return; }
+    
     setIsSubmittingResult(true);
     const finalScore = formatScoreString();
 
@@ -220,7 +200,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
         matchId: selectedMatch.id,
         winnerId: winnerId,
         score: finalScore,
-        isRetirement: isRetirement
+        isRetirement: false, // Reverted to not include retirement
     };
 
     console.log('[FRONTEND] Calling registerMatchResult with payload:', payload);
@@ -242,7 +222,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const tournamentMatches = matches?.filter(m => m.tournamentId === resolvedParams.id) || [];
   const canManage = userRole === 'admin' || tournament?.creatorId === user?.uid;
   const loading = loadingTournament || loadingAllPlayers || loadingMatches;
-  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement);
+  const isSaveButtonDisabled = isSubmittingResult || !winnerId || !!scoreError;
 
   if (loading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /> Cargando...</div>
@@ -329,14 +309,14 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
              <div className="space-y-2">
                 <div className="flex justify-between items-center"><Label>Marcador</Label>{tournament && (<Badge variant="outline">{tournament.formatoScore || 'Sets estándar'}</Badge>)}</div>
                 <div className="flex justify-around items-center"><div className="w-1/3 text-center font-bold">Jugador</div><div className="flex-1 grid grid-cols-3 gap-2"><div className="text-center text-sm font-medium text-muted-foreground">SET 1</div><div className="text-center text-sm font-medium text-muted-foreground">SET 2</div><div className="text-center text-sm font-medium text-muted-foreground">SET 3</div></div></div>
-                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p1InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} disabled={isRetirement} /><Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} disabled={isRetirement} /><Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isRetirement || isThirdSetDisabled} /></div></div>
-                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p2InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} disabled={isRetirement}/><Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} disabled={isRetirement}/><Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isRetirement || isThirdSetDisabled}/></div></div>
-                {scoreError && !isRetirement && (<p className="text-sm font-medium text-destructive text-center pt-2">{scoreError}</p>)}
+                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p1InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isThirdSetDisabled} /></div></div>
+                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p2InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isThirdSetDisabled}/></div></div>
+                {scoreError && (<p className="text-sm font-medium text-destructive text-center pt-2">{scoreError}</p>)}
             </div>
             
             <div className="space-y-2">
                 <Label>Ganador</Label>
-                <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled || isRetirement}>
+                <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled}>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value={p1InSelectedMatch?.uid || ''} id={`admin-p1-winner-${p1InSelectedMatch?.uid}`} />
                     <Label htmlFor={`admin-p1-winner-${p1InSelectedMatch?.uid}`}>{p1InSelectedMatch?.displayName}</Label>
@@ -346,13 +326,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
                     <Label htmlFor={`admin-p2-winner-${p2InSelectedMatch?.uid}`}>{p2InSelectedMatch?.displayName}</Label>
                   </div>
                 </RadioGroup>
-            </div>
-
-            <div className="flex items-center space-x-2 pt-2">
-                <Checkbox id="admin-retirement" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
-                 <label htmlFor="admin-retirement" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    ¿El partido finalizó por retiro? (Si se marca, el marcador es solo informativo, seleccione el ganador manualmente)
-                </label>
+                <p className="text-xs text-muted-foreground">El ganador se selecciona automáticamente al ingresar un marcador válido. Puedes anularlo manualmente si es necesario.</p>
             </div>
 
           </div>

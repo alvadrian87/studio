@@ -3,14 +3,18 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getFirestore } from 'firebase-admin/firestore';
-import type { Player, Match, Tournament, Inscription, Challenge } from '@/types';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { initializeApp, getApps } from 'firebase-admin/app';
 import admin from 'firebase-admin';
+import type { Player, Match, Tournament } from '@/types';
 
-// Safely initialize the Firebase Admin SDK.
-if (!admin.apps.length) {
-  admin.initializeApp();
+// Robust Firebase Admin SDK initialization for serverless environments
+if (!getApps().length) {
+  initializeApp();
 }
+
+const db = getFirestore();
+
 
 const RegisterMatchResultInputSchema = z.object({
   matchId: z.string().describe("The ID of the match to update."),
@@ -39,12 +43,12 @@ export const registerMatchResult = ai.defineFlow(
     outputSchema: RegisterMatchResultOutputSchema,
   },
   async ({ matchId, winnerId, score, isRetirement }) => {
-    console.log('[FLOW_START] registerMatchResultFlow initiated with matchId:', matchId);
-    const db = getFirestore();
+    console.log('[FLOW_START] registerMatchResultFlow initiated with payload:', { matchId, winnerId, score, isRetirement });
     
     try {
       await db.runTransaction(async (transaction) => {
         console.log('[TRANSACTION_START] Firestore transaction started for matchId:', matchId);
+
         const matchRef = db.collection("matches").doc(matchId);
         const matchDoc = await transaction.get(matchRef);
         console.log('[TRANSACTION_STEP] Got matchDoc.');
@@ -83,13 +87,12 @@ export const registerMatchResult = ai.defineFlow(
         const tournamentData = tournamentDoc.data() as Tournament;
         console.log('[TRANSACTION_STEP] Data extracted from docs.');
         
+        // --- ATOMIC WRITES ---
         transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
         console.log('[TRANSACTION_STEP] Match updated in transaction.');
         
-        const newWinnerWins = (winnerData.globalWins || 0) + 1;
-        const newLoserLosses = (loserData.globalLosses || 0) + 1;
-        transaction.update(winnerRef, { globalWins: newWinnerWins });
-        transaction.update(loserRef, { globalLosses: newLoserLosses });
+        transaction.update(winnerRef, { globalWins: FieldValue.increment(1) });
+        transaction.update(loserRef, { globalLosses: FieldValue.increment(1) });
         console.log('[TRANSACTION_STEP] Player stats (wins/losses) updated in transaction.');
 
         if (tournamentData.isRanked) {
@@ -109,7 +112,6 @@ export const registerMatchResult = ai.defineFlow(
 
     } catch (error: any) {
       console.error("[REGISTER_RESULT_ERROR] Critical error in registerMatchResultFlow: ", error);
-      // Ensure we return a valid output schema on error
       return { success: false, message: error.message || "No se pudo guardar el resultado debido a un error interno." };
     }
   }
