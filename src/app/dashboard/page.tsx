@@ -48,18 +48,13 @@ import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } fr
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge, Tournament, Inscription } from "@/types";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { registerMatchResult } from "@/ai/flows/register-match-result";
 
-
-const calculateElo = (playerRating: number, opponentRating: number, result: number) => {
-    const kFactor = 32;
-    const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
-    return playerRating + kFactor * (result - expectedScore);
-};
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -394,63 +389,20 @@ export default function Dashboard() {
     const finalScore = formatScoreString();
 
     try {
-        await runTransaction(db, async (transaction) => {
-            const matchRef = doc(db, "matches", selectedMatch.id);
-            const matchDoc = await transaction.get(matchRef);
-
-            if (!matchDoc.exists()) {
-                throw new Error("La partida no fue encontrada.");
-            }
-            if (matchDoc.data().status === 'Completado') {
-                throw new Error("Este resultado ya ha sido registrado.");
-            }
-
-            const loserId = matchDoc.data().player1Id === winnerId ? matchDoc.data().player2Id : matchDoc.data().player1Id;
-
-            const winnerRef = doc(db, "users", winnerId);
-            const loserRef = doc(db, "users", loserId);
-            const tournamentRef = doc(db, "tournaments", matchDoc.data().tournamentId);
-
-            const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
-                transaction.get(winnerRef),
-                transaction.get(loserRef),
-                transaction.get(tournamentRef)
-            ]);
-             if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) {
-                throw new Error("No se pudieron encontrar los datos del jugador o del torneo.");
-            }
-            
-            const winnerData = winnerDoc.data() as Player;
-            const loserData = loserDoc.data() as Player;
-            const tournamentData = tournamentDoc.data() as Tournament;
-
-            // --- ALL WRITES ---
-            transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
-
-            const newWinnerWins = (winnerData.globalWins || 0) + 1;
-            const newLoserLosses = (loserData.globalLosses || 0) + 1;
-            
-            transaction.update(winnerRef, { globalWins: newWinnerWins });
-            transaction.update(loserRef, { globalLosses: newLoserLosses });
-
-            if (tournamentData.isRanked) {
-                const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
-                const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
-                
-                transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
-                transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
-            }
-            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchDoc.data().challengeId) {
-                const challengeRef = doc(db, "challenges", matchDoc.data().challengeId);
-                transaction.update(challengeRef, { estado: 'Jugado' });
-                // TODO: Implement ladder position swap logic asynchronously,
-                // perhaps via a Cloud Function triggered on match update to avoid timeouts.
-            }
+        const result = await registerMatchResult({
+            matchId: selectedMatch.id,
+            winnerId: winnerId,
+            score: finalScore,
+            isRetirement: isRetirement
         });
 
-        toast({ title: "¡Resultado Guardado!", description: "El resultado ha sido guardado exitosamente." });
-        setIsResultDialogOpen(false);
-        setSelectedMatch(null);
+        if (result.success) {
+            toast({ title: "¡Resultado Guardado!", description: result.message });
+            setIsResultDialogOpen(false);
+            setSelectedMatch(null);
+        } else {
+            throw new Error(result.message);
+        }
 
     } catch (error: any) {
       console.error("Error al guardar el resultado: ", error);

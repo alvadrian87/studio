@@ -19,18 +19,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { collection, query, where, getDocs, writeBatch, doc, runTransaction, updateDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Loader2, Swords } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { format } from "date-fns";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
+import { registerMatchResult } from "@/ai/flows/register-match-result";
 
-// Re-using the result dialog logic, maybe move to a component later
+// Re-using the result dialog logic
 import {
   Dialog,
   DialogContent,
@@ -56,11 +54,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 
-const calculateElo = (playerRating: number, opponentRating: number, result: number) => {
-    const kFactor = 32;
-    const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
-    return playerRating + kFactor * (result - expectedScore);
-};
 
 export default function SchedulePage({ params }: { params: { id: string } }) {
   const resolvedParams = use(params);
@@ -219,31 +212,19 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     setIsSubmittingResult(true);
     const finalScore = formatScoreString();
     try {
-        await runTransaction(db, async (transaction) => {
-            const matchRef = doc(db, "matches", selectedMatch.id);
-            const matchDoc = await transaction.get(matchRef);
-            if (!matchDoc.exists() || matchDoc.data().status === 'Completado') { throw new Error("La partida no existe o ya fue completada."); }
-            const loserId = matchDoc.data().player1Id === winnerId ? matchDoc.data().player2Id : matchDoc.data().player1Id;
-            const [winnerRef, loserRef, tournamentRef] = [doc(db, "users", winnerId), doc(db, "users", loserId), doc(db, "tournaments", matchDoc.data().tournamentId)];
-            const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([transaction.get(winnerRef), transaction.get(loserRef), transaction.get(tournamentRef)]);
-            if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) { throw new Error("Datos de jugador o torneo no encontrados."); }
-            const winnerData = winnerDoc.data() as Player, loserData = loserDoc.data() as Player, tournamentData = tournamentDoc.data() as Tournament;
-            transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
-            transaction.update(winnerRef, { globalWins: (winnerData.globalWins || 0) + 1 });
-            transaction.update(loserRef, { globalLosses: (loserData.globalLosses || 0) + 1 });
-            if (tournamentData.isRanked) {
-                const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
-                const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
-                transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
-                transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
-            }
-            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchDoc.data().challengeId) {
-                const challengeRef = doc(db, "challenges", matchDoc.data().challengeId);
-                transaction.update(challengeRef, { estado: 'Jugado' });
-            }
+       const result = await registerMatchResult({
+            matchId: selectedMatch.id,
+            winnerId: winnerId,
+            score: finalScore,
+            isRetirement: isRetirement
         });
-        toast({ title: "¡Resultado Guardado!", description: "El resultado ha sido guardado exitosamente." });
-        setIsResultDialogOpen(false);
+
+        if (result.success) {
+            toast({ title: "¡Resultado Guardado!", description: result.message });
+            setIsResultDialogOpen(false);
+        } else {
+            throw new Error(result.message);
+        }
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo guardar el resultado." });
     } finally { setIsSubmittingResult(false); }
@@ -305,7 +286,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
                         <Button variant="outline" size="sm" onClick={() => handleOpenResultDialog(match)}>Cargar Resultado</Button>
                       ) : (
                          <div className="flex flex-col items-end">
-                             <span className={`font-bold ${match.winnerId === player1?.uid ? 'text-primary' : 'text-destructive'}`}>
+                             <span className={`font-bold ${match.winnerId === player1?.uid ? 'text-primary' : (match.winnerId === player2?.uid ? 'text-destructive' : '')}`}>
                                 {getPlayerById(match.winnerId)?.displayName}
                              </span>
                              {match.score && <span className="text-xs text-muted-foreground">{match.score}</span>}
@@ -384,5 +365,3 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     </>
   )
 }
-
-    
