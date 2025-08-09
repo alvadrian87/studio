@@ -48,8 +48,7 @@ export interface Tournament {
   fechaFin: string;
   ubicacion: string;
   imagenBannerUrl?: string;
-
-  isRanked?: boolean;
+  isRanked: boolean;
 
   // Key-based tournament fields
   metodoOrdenInicial?: 'Ordenar por ELO' | 'Ordenar manualmente';

@@ -58,6 +58,7 @@ const baseTournamentSchema = z.object({
     nombreTorneo: z.string().min(3, "El nombre debe tener al menos 3 caracteres."),
     descripcion: z.string().optional(),
     organizacion: z.string().min(2, "La organización es requerida."),
+    isRanked: z.boolean(),
     fechaInicio: z.string().min(1, "La fecha de inicio es requerida."),
     fechaFin: z.string().min(1, "La fecha de fin es requerida."),
     ubicacion: z.string().min(2, "La ubicación es requerida."),
@@ -115,6 +116,7 @@ export function TournamentForm() {
             nombreTorneo: "",
             organizacion: "",
             ubicacion: "",
+            isRanked: true,
             imagenBannerUrl: "",
             descripcion: "",
             fechaInicio: "",
@@ -153,7 +155,7 @@ export function TournamentForm() {
     const handleNext = async () => {
         const fieldsByStep: Record<string, (keyof FullFormValues)[]> = {
             '0': ['tipoTorneo'],
-            '1': ['nombreTorneo', 'organizacion', 'ubicacion', 'fechaInicio', 'fechaFin'],
+            '1': ['nombreTorneo', 'organizacion', 'ubicacion', 'fechaInicio', 'fechaFin', 'isRanked'],
             '2': ['events', 'metodoOrdenInicial'],
             '3': isLadder ? ['reglasLadder', 'formatoScore'] : ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'],
             '4': isLadder ? ['fechaInicioInscripciones', 'fechaCierreInscripciones', 'contactoNombre', 'contactoEmail'] : [],

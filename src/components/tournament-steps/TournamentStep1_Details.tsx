@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { CardDescription, CardTitle } from "../ui/card";
 import { Label } from "../ui/label";
+import { Switch } from "../ui/switch";
 
 export default function TournamentStep1Details() {
   const { control } = useFormContext();
@@ -83,6 +84,28 @@ export default function TournamentStep1Details() {
                     </FormItem>
                 )}
             />
+             <div className="md:col-span-2">
+                <FormField
+                    control={control}
+                    name="isRanked"
+                    render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                        <div className="space-y-0.5">
+                            <FormLabel className="text-base">Torneo Rankeado</FormLabel>
+                            <CardDescription>
+                                ¿Los resultados de este torneo afectarán el ranking ELO de los jugadores?
+                            </CardDescription>
+                        </div>
+                        <FormControl>
+                            <Switch
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            />
+                        </FormControl>
+                        </FormItem>
+                    )}
+                />
+            </div>
             <div className="md:col-span-2">
                  <FormField
                     control={control}
