@@ -125,9 +125,10 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     }
   };
 
-  const hasPendingChallenge = (challengerInscription: Inscription | null | undefined) => {
+  const hasPendingChallenge = (challengerInscription: Inscription | null | undefined, eventId: string) => {
       if (!challengerInscription || !allChallenges) return false;
       return allChallenges.some(c => 
+        c.eventoId === eventId &&
         (c.retadorId === challengerInscription.jugadorId || c.desafiadoId === challengerInscription.jugadorId) && 
         (c.estado === 'Pendiente' || c.estado === 'Aceptado')
     );
@@ -136,8 +137,8 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const canChallenge = (challengerInscription: Inscription | null | undefined, challengedInscription: Inscription) => {
     if (!challengerInscription || !tournament?.reglasLadder || !inscriptions) return false;
 
-    // A player cannot challenge if they already have a pending challenge
-    if (hasPendingChallenge(challengerInscription)) return false;
+    // A player cannot challenge if they already have a pending challenge in this event
+    if (hasPendingChallenge(challengerInscription, challengedInscription.eventoId)) return false;
 
     const challengerPos = challengerInscription.posicionActual;
     const challengedPos = challengedInscription.posicionActual;
@@ -257,7 +258,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                 const eventParticipants = getEventInscriptions(event.id!);
                 const enrolled = isUserEnrolledInEvent(event.id!);
                 const currentUserInscription = userInscription(event.id!);
-                const userHasPendingChallenge = hasPendingChallenge(currentUserInscription);
+                const userHasPendingChallenge = hasPendingChallenge(currentUserInscription, event.id!);
 
                 return (
                     <TabsContent key={event.id} value={event.id!}>
@@ -304,10 +305,16 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                             const isChallenging = challengingPlayerId === inscription.jugadorId;
                                             
                                             const activeChallenge = allChallenges?.find(c => 
-                                                (c.desafiadoId === inscription.jugadorId || c.retadorId === inscription.jugadorId) &&
-                                                (c.estado === 'Pendiente' || c.estado === 'Aceptado') &&
-                                                c.eventoId === event.id
+                                                c.eventoId === event.id &&
+                                                (c.retadorId === inscription.jugadorId || c.desafiadoId === inscription.jugadorId) &&
+                                                (c.estado === 'Pendiente' || c.estado === 'Aceptado')
                                             );
+                                            
+                                            const getOpponentName = () => {
+                                                if (!activeChallenge) return '';
+                                                const opponentId = activeChallenge.retadorId === inscription.jugadorId ? activeChallenge.desafiadoId : activeChallenge.retadorId;
+                                                return getPlayerDetails(opponentId)?.displayName || 'Desconocido';
+                                            }
 
 
                                             return (
@@ -329,18 +336,18 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                                         <Badge variant={activeChallenge.estado === 'Aceptado' ? 'default' : 'secondary'}>
                                                           <ShieldQuestion className="mr-2 h-4 w-4"/>
                                                             {activeChallenge.estado === 'Pendiente' && (
-                                                                activeChallenge.retadorId === user?.uid 
-                                                                    ? `Desafiaste a ${getPlayerDetails(activeChallenge.desafiadoId)?.displayName}` 
-                                                                    : `Desafiado por ${getPlayerDetails(activeChallenge.retadorId)?.displayName}`
+                                                                activeChallenge.retadorId === inscription.jugadorId 
+                                                                    ? `Desafiaste a ${getOpponentName()}` 
+                                                                    : `Desafiado por ${getOpponentName()}`
                                                             )}
                                                             {activeChallenge.estado === 'Aceptado' && (
-                                                                `Partida pendiente vs ${getPlayerDetails(activeChallenge.retadorId === user?.uid ? activeChallenge.desafiadoId : activeChallenge.retadorId)?.displayName}`
+                                                                `Partida pendiente vs ${getOpponentName()}`
                                                             )}
                                                         </Badge>
                                                    ) : isChallengable ? (
                                                         <Button 
                                                             size="sm"
-                                                            disabled={isChallenging}
+                                                            disabled={isChallenging || userHasPendingChallenge}
                                                             onClick={() => handleChallenge(inscription)}
                                                         >
                                                             {isChallenging ? (
@@ -379,3 +386,5 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    
