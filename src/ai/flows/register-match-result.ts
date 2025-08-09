@@ -3,17 +3,9 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
-import { initializeApp, getApps } from 'firebase-admin/app';
-import admin from 'firebase-admin';
+import { db } from '@/lib/firebase-admin'; // Import the initialized admin instance
+import { FieldValue } from 'firebase-admin/firestore';
 import type { Player, Match, Tournament } from '@/types';
-
-// Robust Firebase Admin SDK initialization for serverless environments
-if (!getApps().length) {
-  initializeApp();
-}
-
-const db = getFirestore();
 
 
 const RegisterMatchResultInputSchema = z.object({
@@ -51,7 +43,7 @@ export const registerMatchResult = ai.defineFlow(
 
         const matchRef = db.collection("matches").doc(matchId);
         const matchDoc = await transaction.get(matchRef);
-        console.log('[TRANSACTION_STEP] Got matchDoc.');
+        console.log('[TRANSACTION_STEP] Fetched match document.');
 
         if (!matchDoc.exists) {
           console.error('[TRANSACTION_ERROR] Match not found for ID:', matchId);
@@ -68,14 +60,14 @@ export const registerMatchResult = ai.defineFlow(
         const winnerRef = db.collection("users").doc(winnerId);
         const loserRef = db.collection("users").doc(loserId);
         const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
-        console.log('[TRANSACTION_STEP] Refs created for winner, loser, and tournament.');
+        console.log('[TRANSACTION_STEP] Created refs for winner, loser, and tournament.');
 
         const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
             transaction.get(winnerRef),
             transaction.get(loserRef),
             transaction.get(tournamentRef)
         ]);
-        console.log('[TRANSACTION_STEP] Got winner, loser, and tournament docs.');
+        console.log('[TRANSACTION_STEP] Fetched winner, loser, and tournament documents.');
 
         if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) {
             console.error('[TRANSACTION_ERROR] Could not find player or tournament data.');
@@ -85,10 +77,11 @@ export const registerMatchResult = ai.defineFlow(
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
         const tournamentData = tournamentDoc.data() as Tournament;
-        console.log('[TRANSACTION_STEP] Data extracted from docs.');
+        console.log('[TRANSACTION_STEP] Extracted data from documents.');
         
         // --- ATOMIC WRITES ---
-        transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
+        const finalScore = isRetirement ? `${score} (Ret.)` : score;
+        transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
         console.log('[TRANSACTION_STEP] Match updated in transaction.');
         
         transaction.update(winnerRef, { globalWins: FieldValue.increment(1) });
