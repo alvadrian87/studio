@@ -437,7 +437,7 @@ export default function Dashboard() {
             challengeDoc = await getDoc(challengeRef);
             if (!challengeDoc.exists()) throw new Error("Desafío asociado no encontrado.");
             
-            const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
+            const inscriptionsRef = collection(db, `tournaments/${matchData.tournamentId}/inscriptions`);
             const q = query(
                 inscriptionsRef,
                 where("eventoId", "==", challengeDoc.data()!.eventoId),
@@ -447,7 +447,7 @@ export default function Dashboard() {
 
             if (inscriptionsSnapshot.docs.length !== 2) {
                 console.error("DEBUG: Failed to find inscriptions.", {
-                    tournamentId: tournamentData.id,
+                    tournamentId: matchData.tournamentId,
                     eventoId: challengeDoc.data()!.eventoId,
                     retadorId: challengeDoc.data()!.retadorId,
                     desafiadoId: challengeDoc.data()!.desafiadoId
@@ -792,5 +792,7 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
 
     
