@@ -142,6 +142,9 @@ export default function TournamentsPage() {
             <TableBody>
               {tournaments?.map((tournament) => {
                 const canManage = userRole === 'admin' || tournament.creatorId === user?.uid;
+                const viewUrl = tournament.tipoTorneo === 'Evento tipo Escalera'
+                  ? `/dashboard/tournaments/${tournament.id}/ladder`
+                  : `/dashboard/tournaments/${tournament.id}/bracket`;
                 
                 return (
                   <TableRow key={tournament.id}>
@@ -168,7 +171,7 @@ export default function TournamentsPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Acciones</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
-                              <Link href={`/dashboard/tournaments/${tournament.id}/ladder`}>Ver Clasificación</Link>
+                              <Link href={viewUrl}>Ver Torneo</Link>
                           </DropdownMenuItem>
                           {canManage && (
                             <>
