@@ -48,7 +48,7 @@ import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } fr
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge, Tournament, Inscription } from "@/types";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch, runTransaction, getDoc, query, where, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -71,6 +71,9 @@ export default function Dashboard() {
   const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
   const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
   const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
+  // Fetch all inscriptions for all tournaments. This could be optimized if it becomes too large.
+  const { data: allInscriptions, loading: loadingInscriptions } = useCollection<Inscription>('inscriptions');
+
   
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
@@ -415,19 +418,22 @@ export default function Dashboard() {
 
             const winnerRef = doc(db, "users", winnerId);
             const loserRef = doc(db, "users", loserId);
-            const tournamentRef = doc(db, "tournaments", matchDoc.data().tournamentId);
-
-            const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
+            
+            const [winnerDoc, loserDoc] = await Promise.all([
                 transaction.get(winnerRef),
                 transaction.get(loserRef),
-                transaction.get(tournamentRef)
             ]);
-             if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) {
-                throw new Error("No se pudieron encontrar los datos del jugador o del torneo.");
+            
+             if (!winnerDoc.exists() || !loserDoc.exists()) {
+                throw new Error("No se pudieron encontrar los datos de uno o ambos jugadores.");
             }
             
             const winnerData = winnerDoc.data() as Player;
             const loserData = loserDoc.data() as Player;
+
+            const tournamentRef = doc(db, "tournaments", matchDoc.data().tournamentId);
+            const tournamentDoc = await transaction.get(tournamentRef);
+            if (!tournamentDoc.exists()) throw new Error("Torneo no encontrado.");
             const tournamentData = tournamentDoc.data() as Tournament;
 
             // --- ALL WRITES ---
@@ -446,11 +452,44 @@ export default function Dashboard() {
                 transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
                 transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
             }
+
+            // Ladder Logic Re-implementation
             if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchDoc.data().challengeId) {
                 const challengeRef = doc(db, "challenges", matchDoc.data().challengeId);
+                const challengeDoc = await transaction.get(challengeRef);
+                if (!challengeDoc.exists()) throw new Error("Desafío asociado no encontrado.");
+                
                 transaction.update(challengeRef, { estado: 'Jugado' });
-                // TODO: Implement ladder position swap logic asynchronously,
-                // perhaps via a Cloud Function triggered on match update to avoid timeouts.
+                
+                const challengerId = challengeDoc.data().retadorId;
+                const challengedId = challengeDoc.data().desafiadoId;
+
+                // Only swap positions if the challenger wins
+                if(winnerId === challengerId) {
+                    const inscriptionsQuery = query(
+                        collection(db, `tournaments/${tournamentData.id}/inscriptions`),
+                        where("eventoId", "==", challengeDoc.data().eventoId)
+                    );
+                    const inscriptionsSnapshot = await getDocs(inscriptionsQuery);
+                    
+                    const challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengerId);
+                    const challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengedId);
+                    
+                    if (challengerInscriptionDoc && challengedInscriptionDoc) {
+                        const challengerPos = challengerInscriptionDoc.data().posicionActual;
+                        const challengedPos = challengedInscriptionDoc.data().posicionActual;
+
+                        // Swap positions
+                        if (challengerPos > challengedPos) {
+                           transaction.update(challengerInscriptionDoc.ref, { posicionActual: challengedPos });
+                           transaction.update(challengedInscriptionDoc.ref, { posicionActual: challengerPos });
+                        }
+                    } else {
+                        // This case should ideally not happen if data is consistent.
+                        // We log it but don't fail the transaction.
+                        console.warn("No se encontraron las inscripciones para el intercambio de posiciones.");
+                    }
+                }
             }
         });
 
@@ -466,7 +505,8 @@ export default function Dashboard() {
     }
   };
 
-  const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments;
+  const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments || loadingInscriptions;
+
 
   if (loading) {
     return <div>Cargando...</div>
