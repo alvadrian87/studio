@@ -5,8 +5,10 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { db } from '@/lib/firebase-admin'; 
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Player, Match, Tournament } from '@/types';
+import type { Player, Match, Tournament, Inscription } from '@/types';
 
+// Re-added console.logs for final verification after the fix
+console.log('[FLOW_LOAD] register-match-result.ts loaded.');
 
 const RegisterMatchResultInputSchema = z.object({
   matchId: z.string().describe("The ID of the match to update."),
@@ -35,9 +37,11 @@ export const registerMatchResult = ai.defineFlow(
     outputSchema: RegisterMatchResultOutputSchema,
   },
   async ({ matchId, winnerId, score, isRetirement }) => {
+    console.log('[FLOW_START] registerMatchResultFlow started with matchId:', matchId);
     
     try {
       await db.runTransaction(async (transaction) => {
+        console.log('[TRANSACTION_START]');
 
         const matchRef = db.collection("matches").doc(matchId);
         const matchDoc = await transaction.get(matchRef);
@@ -46,6 +50,7 @@ export const registerMatchResult = ai.defineFlow(
           throw new Error("La partida no fue encontrada.");
         }
         
+        console.log('[TRANSACTION_READ] Match document found.');
         const matchData = { id: matchDoc.id, ...matchDoc.data() } as Match;
         if (matchData.status === 'Completado') {
           throw new Error("Este resultado ya ha sido registrado.");
@@ -56,6 +61,7 @@ export const registerMatchResult = ai.defineFlow(
         const loserRef = db.collection("users").doc(loserId);
         const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
 
+        console.log('[TRANSACTION_READ] Getting player and tournament documents...');
         const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
             transaction.get(winnerRef),
             transaction.get(loserRef),
@@ -65,31 +71,37 @@ export const registerMatchResult = ai.defineFlow(
         if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) {
             throw new Error("No se pudieron encontrar los datos del jugador o del torneo.");
         }
+        console.log('[TRANSACTION_READ] Player and tournament documents retrieved.');
 
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
         const tournamentData = tournamentDoc.data() as Tournament;
         
-        // --- ATOMIC WRITES ---
         const finalScore = isRetirement ? `${score} (Ret.)` : score;
+        console.log('[TRANSACTION_WRITE] Updating match document...');
         transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
         
+        console.log('[TRANSACTION_WRITE] Updating player stats...');
         transaction.update(winnerRef, { globalWins: FieldValue.increment(1) });
         transaction.update(loserRef, { globalLosses: FieldValue.increment(1) });
 
         if (tournamentData.isRanked) {
+            console.log('[TRANSACTION_LOGIC] Calculating ELO...');
             const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
             const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
             
+            console.log('[TRANSACTION_WRITE] Updating ELO points...');
             transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
             transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
         }
+        console.log('[TRANSACTION_END]');
       });
       
+      console.log('[FLOW_SUCCESS] Transaction completed successfully.');
       return { success: true, message: "Resultado guardado exitosamente." };
 
     } catch (error: any) {
-      console.error("[REGISTER_RESULT_ERROR] Critical error in registerMatchResultFlow: ", error);
+      console.error("[FLOW_ERROR] Critical error in registerMatchResultFlow: ", error);
       return { success: false, message: error.message || "No se pudo guardar el resultado debido a un error interno." };
     }
   }
