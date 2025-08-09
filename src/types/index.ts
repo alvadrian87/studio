@@ -77,6 +77,7 @@ export interface Tournament {
 export interface TournamentEvent {
     id?: string;
     torneoId?: string;
+    status?: 'Próximo' | 'En Curso' | 'Completado';
     nombre: string;
     
     // Shared for Ladder

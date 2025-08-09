@@ -2,7 +2,7 @@
 "use client";
 
 import { use, useEffect, useState } from "react";
-import type { Player, Tournament, TournamentEvent, Inscription } from "@/types";
+import type { Player, Tournament, TournamentEvent, Inscription, Match } from "@/types";
 import { useDocument, useCollection } from "@/hooks/use-firestore";
 import {
   Card,
@@ -19,20 +19,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { collection, query, where, getDocs } from "firebase/firestore";
+import { collection, query, where, getDocs, writeBatch, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Loader2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { format } from "date-fns";
 
 export default function EditTournamentPage({ params }: { params: { id: string } }) {
   const resolvedParams = use(params);
+  const { toast } = useToast();
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
   const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
   const [events, setEvents] = useState<TournamentEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
+  const [generatingBracket, setGeneratingBracket] = useState<string | null>(null);
+
 
   useEffect(() => {
     if (tournament) {
@@ -61,6 +66,74 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
         playerDetails: getPlayerDetails(i.jugadorId!)
       }));
   }
+
+  const handleGenerateBracket = async (event: TournamentEvent) => {
+    if (!tournament || !event.id) return;
+    setGeneratingBracket(event.id);
+    
+    const participants = getEventInscriptions(event.id);
+    if (participants.length < 2) {
+      toast({ variant: "destructive", title: "No hay suficientes jugadores", description: "Se necesitan al menos 2 jugadores para generar un bracket." });
+      setGeneratingBracket(null);
+      return;
+    }
+
+    // Simple random shuffle
+    const shuffledParticipants = participants.sort(() => 0.5 - Math.random());
+    
+    const batch = writeBatch(db);
+    const matches: Partial<Match>[] = [];
+
+    let hasBye = false;
+    let byePlayer: Inscription | undefined;
+
+    if (shuffledParticipants.length % 2 !== 0) {
+      hasBye = true;
+      byePlayer = shuffledParticipants.pop(); 
+      // In a real scenario, the highest seed gets the bye. For now, it's random.
+       toast({ title: `Sorteo con Bye`, description: `El jugador ${byePlayer?.playerDetails?.displayName} pasa a la siguiente ronda.` });
+    }
+
+    for (let i = 0; i < shuffledParticipants.length; i += 2) {
+        const player1 = shuffledParticipants[i];
+        const player2 = shuffledParticipants[i + 1];
+
+        const newMatch: Omit<Match, 'id'> = {
+            tournamentId: tournament.id,
+            player1Id: player1.jugadorId!,
+            player2Id: player2.jugadorId!,
+            winnerId: null,
+            status: 'Pendiente',
+            date: format(new Date(), "yyyy-MM-dd HH:mm"),
+            score: null,
+            // Add round information if needed in the future
+        };
+        const matchRef = doc(collection(db, "matches"));
+        batch.set(matchRef, newMatch);
+    }
+
+    try {
+      // Mark the tournament and event as in progress
+      const tournamentRef = doc(db, "tournaments", tournament.id);
+      batch.update(tournamentRef, { status: "En Curso" });
+
+      const eventRef = doc(db, "eventos", event.id);
+      batch.update(eventRef, { status: "En Curso" });
+
+      await batch.commit();
+
+      // We need to update the local state to reflect the change
+      setEvents(prevEvents => prevEvents.map(e => e.id === event.id ? { ...e, status: "En Curso" } : e));
+
+      toast({ title: "¡Bracket Generado!", description: `Se han creado los partidos para la categoría ${event.nombre}.` });
+    } catch(error) {
+      console.error("Error al generar el bracket: ", error);
+      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el bracket." });
+    } finally {
+      setGeneratingBracket(null);
+    }
+  };
+
 
   if (loadingTournament || loadingEvents || loadingInscriptions || loadingAllPlayers) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /> Cargando detalles del torneo...</div>
@@ -113,6 +186,8 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
             <div className="lg:col-span-2 space-y-6">
                 {events.map(event => {
                     const eventParticipants = getEventInscriptions(event.id!);
+                    const isGenerating = generatingBracket === event.id;
+                    const isGenerated = event.status === "En Curso";
                     return (
                         <Card key={event.id}>
                             <CardHeader className="flex flex-row items-center justify-between">
@@ -122,7 +197,13 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
                                         {event.formatoTorneo || tournament.tipoTorneo} - {event.tipoDeJuego} {event.sexo}
                                     </CardDescription>
                                 </div>
-                                <Button size="sm" disabled>Generar Bracket</Button>
+                                <Button size="sm" onClick={() => handleGenerateBracket(event)} disabled={isGenerating || isGenerated}>
+                                    {isGenerating ? (
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    ) : (
+                                        isGenerated ? 'Bracket Generado' : 'Generar Bracket'
+                                    )}
+                                </Button>
                             </CardHeader>
                             <CardContent>
                                 <Table>
