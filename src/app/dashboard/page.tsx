@@ -111,6 +111,9 @@ export default function Dashboard() {
     } else if (matchEndState === 'p2_retired') {
         setWinnerId(p1.uid);
         setIsWinnerRadioDisabled(true);
+    } else {
+        // This will be handled by score validation below if not a retirement
+        setIsWinnerRadioDisabled(false);
     }
 
     if (isRetirement) {
@@ -247,7 +250,7 @@ export default function Dashboard() {
         if (p1SetsWon >= 2) setWinnerId(p1.uid);
         else if (p2SetsWon >= 2) setWinnerId(p2.uid);
         setIsWinnerRadioDisabled(true);
-    } else {
+    } else if (matchEndState === 'completed') { // only reset if not retirement
         setWinnerId(null);
         setIsWinnerRadioDisabled(false);
     }
@@ -584,7 +587,7 @@ export default function Dashboard() {
       </div>
 
        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
@@ -598,13 +601,15 @@ export default function Dashboard() {
                         <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
                         <Label 
                             htmlFor={`r1-${selectedMatch.id}`}
-                            className={`flex flex-col items-center justify-center rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground ${winnerId === playerInSelectedMatch.uid ? 'border-primary' : ''} ${isWinnerRadioDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                            className={cn('flex flex-col items-center justify-between rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground',
+                                winnerId === playerInSelectedMatch.uid ? 'border-primary' : '',
+                                isWinnerRadioDisabled ? 'cursor-not-allowed opacity-50' : '')}
                         >
-                            <Avatar className="mb-2">
+                            <Avatar className="mb-2 h-16 w-16">
                                 <AvatarImage src={playerInSelectedMatch.avatar} />
                                 <AvatarFallback>{playerInSelectedMatch.firstName?.substring(0,1)}{playerInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback>
                             </Avatar>
-                            {playerInSelectedMatch.displayName}
+                            <span className="font-bold">{playerInSelectedMatch.displayName}</span>
                         </Label>
                     </div>
                 )}
@@ -613,13 +618,15 @@ export default function Dashboard() {
                         <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
                         <Label 
                             htmlFor={`r2-${selectedMatch.id}`}
-                            className={`flex flex-col items-center justify-center rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground ${winnerId === opponentInSelectedMatch.uid ? 'border-primary' : ''} ${isWinnerRadioDisabled ? 'cursor-not-allowed opacity-50' : ''}`}
+                             className={cn('flex flex-col items-center justify-between rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground',
+                                winnerId === opponentInSelectedMatch.uid ? 'border-primary' : '',
+                                isWinnerRadioDisabled ? 'cursor-not-allowed opacity-50' : '')}
                         >
-                             <Avatar className="mb-2">
+                             <Avatar className="mb-2 h-16 w-16">
                                 <AvatarImage src={opponentInSelectedMatch.avatar} />
                                 <AvatarFallback>{opponentInSelectedMatch.firstName?.substring(0,1)}{opponentInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback>
                             </Avatar>
-                            {opponentInSelectedMatch.displayName}
+                            <span className="font-bold">{opponentInSelectedMatch.displayName}</span>
                         </Label>
                     </div>
                 )}
@@ -712,3 +719,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    

@@ -111,6 +111,8 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     } else if (matchEndState === 'p2_retired') {
         setWinnerId(p1.uid);
         setIsWinnerRadioDisabled(true);
+    } else {
+        setIsWinnerRadioDisabled(false);
     }
     
     if (isRetirement) {
@@ -175,7 +177,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     if (!localError && (p1SetsWon >= 2 || p2SetsWon >= 2)) {
         if (p1SetsWon >= 2) setWinnerId(p1.uid); else if (p2SetsWon >= 2) setWinnerId(p2.uid);
         setIsWinnerRadioDisabled(true);
-    } else { setWinnerId(null); setIsWinnerRadioDisabled(false); }
+    } else if (matchEndState === 'completed') { setWinnerId(null); setIsWinnerRadioDisabled(false); }
   }, [scores, selectedMatch, allPlayers, tournament, isResultDialogOpen, getPlayersForMatch, isRetirement, matchEndState]);
 
   const handleOpenResultDialog = (match: Match) => {
@@ -319,7 +321,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
       </Card>
       
        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
@@ -330,19 +332,19 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
              <RadioGroup onValueChange={setWinnerId} value={winnerId || ""} className="grid grid-cols-2 gap-4" disabled={isWinnerRadioDisabled}>
                 {selectedMatch && playerInSelectedMatch && (
                     <div>
-                        <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
-                        <Label htmlFor={`r1-${selectedMatch.id}`} className={cn("flex flex-col items-center justify-center rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground", winnerId === playerInSelectedMatch.uid && 'border-primary', isWinnerRadioDisabled && 'cursor-not-allowed opacity-50')} >
-                            <Avatar className="mb-2"><AvatarImage src={playerInSelectedMatch.avatar} /><AvatarFallback>{playerInSelectedMatch.firstName?.substring(0,1)}{playerInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback></Avatar>
-                            {playerInSelectedMatch.displayName}
+                        <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-admin-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
+                        <Label htmlFor={`r1-admin-${selectedMatch.id}`} className={cn("flex flex-col items-center justify-between rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground", winnerId === playerInSelectedMatch.uid && 'border-primary', isWinnerRadioDisabled && 'cursor-not-allowed opacity-50')} >
+                            <Avatar className="mb-2 h-16 w-16"><AvatarImage src={playerInSelectedMatch.avatar} /><AvatarFallback>{playerInSelectedMatch.firstName?.substring(0,1)}{playerInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback></Avatar>
+                            <span className="font-bold">{playerInSelectedMatch.displayName}</span>
                         </Label>
                     </div>
                 )}
                 {selectedMatch && opponentInSelectedMatch && (
                      <div>
-                        <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
-                        <Label htmlFor={`r2-${selectedMatch.id}`} className={cn("flex flex-col items-center justify-center rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground", winnerId === opponentInSelectedMatch.uid && 'border-primary', isWinnerRadioDisabled && 'cursor-not-allowed opacity-50')} >
-                             <Avatar className="mb-2"><AvatarImage src={opponentInSelectedMatch.avatar} /><AvatarFallback>{opponentInSelectedMatch.firstName?.substring(0,1)}{opponentInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback></Avatar>
-                             {opponentInSelectedMatch.displayName}
+                        <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-admin-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
+                        <Label htmlFor={`r2-admin-${selectedMatch.id}`} className={cn("flex flex-col items-center justify-between rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground", winnerId === opponentInSelectedMatch.uid && 'border-primary', isWinnerRadioDisabled && 'cursor-not-allowed opacity-50')} >
+                             <Avatar className="mb-2 h-16 w-16"><AvatarImage src={opponentInSelectedMatch.avatar} /><AvatarFallback>{opponentInSelectedMatch.firstName?.substring(0,1)}{opponentInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback></Avatar>
+                             <span className="font-bold">{opponentInSelectedMatch.displayName}</span>
                         </Label>
                     </div>
                 )}
@@ -387,3 +389,5 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    
