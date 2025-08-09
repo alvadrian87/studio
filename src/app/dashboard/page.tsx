@@ -413,6 +413,8 @@ export default function Dashboard() {
   };
 
   const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments;
+  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement) || (!isRetirement && !isWinnerRadioDisabled);
+
 
   if (loading) {
     return <div>Cargando...</div>
@@ -671,7 +673,7 @@ export default function Dashboard() {
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
             <AlertDialog>
                 <AlertDialogTrigger asChild>
-                    <Button disabled={isSubmittingResult || !winnerId || !!scoreError || (!isRetirement && !isWinnerRadioDisabled)}>
+                    <Button disabled={isSaveButtonDisabled}>
                         Guardar Resultado
                     </Button>
                 </AlertDialogTrigger>
@@ -701,3 +703,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    

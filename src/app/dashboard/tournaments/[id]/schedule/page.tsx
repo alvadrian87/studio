@@ -197,7 +197,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     if (!user) { toast({ variant: "destructive", title: "Error de autenticación" }); return; }
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) { toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los jugadores." }); return; }
-    if (scoreError) { toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError }); return; }
+    if (scoreError && !isRetirement) { toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError }); return; }
     if (!isRetirement) {
         let p1SetsWon = 0, p2SetsWon = 0;
         scores.forEach((set, index) => {
@@ -233,6 +233,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const tournamentMatches = matches?.filter(m => m.tournamentId === resolvedParams.id) || [];
   const canManage = userRole === 'admin' || tournament?.creatorId === user?.uid;
   const loading = loadingTournament || loadingAllPlayers || loadingMatches;
+  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement) || (!isRetirement && !isWinnerRadioDisabled);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /> Cargando...</div>
@@ -351,7 +352,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
             <AlertDialog>
-                <AlertDialogTrigger asChild><Button disabled={isSubmittingResult || !winnerId || !!scoreError || (!isRetirement && !isWinnerRadioDisabled)}>Guardar Resultado</Button></AlertDialogTrigger>
+                <AlertDialogTrigger asChild><Button disabled={isSaveButtonDisabled}>Guardar Resultado</Button></AlertDialogTrigger>
                 <AlertDialogContent>
                     <AlertDialogHeader><AlertDialogTitle>Confirmar Resultado</AlertDialogTitle><AlertDialogDescription>¿Estás seguro? Esta acción no se puede deshacer.</AlertDialogDescription>
                          <div className="py-4 font-medium text-foreground text-sm text-left"><div><strong>Ganador:</strong> {getPlayerById(winnerId)?.displayName}</div><div><strong>Marcador:</strong> {formatScoreString()}</div></div>
@@ -365,3 +366,5 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    
