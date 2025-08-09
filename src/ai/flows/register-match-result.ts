@@ -3,11 +3,12 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
 import type { Player, Match, Tournament, Challenge } from '@/types';
+import admin from 'firebase-admin';
 
-// Safely initialize the Firebase Admin SDK
+// Safely initialize the Firebase Admin SDK.
+// This is the standard pattern for server-side Firebase in Next.js.
 if (!admin.apps.length) {
   admin.initializeApp();
 }
@@ -40,19 +41,20 @@ export const registerMatchResult = ai.defineFlow(
     try {
         const db = getFirestore();
         const matchRef = db.collection("matches").doc(matchId);
+        
+        // Perform reads outside the transaction
         const matchDoc = await matchRef.get();
-
         if (!matchDoc.exists) {
             return { success: false, message: "La partida no fue encontrada." };
         }
-        
+
         const matchData = matchDoc.data() as Match;
-        if(matchData.status === 'Completado') {
+        if (matchData.status === 'Completado') {
             return { success: false, message: "Este resultado ya ha sido registrado." };
         }
-        
+
         const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
-        
+
         const winnerRef = db.collection("users").doc(winnerId);
         const loserRef = db.collection("users").doc(loserId);
         const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
@@ -71,9 +73,10 @@ export const registerMatchResult = ai.defineFlow(
         const loserData = loserDoc.data() as Player;
         const tournamentData = tournamentDoc.data() as Tournament;
 
+        // Perform writes inside the transaction
         await db.runTransaction(async (transaction) => {
             transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
-            
+
             const newWinnerWins = (winnerData.globalWins || 0) + 1;
             const newLoserLosses = (loserData.globalLosses || 0) + 1;
             
@@ -91,9 +94,11 @@ export const registerMatchResult = ai.defineFlow(
             if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
                 const challengeRef = db.collection("challenges").doc(matchData.challengeId);
                 transaction.update(challengeRef, { estado: 'Jugado' });
+                // TODO: Implement ladder position swap logic asynchronously,
+                // perhaps via a Cloud Function triggered on match update to avoid timeouts.
             }
-      });
-      
+        });
+
       return { success: true, message: "Resultado guardado exitosamente." };
     } catch (error: any) {
       console.error("Error in registerMatchResultFlow: ", error);
