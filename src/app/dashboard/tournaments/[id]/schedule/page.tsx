@@ -96,7 +96,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     return { player1, player2 };
   }, [allPlayers, getPlayerById]);
   
-  const { player1: playerInSelectedMatch, player2: opponentInSelectedMatch } = getPlayersForMatch(selectedMatch);
+  const { player1: p1InSelectedMatch, player2: p2InSelectedMatch } = getPlayersForMatch(selectedMatch);
 
 
   // Score validation logic (re-used from dashboard)
@@ -321,7 +321,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
       </Card>
       
        <Dialog open={isResultDialogOpen} onOpenChange={setIsResultDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
@@ -329,34 +329,20 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
-             <RadioGroup onValueChange={setWinnerId} value={winnerId || ""} className="grid grid-cols-2 gap-4" disabled={isWinnerRadioDisabled}>
-                {selectedMatch && playerInSelectedMatch && (
-                    <div>
-                        <RadioGroupItem value={playerInSelectedMatch.uid} id={`r1-admin-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
-                        <Label htmlFor={`r1-admin-${selectedMatch.id}`} className={cn("flex flex-col items-center justify-between rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground", winnerId === playerInSelectedMatch.uid && 'border-primary', isWinnerRadioDisabled && 'cursor-not-allowed opacity-50')} >
-                            <Avatar className="mb-2 h-16 w-16"><AvatarImage src={playerInSelectedMatch.avatar} /><AvatarFallback>{playerInSelectedMatch.firstName?.substring(0,1)}{playerInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback></Avatar>
-                            <span className="font-bold">{playerInSelectedMatch.displayName}</span>
-                        </Label>
-                    </div>
-                )}
-                {selectedMatch && opponentInSelectedMatch && (
-                     <div>
-                        <RadioGroupItem value={opponentInSelectedMatch.uid} id={`r2-admin-${selectedMatch.id}`} className="sr-only" disabled={isWinnerRadioDisabled}/>
-                        <Label htmlFor={`r2-admin-${selectedMatch.id}`} className={cn("flex flex-col items-center justify-between rounded-md border-2 p-4 cursor-pointer hover:bg-accent hover:text-accent-foreground", winnerId === opponentInSelectedMatch.uid && 'border-primary', isWinnerRadioDisabled && 'cursor-not-allowed opacity-50')} >
-                             <Avatar className="mb-2 h-16 w-16"><AvatarImage src={opponentInSelectedMatch.avatar} /><AvatarFallback>{opponentInSelectedMatch.firstName?.substring(0,1)}{opponentInSelectedMatch.lastName?.substring(0,1)}</AvatarFallback></Avatar>
-                             <span className="font-bold">{opponentInSelectedMatch.displayName}</span>
-                        </Label>
-                    </div>
-                )}
-            </RadioGroup>
-            <div className="space-y-2">
+             <div className="space-y-2">
                 <div className="flex justify-between items-center"><Label>Marcador</Label>{tournament && (<Badge variant="outline">{tournament.formatoScore || 'Sets estándar'}</Badge>)}</div>
                 <div className="flex justify-around items-center"><div className="w-1/3 text-center font-bold">Jugador</div><div className="flex-1 grid grid-cols-3 gap-2"><div className="text-center text-sm font-medium text-muted-foreground">SET 1</div><div className="text-center text-sm font-medium text-muted-foreground">SET 2</div><div className="text-center text-sm font-medium text-muted-foreground">SET 3</div></div></div>
-                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{playerInSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} disabled={isRetirement} /><Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} disabled={isRetirement} /><Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isRetirement || isThirdSetDisabled} /></div></div>
-                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{opponentInSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} disabled={isRetirement}/><Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} disabled={isRetirement}/><Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isRetirement || isThirdSetDisabled}/></div></div>
+                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p1InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} disabled={isRetirement} /><Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} disabled={isRetirement} /><Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isRetirement || isThirdSetDisabled} /></div></div>
+                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p2InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} disabled={isRetirement}/><Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} disabled={isRetirement}/><Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isRetirement || isThirdSetDisabled}/></div></div>
                 {scoreError && !isRetirement && (<p className="text-sm font-medium text-destructive text-center pt-2">{scoreError}</p>)}
             </div>
-            <RadioGroup onValueChange={(value) => setMatchEndState(value as any)} defaultValue={matchEndState} className="space-y-1 pt-4">
+            <RadioGroup onValueChange={(value) => {
+                setMatchEndState(value as any)
+                 const { player1, player2 } = getPlayersForMatch(selectedMatch);
+                if (value === 'p1_retired') setWinnerId(player2!.uid);
+                else if (value === 'p2_retired') setWinnerId(player1!.uid);
+                else setWinnerId(null);
+            }} defaultValue={matchEndState} className="space-y-1 pt-4">
                 <Label className="font-medium">Estado Final de la Partida</Label>
                 <div className="flex items-center space-x-2">
                     <RadioGroupItem value="completed" id="admin-state-completed" />
@@ -364,11 +350,11 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
                 </div>
                  <div className="flex items-center space-x-2">
                     <RadioGroupItem value="p1_retired" id="admin-state-p1-retired" />
-                    <Label htmlFor="admin-state-p1-retired">{`Retiro de ${playerInSelectedMatch?.displayName}`}</Label>
+                    <Label htmlFor="admin-state-p1-retired">{`Retiro de ${p1InSelectedMatch?.displayName}`}</Label>
                 </div>
                  <div className="flex items-center space-x-2">
                     <RadioGroupItem value="p2_retired" id="admin-state-p2-retired" />
-                    <Label htmlFor="admin-state-p2-retired">{`Retiro de ${opponentInSelectedMatch?.displayName}`}</Label>
+                    <Label htmlFor="admin-state-p2-retired">{`Retiro de ${p2InSelectedMatch?.displayName}`}</Label>
                 </div>
             </RadioGroup>
           </div>
