@@ -19,6 +19,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 import { collection, query, where, getDocs, writeBatch, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Badge } from "@/components/ui/badge";
@@ -184,67 +190,77 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
                 </CardContent>
             </Card>
             <div className="lg:col-span-2 space-y-6">
-                {events.map(event => {
-                    const eventParticipants = getEventInscriptions(event.id!);
-                    const isGenerating = generatingBracket === event.id;
-                    const isGenerated = event.status === "En Curso";
-                    return (
-                        <Card key={event.id}>
-                            <CardHeader className="flex flex-row items-center justify-between">
-                                <div>
-                                    <CardTitle>{event.nombre}</CardTitle>
-                                    <CardDescription>
-                                        {event.formatoTorneo || tournament.tipoTorneo} - {event.tipoDeJuego} {event.sexo}
-                                    </CardDescription>
-                                </div>
-                                <Button size="sm" onClick={() => handleGenerateBracket(event)} disabled={isGenerating || isGenerated}>
-                                    {isGenerating ? (
-                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    ) : (
-                                        isGenerated ? 'Bracket Generado' : 'Generar Bracket'
-                                    )}
-                                </Button>
-                            </CardHeader>
-                            <CardContent>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Jugador</TableHead>
-                                            <TableHead>ELO</TableHead>
-                                            <TableHead className="hidden md:table-cell">Fecha de Inscripción</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {eventParticipants.length > 0 ? (
-                                            eventParticipants.map(inscription => (
-                                                <TableRow key={inscription.id}>
-                                                    <TableCell>
-                                                        <div className="flex items-center gap-3">
-                                                            <Avatar className="w-8 h-8">
-                                                                <AvatarImage src={inscription.playerDetails?.avatar} alt={inscription.playerDetails?.displayName} />
-                                                                <AvatarFallback>{inscription.playerDetails?.firstName?.substring(0,1)}{inscription.playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
-                                                            </Avatar>
-                                                            <span className="font-medium">{inscription.playerDetails?.displayName || 'Desconocido'}</span>
-                                                        </div>
-                                                    </TableCell>
-                                                    <TableCell>{inscription.playerDetails?.rankPoints}</TableCell>
-                                                    <TableCell className="hidden md:table-cell">{new Date(inscription.fechaInscripcion).toLocaleDateString()}</TableCell>
-                                                </TableRow>
-                                            ))
-                                        ) : (
-                                            <TableRow>
-                                                <TableCell colSpan={3} className="text-center h-24">
-                                                    No hay jugadores inscritos en esta categoría.
-                                                </TableCell>
-                                            </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                            </CardContent>
-                        </Card>
-                    )
-                })}
-                 {events.length === 0 && (
+                {events.length > 0 ? (
+                    <Tabs defaultValue={events[0].id}>
+                        <TabsList>
+                            {events.map((event) => (
+                                <TabsTrigger key={event.id} value={event.id!}>{event.nombre}</TabsTrigger>
+                            ))}
+                        </TabsList>
+                        {events.map(event => {
+                            const eventParticipants = getEventInscriptions(event.id!);
+                            const isGenerating = generatingBracket === event.id;
+                            const isGenerated = event.status === "En Curso";
+                            return (
+                                <TabsContent key={event.id} value={event.id!}>
+                                    <Card>
+                                        <CardHeader className="flex flex-row items-center justify-between">
+                                            <div>
+                                                <CardTitle>{event.nombre}</CardTitle>
+                                                <CardDescription>
+                                                    {event.formatoTorneo || tournament.tipoTorneo} - {event.tipoDeJuego} {event.sexo}
+                                                </CardDescription>
+                                            </div>
+                                            <Button size="sm" onClick={() => handleGenerateBracket(event)} disabled={isGenerating || isGenerated}>
+                                                {isGenerating ? (
+                                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    isGenerated ? 'Bracket Generado' : 'Generar Bracket'
+                                                )}
+                                            </Button>
+                                        </CardHeader>
+                                        <CardContent>
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Jugador</TableHead>
+                                                        <TableHead>ELO</TableHead>
+                                                        <TableHead className="hidden md:table-cell">Fecha de Inscripción</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {eventParticipants.length > 0 ? (
+                                                        eventParticipants.map(inscription => (
+                                                            <TableRow key={inscription.id}>
+                                                                <TableCell>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <Avatar className="w-8 h-8">
+                                                                            <AvatarImage src={inscription.playerDetails?.avatar} alt={inscription.playerDetails?.displayName} />
+                                                                            <AvatarFallback>{inscription.playerDetails?.firstName?.substring(0,1)}{inscription.playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
+                                                                        </Avatar>
+                                                                        <span className="font-medium">{inscription.playerDetails?.displayName || 'Desconocido'}</span>
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell>{inscription.playerDetails?.rankPoints}</TableCell>
+                                                                <TableCell className="hidden md:table-cell">{new Date(inscription.fechaInscripcion).toLocaleDateString()}</TableCell>
+                                                            </TableRow>
+                                                        ))
+                                                    ) : (
+                                                        <TableRow>
+                                                            <TableCell colSpan={3} className="text-center h-24">
+                                                                No hay jugadores inscritos en esta categoría.
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+                                        </CardContent>
+                                    </Card>
+                                </TabsContent>
+                            )
+                        })}
+                    </Tabs>
+                 ) : (
                     <Card>
                         <CardContent className="p-6 text-center text-muted-foreground">
                             Este torneo no tiene categorías configuradas.
@@ -256,3 +272,5 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
     </>
   )
 }
+
+    

@@ -22,6 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { UserPlus, Loader2, Info, Swords, Settings } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
@@ -152,119 +158,130 @@ export default function BracketPage({ params }: { params: { id: string } }) {
             </CardContent>
         </Card>
        ) : (
-         events.map((event) => {
-           const eventParticipants = getEventInscriptions(event.id!);
-           const eventMatches = getEventMatches(event.id!)
-           const enrolled = isUserEnrolledInEvent(event.id!);
-           
-            return (
-                <Card key={event.id} className="mb-6">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle>{event.nombre}</CardTitle>
-                            <CardDescription>
-                                {event.formatoTorneo} - {event.tipoDeJuego} {event.sexo}
-                            </CardDescription>
-                        </div>
-                         {user && !enrolled && event.status !== 'En Curso' && (
-                            <Button onClick={() => handleEnroll(event.id!)}><UserPlus className="mr-2 h-4 w-4" /> Inscribirse</Button>
-                         )}
-                         {user && enrolled && (
-                            <Button variant="outline" disabled>Inscrito</Button>
-                         )}
-                    </CardHeader>
-                    <CardContent>
-                        {event.status === 'En Curso' ? (
-                            <div>
-                                <h3 className="text-lg font-semibold mb-4">Partidos (Draw)</h3>
-                                <div className="border rounded-lg">
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Jugador 1</TableHead>
-                                                <TableHead className="w-[50px] text-center"></TableHead>
-                                                <TableHead>Jugador 2</TableHead>
-                                                <TableHead className="text-right">Estado</TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {eventMatches.map(match => {
-                                                const player1 = getPlayerDetails(match.player1Id);
-                                                const player2 = getPlayerDetails(match.player2Id);
-                                                return (
-                                                    <TableRow key={match.id}>
-                                                        <TableCell>
-                                                            <div className="flex items-center gap-3">
-                                                                <Avatar className="w-8 h-8"><AvatarImage src={player1?.avatar}/><AvatarFallback>{player1?.firstName?.substring(0,1)}{player1?.lastName?.substring(0,1)}</AvatarFallback></Avatar>
-                                                                {player1?.displayName}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-center font-bold"><Swords className="h-5 w-5 mx-auto text-muted-foreground"/></TableCell>
-                                                        <TableCell>
-                                                             <div className="flex items-center gap-3">
-                                                                <Avatar className="w-8 h-8"><AvatarImage src={player2?.avatar}/><AvatarFallback>{player2?.firstName?.substring(0,1)}{player2?.lastName?.substring(0,1)}</AvatarFallback></Avatar>
-                                                                {player2?.displayName}
-                                                            </div>
-                                                        </TableCell>
-                                                        <TableCell className="text-right">{match.status}</TableCell>
-                                                    </TableRow>
-                                                )
-                                            })}
-                                        </TableBody>
-                                    </Table>
+        <Tabs defaultValue={events[0].id}>
+             <TabsList>
+                 {events.map((event) => (
+                    <TabsTrigger key={event.id} value={event.id!}>{event.nombre}</TabsTrigger>
+                ))}
+            </TabsList>
+            {events.map((event) => {
+                const eventParticipants = getEventInscriptions(event.id!);
+                const eventMatches = getEventMatches(event.id!)
+                const enrolled = isUserEnrolledInEvent(event.id!);
+                
+                return (
+                    <TabsContent key={event.id} value={event.id!}>
+                         <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>{event.nombre}</CardTitle>
+                                    <CardDescription>
+                                        {event.formatoTorneo} - {event.tipoDeJuego} {event.sexo}
+                                    </CardDescription>
                                 </div>
-                            </div>
-                        ) : (
-                             <div>
-                                <Alert className="mb-4">
-                                    <Info className="h-4 w-4" />
-                                    <AlertTitle>Inscripciones Abiertas</AlertTitle>
-                                    <AlertDescription>
-                                    La generación del cuadro y el emparejamiento de partidas se realizará una vez que se cierren las inscripciones.
-                                    </AlertDescription>
-                                </Alert>
-                                <h3 className="text-lg font-semibold mb-4">Jugadores Inscritos</h3>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Jugador</TableHead>
-                                            <TableHead className="hidden md:table-cell">ELO</TableHead>
-                                            <TableHead className="hidden md:table-cell">Club</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {eventParticipants.length > 0 ? (
-                                        eventParticipants.map((inscription) => (
-                                            <TableRow key={inscription.id}>
-                                            <TableCell>
-                                                <div className="flex items-center gap-3">
-                                                    <Avatar>
-                                                        <AvatarImage src={inscription.playerDetails?.avatar} alt={inscription.playerDetails?.displayName} />
-                                                        <AvatarFallback>{inscription.playerDetails?.firstName?.substring(0,1)}{inscription.playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
-                                                    </Avatar>
-                                                    <span className="font-medium">{inscription.playerDetails?.displayName || 'Desconocido'}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="hidden md:table-cell">{inscription.playerDetails?.rankPoints || 'N/A'}</TableCell>
-                                            <TableCell className="hidden md:table-cell">{inscription.playerDetails?.club || 'N/A'}</TableCell>
-                                            </TableRow>
-                                        ))
-                                        ) : (
-                                        <TableRow>
-                                            <TableCell colSpan={3} className="h-24 text-center">
-                                            Aún no hay jugadores inscritos en esta categoría. ¡Sé el primero!
-                                            </TableCell>
-                                        </TableRow>
-                                        )}
-                                    </TableBody>
-                                </Table>
-                             </div>
-                        )}
-                    </CardContent>
-                </Card>
-            )
-         })
+                                {user && !enrolled && event.status !== 'En Curso' && (
+                                    <Button onClick={() => handleEnroll(event.id!)}><UserPlus className="mr-2 h-4 w-4" /> Inscribirse</Button>
+                                )}
+                                {user && enrolled && (
+                                    <Button variant="outline" disabled>Inscrito</Button>
+                                )}
+                            </CardHeader>
+                            <CardContent>
+                                {event.status === 'En Curso' ? (
+                                    <div>
+                                        <h3 className="text-lg font-semibold mb-4">Partidos (Draw)</h3>
+                                        <div className="border rounded-lg">
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead>Jugador 1</TableHead>
+                                                        <TableHead className="w-[50px] text-center"></TableHead>
+                                                        <TableHead>Jugador 2</TableHead>
+                                                        <TableHead className="text-right">Estado</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {eventMatches.map(match => {
+                                                        const player1 = getPlayerDetails(match.player1Id);
+                                                        const player2 = getPlayerDetails(match.player2Id);
+                                                        return (
+                                                            <TableRow key={match.id}>
+                                                                <TableCell>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <Avatar className="w-8 h-8"><AvatarImage src={player1?.avatar}/><AvatarFallback>{player1?.firstName?.substring(0,1)}{player1?.lastName?.substring(0,1)}</AvatarFallback></Avatar>
+                                                                        {player1?.displayName}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="text-center font-bold"><Swords className="h-5 w-5 mx-auto text-muted-foreground"/></TableCell>
+                                                                <TableCell>
+                                                                    <div className="flex items-center gap-3">
+                                                                        <Avatar className="w-8 h-8"><AvatarImage src={player2?.avatar}/><AvatarFallback>{player2?.firstName?.substring(0,1)}{player2?.lastName?.substring(0,1)}</AvatarFallback></Avatar>
+                                                                        {player2?.displayName}
+                                                                    </div>
+                                                                </TableCell>
+                                                                <TableCell className="text-right">{match.status}</TableCell>
+                                                            </TableRow>
+                                                        )
+                                                    })}
+                                                </TableBody>
+                                            </Table>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <Alert className="mb-4">
+                                            <Info className="h-4 w-4" />
+                                            <AlertTitle>Inscripciones Abiertas</AlertTitle>
+                                            <AlertDescription>
+                                            La generación del cuadro y el emparejamiento de partidas se realizará una vez que se cierren las inscripciones.
+                                            </AlertDescription>
+                                        </Alert>
+                                        <h3 className="text-lg font-semibold mb-4">Jugadores Inscritos</h3>
+                                        <Table>
+                                            <TableHeader>
+                                                <TableRow>
+                                                    <TableHead>Jugador</TableHead>
+                                                    <TableHead className="hidden md:table-cell">ELO</TableHead>
+                                                    <TableHead className="hidden md:table-cell">Club</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {eventParticipants.length > 0 ? (
+                                                eventParticipants.map((inscription) => (
+                                                    <TableRow key={inscription.id}>
+                                                    <TableCell>
+                                                        <div className="flex items-center gap-3">
+                                                            <Avatar>
+                                                                <AvatarImage src={inscription.playerDetails?.avatar} alt={inscription.playerDetails?.displayName} />
+                                                                <AvatarFallback>{inscription.playerDetails?.firstName?.substring(0,1)}{inscription.playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
+                                                            </Avatar>
+                                                            <span className="font-medium">{inscription.playerDetails?.displayName || 'Desconocido'}</span>
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="hidden md:table-cell">{inscription.playerDetails?.rankPoints || 'N/A'}</TableCell>
+                                                    <TableCell className="hidden md:table-cell">{inscription.playerDetails?.club || 'N/A'}</TableCell>
+                                                    </TableRow>
+                                                ))
+                                                ) : (
+                                                <TableRow>
+                                                    <TableCell colSpan={3} className="h-24 text-center">
+                                                    Aún no hay jugadores inscritos en esta categoría. ¡Sé el primero!
+                                                    </TableCell>
+                                                </TableRow>
+                                                )}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )
+            })}
+        </Tabs>
        )}
     </>
   )
 }
+
+    

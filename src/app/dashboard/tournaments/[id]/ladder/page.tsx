@@ -22,6 +22,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Swords, UserPlus, DoorOpen, Play, Trophy, Loader2, Info, Lock, Settings } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
@@ -239,107 +245,118 @@ export default function LadderPage({ params }: { params: { id: string } }) {
             </CardContent>
         </Card>
        ) : (
-         events.map((event) => {
-           const eventParticipants = getEventInscriptions(event.id!);
-           const enrolled = isUserEnrolledInEvent(event.id!);
-           const currentUserInscription = userInscription(event.id!);
-           const userHasPendingChallenge = hasPendingChallenge(currentUserInscription);
+         <Tabs defaultValue={events[0].id}>
+            <TabsList>
+                 {events.map((event) => (
+                    <TabsTrigger key={event.id} value={event.id!}>{event.nombre}</TabsTrigger>
+                ))}
+            </TabsList>
+             {events.map((event) => {
+                const eventParticipants = getEventInscriptions(event.id!);
+                const enrolled = isUserEnrolledInEvent(event.id!);
+                const currentUserInscription = userInscription(event.id!);
+                const userHasPendingChallenge = hasPendingChallenge(currentUserInscription);
 
-            return (
-                <Card key={event.id} className="mb-6">
-                    <CardHeader className="flex flex-row items-center justify-between">
-                        <div>
-                            <CardTitle>{event.nombre}</CardTitle>
-                            <CardDescription>
-                                {event.tipoDeJuego} {event.sexo}
-                            </CardDescription>
-                        </div>
-                         {user && !enrolled && (
-                            <Button onClick={() => handleEnroll(event.id!)}><UserPlus className="mr-2 h-4 w-4" /> Inscribirse</Button>
-                         )}
-                         {user && enrolled && (
-                            <Button variant="outline" disabled><DoorOpen className="mr-2 h-4 w-4" /> Abandonar (Próximamente)</Button>
-                         )}
-                    </CardHeader>
-                    <CardContent>
-                        {isLadderTournament && (
-                             <Alert className="mb-4">
-                                <Info className="h-4 w-4" />
-                                <AlertTitle>Reglas de Desafío</AlertTitle>
-                                <AlertDescription>
-                                    Puedes desafiar a jugadores que estén hasta <span className="font-bold">{tournament.reglasLadder?.posicionesDesafioArriba}</span> posiciones por encima de ti. ¡Demuestra tu habilidad y sube en la clasificación!
-                                    {userHasPendingChallenge && <p className="font-semibold text-destructive mt-2">Tienes un desafío pendiente. No puedes desafiar a otros hasta que se resuelva.</p>}
-                                </AlertDescription>
-                            </Alert>
-                        )}
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead className="w-[50px]">Pos.</TableHead>
-                                    <TableHead>Jugador</TableHead>
-                                    <TableHead className="hidden md:table-cell">ELO</TableHead>
-                                    <TableHead className="text-right">Acción</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {eventParticipants.length > 0 ? (
-                                  eventParticipants.map((inscription) => {
-                                     const isSelf = user?.uid === inscription.jugadorId;
-                                     const isChallengable = canChallenge(currentUserInscription, inscription);
-                                     const isChallenging = challengingPlayerId === inscription.jugadorId;
-
-                                      return (
-                                     <TableRow key={inscription.id}>
-                                      <TableCell className="font-bold text-lg">{inscription.posicionActual}</TableCell>
-                                      <TableCell>
-                                        <div className="flex items-center gap-3">
-                                            <Avatar>
-                                                <AvatarImage src={inscription.playerDetails?.avatar} alt={inscription.playerDetails?.displayName} />
-                                                <AvatarFallback>{inscription.playerDetails?.firstName?.substring(0,1)}{inscription.playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
-                                            </Avatar>
-                                            <span className="font-medium">{inscription.playerDetails?.displayName || 'Desconocido'}</span>
-                                        </div>
-                                      </TableCell>
-                                      <TableCell className="hidden md:table-cell">{inscription.playerDetails?.rankPoints || 'N/A'}</TableCell>
-                                      <TableCell className="text-right">
-                                         {isLadderTournament && !isSelf && enrolled && (
-                                            isChallengable ? (
-                                                <Button 
-                                                    size="sm"
-                                                    disabled={isChallenging}
-                                                    onClick={() => handleChallenge(inscription)}
-                                                >
-                                                    {isChallenging ? (
-                                                        <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
-                                                    ) : (
-                                                        <Swords className="mr-2 h-4 w-4"/>
-                                                    )}
-                                                    Desafiar
-                                                </Button>
-                                            ) : (
-                                                 <Badge variant="secondary">
-                                                    <Lock className="mr-2 h-3 w-3"/>
-                                                    Bloqueado
-                                                 </Badge>
-                                            )
-                                         )}
-                                      </TableCell>
-                                    </TableRow>
-                                  )})
-                                ) : (
-                                  <TableRow>
-                                    <TableCell colSpan={4} className="h-24 text-center">
-                                      Aún no hay jugadores inscritos en esta categoría.
-                                    </TableCell>
-                                  </TableRow>
+                return (
+                    <TabsContent key={event.id} value={event.id!}>
+                         <Card>
+                            <CardHeader className="flex flex-row items-center justify-between">
+                                <div>
+                                    <CardTitle>{event.nombre}</CardTitle>
+                                    <CardDescription>
+                                        {event.tipoDeJuego} {event.sexo}
+                                    </CardDescription>
+                                </div>
+                                {user && !enrolled && (
+                                    <Button onClick={() => handleEnroll(event.id!)}><UserPlus className="mr-2 h-4 w-4" /> Inscribirse</Button>
                                 )}
-                            </TableBody>
-                        </Table>
-                    </CardContent>
-                </Card>
-            )
-         })
+                                {user && enrolled && (
+                                    <Button variant="outline" disabled><DoorOpen className="mr-2 h-4 w-4" /> Abandonar (Próximamente)</Button>
+                                )}
+                            </CardHeader>
+                            <CardContent>
+                                {isLadderTournament && (
+                                    <Alert className="mb-4">
+                                        <Info className="h-4 w-4" />
+                                        <AlertTitle>Reglas de Desafío</AlertTitle>
+                                        <AlertDescription>
+                                            Puedes desafiar a jugadores que estén hasta <span className="font-bold">{tournament.reglasLadder?.posicionesDesafioArriba}</span> posiciones por encima de ti. ¡Demuestra tu habilidad y sube en la clasificación!
+                                            {userHasPendingChallenge && <p className="font-semibold text-destructive mt-2">Tienes un desafío pendiente. No puedes desafiar a otros hasta que se resuelva.</p>}
+                                        </AlertDescription>
+                                    </Alert>
+                                )}
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead className="w-[50px]">Pos.</TableHead>
+                                            <TableHead>Jugador</TableHead>
+                                            <TableHead className="hidden md:table-cell">ELO</TableHead>
+                                            <TableHead className="text-right">Acción</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {eventParticipants.length > 0 ? (
+                                        eventParticipants.map((inscription) => {
+                                            const isSelf = user?.uid === inscription.jugadorId;
+                                            const isChallengable = canChallenge(currentUserInscription, inscription);
+                                            const isChallenging = challengingPlayerId === inscription.jugadorId;
+
+                                            return (
+                                            <TableRow key={inscription.id}>
+                                            <TableCell className="font-bold text-lg">{inscription.posicionActual}</TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <Avatar>
+                                                        <AvatarImage src={inscription.playerDetails?.avatar} alt={inscription.playerDetails?.displayName} />
+                                                        <AvatarFallback>{inscription.playerDetails?.firstName?.substring(0,1)}{inscription.playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
+                                                    </Avatar>
+                                                    <span className="font-medium">{inscription.playerDetails?.displayName || 'Desconocido'}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="hidden md:table-cell">{inscription.playerDetails?.rankPoints || 'N/A'}</TableCell>
+                                            <TableCell className="text-right">
+                                                {isLadderTournament && !isSelf && enrolled && (
+                                                    isChallengable ? (
+                                                        <Button 
+                                                            size="sm"
+                                                            disabled={isChallenging}
+                                                            onClick={() => handleChallenge(inscription)}
+                                                        >
+                                                            {isChallenging ? (
+                                                                <Loader2 className="mr-2 h-4 w-4 animate-spin"/>
+                                                            ) : (
+                                                                <Swords className="mr-2 h-4 w-4"/>
+                                                            )}
+                                                            Desafiar
+                                                        </Button>
+                                                    ) : (
+                                                        <Badge variant="secondary">
+                                                            <Lock className="mr-2 h-3 w-3"/>
+                                                            Bloqueado
+                                                        </Badge>
+                                                    )
+                                                )}
+                                            </TableCell>
+                                            </TableRow>
+                                        )})
+                                        ) : (
+                                        <TableRow>
+                                            <TableCell colSpan={4} className="h-24 text-center">
+                                            Aún no hay jugadores inscritos en esta categoría.
+                                            </TableCell>
+                                        </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </CardContent>
+                        </Card>
+                    </TabsContent>
+                )
+             })}
+         </Tabs>
        )}
     </>
   )
 }
+
+    
