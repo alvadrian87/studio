@@ -361,7 +361,7 @@ export default function Dashboard() {
         matchId: selectedMatch.id,
         winnerId: winnerId,
         score: finalScore,
-        isRetirement: false // This is now always false as we removed the logic
+        isRetirement: isRetirement // This is now always false as we removed the logic
     };
 
     console.log('[FRONTEND] Calling registerMatchResult with payload:', payload);
@@ -606,6 +606,11 @@ export default function Dashboard() {
                   </div>
                 </RadioGroup>
                 <p className="text-xs text-muted-foreground">El ganador se selecciona automáticamente al ingresar un marcador válido. Puedes anularlo manualmente si es necesario.</p>
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox id="retirement-checkbox" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
+              <Label htmlFor="retirement-checkbox">¿El partido terminó por retiro?</Label>
             </div>
           </div>
           <DialogFooter>

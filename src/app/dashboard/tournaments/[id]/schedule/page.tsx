@@ -74,6 +74,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const [isThirdSetDisabled, setIsThirdSetDisabled] = useState(true);
   const [scoreError, setScoreError] = useState<string | null>(null);
   const [scoreInputErrors, setScoreInputErrors] = useState<boolean[][]>([ [false, false], [false, false], [false, false] ]);
+  const [isRetirement, setIsRetirement] = useState(false);
   
   useEffect(() => {
     if (!loadingTournament && tournament) {
@@ -172,6 +173,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
     setIsThirdSetDisabled(true);
     setIsWinnerRadioDisabled(false);
+    setIsRetirement(false);
     setIsResultDialogOpen(true);
   }
   
@@ -191,7 +193,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     if (!user) { toast({ variant: "destructive", title: "Error de autenticación" }); return; }
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) { toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los jugadores." }); return; }
-    if (scoreError) { toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError }); return; }
+    if (scoreError && !isRetirement) { toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError }); return; }
     
     setIsSubmittingResult(true);
     const finalScore = formatScoreString();
@@ -200,7 +202,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
         matchId: selectedMatch.id,
         winnerId: winnerId,
         score: finalScore,
-        isRetirement: false, // Reverted to not include retirement
+        isRetirement: isRetirement,
     };
 
     console.log('[FRONTEND] Calling registerMatchResult with payload:', payload);
@@ -222,7 +224,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const tournamentMatches = matches?.filter(m => m.tournamentId === resolvedParams.id) || [];
   const canManage = userRole === 'admin' || tournament?.creatorId === user?.uid;
   const loading = loadingTournament || loadingAllPlayers || loadingMatches;
-  const isSaveButtonDisabled = isSubmittingResult || !winnerId || !!scoreError;
+  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (scoreError && !isRetirement);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /> Cargando...</div>
@@ -329,6 +331,10 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
                 <p className="text-xs text-muted-foreground">El ganador se selecciona automáticamente al ingresar un marcador válido. Puedes anularlo manualmente si es necesario.</p>
             </div>
 
+            <div className="flex items-center space-x-2">
+              <Checkbox id="retirement-checkbox-admin" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
+              <Label htmlFor="retirement-checkbox-admin">¿El partido terminó por retiro?</Label>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsResultDialogOpen(false)}>Cancelar</Button>
