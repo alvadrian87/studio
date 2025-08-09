@@ -97,7 +97,7 @@ export const registerMatchResult = ai.defineFlow(
             if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
                 const challengeRef = db.collection("challenges").doc(matchData.challengeId);
                 const challengeDoc = await transaction.get(challengeRef);
-                const challengeData = challengeDoc.data();
+                const challengeData = challengeDoc.data() as Challenge;
 
                 if(!challengeData) throw new Error("Challenge not found");
 
@@ -107,25 +107,28 @@ export const registerMatchResult = ai.defineFlow(
                 if (winnerId === challengeData.retadorId) {
                     const inscriptionsRef = db.collection(`tournaments/${matchData.tournamentId}/inscriptions`);
                     
-                    const retadorInscriptionQuery = await transaction.get(
-                        inscriptionsRef.where('jugadorId', '==', challengeData.retadorId).where('eventoId', '==', challengeData.eventoId).limit(1)
-                    );
-                    const desafiadoInscriptionQuery = await transaction.get(
-                        inscriptionsRef.where('jugadorId', '==', challengeData.desafiadoId).where('eventoId', '==', challengeData.eventoId).limit(1)
-                    );
+                    const retadorInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.retadorId).where('eventoId', '==', challengeData.eventoId).limit(1);
+                    const desafiadoInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.desafiadoId).where('eventoId', '==', challengeData.eventoId).limit(1);
+
+                    const [retadorSnapshot, desafiadoSnapshot] = await Promise.all([
+                        transaction.get(retadorInscriptionQuery),
+                        transaction.get(desafiadoInscriptionQuery)
+                    ]);
                     
-                    if (!retadorInscriptionQuery.empty && !desafiadoInscriptionQuery.empty) {
-                        const retadorInscriptionDoc = retadorInscriptionQuery.docs[0];
-                        const desafiadoInscriptionDoc = desafiadoInscriptionQuery.docs[0];
-                        const retadorInscriptionData = retadorInscriptionDoc.data() as Inscription;
-                        const desafiadoInscriptionData = desafiadoInscriptionDoc.data() as Inscription;
-                        
-                        const retadorPosition = retadorInscriptionData.posicionActual;
-                        const desafiadoPosition = desafiadoInscriptionData.posicionActual;
-                        
-                        transaction.update(retadorInscriptionDoc.ref, { posicionActual: desafiadoPosition });
-                        transaction.update(desafiadoInscriptionDoc.ref, { posicionActual: retadorPosition });
+                    if (retadorSnapshot.empty || desafiadoSnapshot.empty) {
+                        throw new Error("No se encontraron las inscripciones de los jugadores para el intercambio de posiciones.");
                     }
+
+                    const retadorInscriptionDoc = retadorSnapshot.docs[0];
+                    const desafiadoInscriptionDoc = desafiadoSnapshot.docs[0];
+                    const retadorInscriptionData = retadorInscriptionDoc.data() as Inscription;
+                    const desafiadoInscriptionData = desafiadoInscriptionDoc.data() as Inscription;
+                    
+                    const retadorPosition = retadorInscriptionData.posicionActual;
+                    const desafiadoPosition = desafiadoInscriptionData.posicionActual;
+                    
+                    transaction.update(retadorInscriptionDoc.ref, { posicionActual: desafiadoPosition });
+                    transaction.update(desafiadoInscriptionDoc.ref, { posicionActual: retadorPosition });
                 }
             }
         });
