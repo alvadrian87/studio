@@ -33,6 +33,7 @@ export interface Match {
   tournamentId: string;
   score: string | null;
   challengeId?: string; // To link back to the challenge for ladder logic
+  rankingsProcessed?: boolean; // To mark if ELO has been updated
 }
 
 export interface Tournament {

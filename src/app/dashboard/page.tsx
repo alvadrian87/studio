@@ -55,12 +55,6 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 
-const calculateElo = (playerRating: number, opponentRating: number, result: number) => {
-    const kFactor = 32;
-    const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
-    return playerRating + kFactor * (result - expectedScore);
-};
-
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -446,12 +440,6 @@ export default function Dashboard() {
             inscriptionsSnapshot = await getDocs(q);
 
             if (inscriptionsSnapshot.docs.length !== 2) {
-                console.error("DEBUG: Failed to find inscriptions.", {
-                    tournamentId: matchData.tournamentId,
-                    eventoId: challengeDoc.data()!.eventoId,
-                    retadorId: challengeDoc.data()!.retadorId,
-                    desafiadoId: challengeDoc.data()!.desafiadoId
-                });
                 throw new Error("No se encontraron las inscripciones para el intercambio de posiciones.");
             }
         }
@@ -459,21 +447,18 @@ export default function Dashboard() {
         // --- 2. Transaction (Writes Only) ---
         await runTransaction(db, async (transaction) => {
             // Update match
-            transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
+            transaction.update(matchRef, { 
+                winnerId: winnerId, 
+                status: "Completado", 
+                score: finalScore,
+                rankingsProcessed: false // Mark for batch processing
+            });
 
             // Update player stats
             const newWinnerWins = (winnerData.globalWins || 0) + 1;
             const newLoserLosses = (loserData.globalLosses || 0) + 1;
             transaction.update(winnerRef, { globalWins: newWinnerWins });
             transaction.update(loserRef, { globalLosses: newLoserLosses });
-
-            // Update ELO if ranked
-            if (tournamentData.isRanked) {
-                const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
-                const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
-                transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
-                transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
-            }
 
             // Handle ladder logic
             if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc && inscriptionsSnapshot) {
@@ -792,7 +777,3 @@ export default function Dashboard() {
     </>
   )
 }
-
-    
-
-    
