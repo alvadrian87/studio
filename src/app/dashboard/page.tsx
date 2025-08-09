@@ -403,60 +403,60 @@ export default function Dashboard() {
     const finalScore = formatScoreString();
 
     try {
-        await runTransaction(db, async (transaction) => {
-            // --- ALL READS FIRST ---
-            const matchRef = doc(db, "matches", selectedMatch.id);
-            const matchDoc = await transaction.get(matchRef);
+        const matchRef = doc(db, "matches", selectedMatch.id);
+        const matchDoc = await getDoc(matchRef);
 
-            if (!matchDoc.exists()) throw new Error("La partida no fue encontrada.");
-            if (matchDoc.data().status === 'Completado') throw new Error("Este resultado ya ha sido registrado.");
+        if (!matchDoc.exists()) throw new Error("La partida no fue encontrada.");
+        if (matchDoc.data().status === 'Completado') throw new Error("Este resultado ya ha sido registrado.");
+        
+        const loserId = matchDoc.data().player1Id === winnerId ? matchDoc.data().player2Id : matchDoc.data().player1Id;
+        const winnerRef = doc(db, "users", winnerId);
+        const loserRef = doc(db, "users", loserId);
+        const tournamentRef = doc(db, "tournaments", matchDoc.data().tournamentId);
+
+        const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
+            getDoc(winnerRef),
+            getDoc(loserRef),
+            getDoc(tournamentRef),
+        ]);
+
+        if (!winnerDoc.exists() || !loserDoc.exists()) throw new Error("No se pudieron encontrar los datos de uno o ambos jugadores.");
+        if (!tournamentDoc.exists()) throw new Error("Torneo no encontrado.");
+
+        const winnerData = winnerDoc.data() as Player;
+        const loserData = loserDoc.data() as Player;
+        const tournamentData = tournamentDoc.data() as Tournament;
+        
+        let challengeDoc: DocumentData | null = null;
+        let inscriptionsSnapshot: QuerySnapshot<DocumentData> | null = null;
+
+        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchDoc.data().challengeId) {
+            const challengeRef = doc(db, "challenges", matchDoc.data().challengeId);
+            challengeDoc = await getDoc(challengeRef);
+            if (!challengeDoc.exists()) throw new Error("Desafío asociado no encontrado.");
             
-            const loserId = matchDoc.data().player1Id === winnerId ? matchDoc.data().player2Id : matchDoc.data().player1Id;
-            const winnerRef = doc(db, "users", winnerId);
-            const loserRef = doc(db, "users", loserId);
-            const tournamentRef = doc(db, "tournaments", matchDoc.data().tournamentId);
+            const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
+            const q = query(
+                inscriptionsRef,
+                where("eventoId", "==", challengeDoc.data().eventoId),
+                where("jugadorId", "in", [challengeDoc.data().retadorId, challengeDoc.data().desafiadoId])
+            );
+            inscriptionsSnapshot = await getDocs(q);
 
-            const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
-                transaction.get(winnerRef),
-                transaction.get(loserRef),
-                transaction.get(tournamentRef),
-            ]);
+            if (inscriptionsSnapshot.docs.length !== 2) {
+                throw new Error("No se encontraron las inscripciones para el intercambio de posiciones.");
+            }
+        }
 
-            if (!winnerDoc.exists() || !loserDoc.exists()) throw new Error("No se pudieron encontrar los datos de uno o ambos jugadores.");
-            if (!tournamentDoc.exists()) throw new Error("Torneo no encontrado.");
-
-            const winnerData = winnerDoc.data() as Player;
-            const loserData = loserDoc.data() as Player;
-            const tournamentData = tournamentDoc.data() as Tournament;
-
-            let challengeDoc: any = null;
-            let challengerInscriptionDoc: any = null;
-            let challengedInscriptionDoc: any = null;
-
-            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchDoc.data().challengeId) {
-                const challengeRef = doc(db, "challenges", matchDoc.data().challengeId);
-                challengeDoc = await transaction.get(challengeRef);
-                if (!challengeDoc.exists()) throw new Error("Desafío asociado no encontrado.");
-
-                const inscriptionsRef = collection(db, `tournaments/${tournamentData.id}/inscriptions`);
-                const inscriptionsQuery = query(
-                    inscriptionsRef,
-                    where("eventoId", "==", challengeDoc.data().eventoId),
-                    where("jugadorId", "in", [challengeDoc.data().retadorId, challengeDoc.data().desafiadoId])
-                );
-                const inscriptionsSnapshot = await getDocs(inscriptionsQuery);
-
-                if (inscriptionsSnapshot.docs.length !== 2) throw new Error("No se encontraron las inscripciones para el intercambio de posiciones.");
-                
-                challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeDoc.data().retadorId);
-                challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeDoc.data().desafiadoId);
-
-                if (!challengerInscriptionDoc || !challengedInscriptionDoc) {
-                    throw new Error("No se pudo encontrar la inscripción de uno de los jugadores del desafío.");
-                }
+        await runTransaction(db, async (transaction) => {
+            let challengerInscriptionDoc: DocumentData | undefined;
+            let challengedInscriptionDoc: DocumentData | undefined;
+            
+            if (inscriptionsSnapshot) {
+                 challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeDoc!.data().retadorId);
+                 challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeDoc!.data().desafiadoId);
             }
             
-            // --- ALL WRITES LAST ---
             transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
 
             const newWinnerWins = (winnerData.globalWins || 0) + 1;
@@ -477,7 +477,7 @@ export default function Dashboard() {
                 transaction.update(challengeDoc.ref, { estado: 'Jugado' });
                 
                 const challengerId = challengeDoc.data().retadorId;
-                if (winnerId === challengerId) { // Only swap if challenger wins
+                if (winnerId === challengerId && challengerInscriptionDoc && challengedInscriptionDoc) {
                     const challengerPos = challengerInscriptionDoc.data().posicionActual;
                     const challengedPos = challengedInscriptionDoc.data().posicionActual;
 
