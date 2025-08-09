@@ -55,6 +55,12 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
 
+const calculateElo = (playerRating: number, opponentRating: number, result: number) => {
+    const kFactor = 32;
+    const expectedScore = 1 / (1 + Math.pow(10, (opponentRating - playerRating) / 400));
+    return playerRating + kFactor * (result - expectedScore);
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -66,7 +72,7 @@ export default function Dashboard() {
   const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
   const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
   // Fetch all inscriptions for all tournaments. This could be optimized if it becomes too large.
-  const { data: allInscriptions, loading: loadingInscriptions } = useCollection<Inscription>('inscriptions');
+  const { data: allInscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${selectedMatch?.tournamentId}/inscriptions`);
 
   
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
@@ -396,14 +402,17 @@ export default function Dashboard() {
     setIsSubmittingResult(true);
     const finalScore = formatScoreString();
 
+    // --- 1. All Reads ---
+    let winnerData: Player, loserData: Player, tournamentData: Tournament, challengeData: Challenge | null = null;
+    let challengerInscriptionDoc: DocumentSnapshot | undefined, challengedInscriptionDoc: DocumentSnapshot | undefined;
+
     try {
-        // --- 1. All Reads ---
         const matchRef = doc(db, "matches", selectedMatch.id);
         const matchDoc = await getDoc(matchRef);
         if (!matchDoc.exists()) throw new Error("La partida no fue encontrada.");
-        if (matchDoc.data().status === 'Completado') throw new Error("Este resultado ya ha sido registrado.");
-
-        const matchData = matchDoc.data();
+        const matchData = matchDoc.data() as Match;
+        if (matchData.status === 'Completado') throw new Error("Este resultado ya ha sido registrado.");
+        
         const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
 
         const winnerRef = doc(db, "users", winnerId);
@@ -419,64 +428,80 @@ export default function Dashboard() {
         if (!winnerDoc.exists() || !loserDoc.exists()) throw new Error("No se pudieron encontrar los datos de uno o ambos jugadores.");
         if (!tournamentDoc.exists()) throw new Error("Torneo no encontrado.");
         
-        const winnerData = winnerDoc.data() as Player;
-        const loserData = loserDoc.data() as Player;
-        const tournamentData = tournamentDoc.data() as Tournament;
+        winnerData = winnerDoc.data() as Player;
+        loserData = loserDoc.data() as Player;
+        tournamentData = tournamentDoc.data() as Tournament;
 
-        let challengeDoc: DocumentSnapshot<DocumentData> | null = null;
-        let inscriptionsSnapshot: QuerySnapshot<DocumentData> | null = null;
-        
         if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
             const challengeRef = doc(db, "challenges", matchData.challengeId);
-            challengeDoc = await getDoc(challengeRef);
+            const challengeDoc = await getDoc(challengeRef);
             if (!challengeDoc.exists()) throw new Error("Desafío asociado no encontrado.");
-            
-            const inscriptionsRef = collection(db, `tournaments/${matchData.tournamentId}/inscriptions`);
-            const q = query(
-                inscriptionsRef,
-                where("eventoId", "==", challengeDoc.data()!.eventoId),
-                where("jugadorId", "in", [challengeDoc.data()!.retadorId, challengeDoc.data()!.desafiadoId])
-            );
-            inscriptionsSnapshot = await getDocs(q);
+            challengeData = challengeDoc.data() as Challenge;
 
-            if (inscriptionsSnapshot.docs.length !== 2) {
+            const inscriptionsRef = collection(db, `tournaments/${matchData.tournamentId}/inscriptions`);
+            const inscriptionsQuery = query(
+                inscriptionsRef,
+                where("eventoId", "==", challengeData.eventoId),
+                where("jugadorId", "in", [challengeData.retadorId, challengeData.desafiadoId])
+            );
+            const inscriptionsSnapshot = await getDocs(inscriptionsQuery);
+             if (inscriptionsSnapshot.docs.length !== 2) {
+                console.error("DEBUG: Failed to find inscriptions.", {
+                    tournamentId: matchData.tournamentId,
+                    eventoId: challengeData.eventoId,
+                    retadorId: challengeData.retadorId,
+                    desafiadoId: challengeData.desafiadoId
+                });
                 throw new Error("No se encontraron las inscripciones para el intercambio de posiciones.");
             }
+            
+            challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeData!.retadorId);
+            challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengeData!.desafiadoId);
         }
-        
-        // --- 2. Transaction (Writes Only) ---
+
+    } catch (error: any) {
+        console.error("Error al preparar los datos para guardar: ", error);
+        toast({ variant: "destructive", title: "Error de Preparación", description: error.message || "No se pudo leer la información necesaria." });
+        setIsSubmittingResult(false);
+        return;
+    }
+
+    // --- 2. Transaction (Writes Only) ---
+    try {
         await runTransaction(db, async (transaction) => {
+            const matchRef = doc(db, "matches", selectedMatch.id);
+            const winnerRef = doc(db, "users", winnerId);
+            const loserRef = doc(db, "users", winnerId === p1.uid ? p2.uid : p1.uid);
+
             // Update match
-            transaction.update(matchRef, { 
-                winnerId: winnerId, 
-                status: "Completado", 
-                score: finalScore,
-                rankingsProcessed: false // Mark for batch processing
-            });
+            transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: finalScore });
 
             // Update player stats
             const newWinnerWins = (winnerData.globalWins || 0) + 1;
             const newLoserLosses = (loserData.globalLosses || 0) + 1;
             transaction.update(winnerRef, { globalWins: newWinnerWins });
             transaction.update(loserRef, { globalLosses: newLoserLosses });
+            
+            // Update ELO if ranked
+            if (tournamentData.isRanked) {
+                const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
+                const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
+                transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
+                transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
+            }
 
             // Handle ladder logic
-            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeDoc && inscriptionsSnapshot) {
-                transaction.update(challengeDoc.ref, { estado: 'Jugado' });
+            if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && challengeData && challengerInscriptionDoc && challengedInscriptionDoc) {
+                transaction.update(doc(db, "challenges", challengeData.id), { estado: 'Jugado' });
                 
-                const challengerId = challengeDoc.data()!.retadorId;
-                if (winnerId === challengerId) { // Only swap if challenger wins
-                    const challengerInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId === challengerId);
-                    const challengedInscriptionDoc = inscriptionsSnapshot.docs.find(d => d.data().jugadorId !== challengerId);
+                const challengerId = challengeData.retadorId;
+                if (winnerId === challengerId) { 
+                    const challengerPos = challengerInscriptionDoc.data()!.posicionActual;
+                    const challengedPos = challengedInscriptionDoc.data()!.posicionActual;
 
-                    if (challengerInscriptionDoc && challengedInscriptionDoc) {
-                        const challengerPos = challengerInscriptionDoc.data().posicionActual;
-                        const challengedPos = challengedInscriptionDoc.data().posicionActual;
-
-                        if (challengerPos > challengedPos) {
-                            transaction.update(challengerInscriptionDoc.ref, { posicionActual: challengedPos });
-                            transaction.update(challengedInscriptionDoc.ref, { posicionActual: challengerPos });
-                        }
+                    if (challengerPos > challengedPos) {
+                        transaction.update(challengerInscriptionDoc.ref, { posicionActual: challengedPos });
+                        transaction.update(challengedInscriptionDoc.ref, { posicionActual: challengerPos });
                     }
                 }
             }
@@ -488,7 +513,7 @@ export default function Dashboard() {
 
     } catch (error: any) {
       console.error("Error al guardar el resultado: ", error);
-      toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo guardar el resultado." });
+      toast({ variant: "destructive", title: "Error en Transacción", description: error.message || "No se pudo guardar el resultado." });
     } finally {
         setIsSubmittingResult(false);
     }
