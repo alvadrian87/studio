@@ -41,7 +41,6 @@ import {
 
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BarChart, Check, Clock, Swords, Trophy, X, ShieldQuestion, Loader2 } from "lucide-react"
@@ -77,7 +76,8 @@ export default function Dashboard() {
     [false, false],
     [false, false],
   ]);
-  const [isRetirement, setIsRetirement] = useState(false);
+  const [matchEndState, setMatchEndState] = useState<'completed' | 'p1_retired' | 'p2_retired'>('completed');
+  const isRetirement = useMemo(() => matchEndState !== 'completed', [matchEndState]);
   
   // All hooks are now at the top
   const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
@@ -104,11 +104,19 @@ export default function Dashboard() {
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
     
+    // Handle retirement logic
+    if (matchEndState === 'p1_retired') {
+        setWinnerId(p2.uid);
+        setIsWinnerRadioDisabled(true);
+    } else if (matchEndState === 'p2_retired') {
+        setWinnerId(p1.uid);
+        setIsWinnerRadioDisabled(true);
+    }
+
     if (isRetirement) {
         setScoreError(null);
         setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-        setIsWinnerRadioDisabled(false);
-        setIsThirdSetDisabled(false);
+        // Scores are not strictly validated on retirement
         return;
     }
     
@@ -244,7 +252,7 @@ export default function Dashboard() {
         setIsWinnerRadioDisabled(false);
     }
 
-}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch, isRetirement]);
+}, [scores, selectedMatch, allPlayers, allTournaments, isResultDialogOpen, getPlayersForMatch, isRetirement, matchEndState]);
 
 
   const pendingChallenges = useMemo(() => {
@@ -314,7 +322,7 @@ export default function Dashboard() {
     setScores([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
     setScoreError(null);
     setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-    setIsRetirement(false);
+    setMatchEndState('completed');
     setIsThirdSetDisabled(true); // Disable by default
     setIsWinnerRadioDisabled(false);
     setIsResultDialogOpen(true);
@@ -355,7 +363,7 @@ export default function Dashboard() {
       return;
     }
     
-    if (scoreError) {
+    if (scoreError && !isRetirement) {
         toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError });
         return;
     }
@@ -413,7 +421,7 @@ export default function Dashboard() {
   };
 
   const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments;
-  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement) || (!isRetirement && !isWinnerRadioDisabled);
+  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement);
 
 
   if (loading) {
@@ -580,7 +588,7 @@ export default function Dashboard() {
           <DialogHeader>
             <DialogTitle>Registrar Resultado de la Partida</DialogTitle>
             <DialogDescription>
-              Introduce el marcador para determinar el ganador.
+              Introduce el marcador y el estado final de la partida para determinar el ganador.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
@@ -648,25 +656,26 @@ export default function Dashboard() {
                          <Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isRetirement || isThirdSetDisabled}/>
                     </div>
                 </div>
-                {scoreError && (
+                {scoreError && !isRetirement && (
                     <p className="text-sm font-medium text-destructive text-center pt-2">{scoreError}</p>
                 )}
             </div>
 
-            <div className="items-top flex space-x-2 pt-4">
-                <Checkbox id="retirement" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
-                <div className="grid gap-1.5 leading-none">
-                    <label
-                    htmlFor="retirement"
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                    Partido finalizado por retiro
-                    </label>
-                    <p className="text-sm text-muted-foreground">
-                    Marca esta casilla si un jugador se retiró. Podrás guardar un resultado incompleto.
-                    </p>
+            <RadioGroup onValueChange={(value) => setMatchEndState(value as any)} defaultValue={matchEndState} className="space-y-1 pt-4">
+                <Label className="font-medium">Estado Final de la Partida</Label>
+                <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="completed" id="state-completed" />
+                    <Label htmlFor="state-completed">Resultado Final (Se jugó completo)</Label>
                 </div>
-            </div>
+                 <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="p1_retired" id="state-p1-retired" />
+                    <Label htmlFor="state-p1-retired">{`Retiro de ${playerInSelectedMatch?.displayName}`}</Label>
+                </div>
+                 <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="p2_retired" id="state-p2-retired" />
+                    <Label htmlFor="state-p2-retired">{`Retiro de ${opponentInSelectedMatch?.displayName}`}</Label>
+                </div>
+            </RadioGroup>
 
           </div>
           <DialogFooter>
@@ -703,5 +712,3 @@ export default function Dashboard() {
     </>
   )
 }
-
-    
