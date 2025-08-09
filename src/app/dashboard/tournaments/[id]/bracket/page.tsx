@@ -6,6 +6,7 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, writeBatch,
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button"
 import Image from "next/image";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -22,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { UserPlus, Loader2, Info, Swords } from "lucide-react"
+import { UserPlus, Loader2, Info, Swords, Settings } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
 import type { Player, Tournament, TournamentEvent, Inscription, Match } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
@@ -40,7 +41,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
   const [events, setEvents] = useState<TournamentEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -112,6 +113,8 @@ export default function BracketPage({ params }: { params: { id: string } }) {
     return <div>Torneo no encontrado.</div>
   }
 
+  const canManage = userRole === 'admin' || tournament.creatorId === user?.uid;
+
   return (
     <>
       <div className="relative mb-6">
@@ -124,6 +127,15 @@ export default function BracketPage({ params }: { params: { id: string } }) {
             className="w-full h-48 md:h-64 object-cover rounded-lg"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent rounded-lg" />
+        <div className="absolute top-4 right-4">
+            {canManage && (
+                <Button asChild>
+                    <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>
+                        <Settings className="mr-2 h-4 w-4" /> Administrar
+                    </Link>
+                </Button>
+            )}
+        </div>
         <div className="absolute bottom-4 left-4 text-white">
             <h1 className="text-3xl md:text-5xl font-bold tracking-tight">{tournament.nombreTorneo}</h1>
             <p className="text-lg text-white/90">{tournament.descripcion || 'Visualiza los participantes y el cuadro del torneo.'}</p>
@@ -134,7 +146,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
          <Card>
             <CardHeader>
                 <CardTitle>Sin Categorías</CardTitle>
-            </Header>
+            </CardHeader>
             <CardContent>
                 <p className="text-muted-foreground">Este torneo aún no tiene categorías o divisiones configuradas.</p>
             </CardContent>

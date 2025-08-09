@@ -6,6 +6,7 @@ import { collection, query, where, getDocs, addDoc, serverTimestamp, writeBatch,
 import { db } from "@/lib/firebase";
 import { Button } from "@/components/ui/button"
 import Image from "next/image";
+import Link from "next/link";
 import {
   Card,
   CardContent,
@@ -22,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Swords, UserPlus, DoorOpen, Play, Trophy, Loader2, Info, Lock } from "lucide-react"
+import { Swords, UserPlus, DoorOpen, Play, Trophy, Loader2, Info, Lock, Settings } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
 import type { Player, Tournament, TournamentEvent, Inscription, Challenge } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
@@ -46,7 +47,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const [challengingPlayerId, setChallengingPlayerId] = useState<string | null>(null);
 
   
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -199,7 +200,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   }
 
   const isLadderTournament = tournament.tipoTorneo === 'Evento tipo Escalera';
-
+  const canManage = userRole === 'admin' || tournament.creatorId === user?.uid;
 
   return (
     <>
@@ -213,6 +214,15 @@ export default function LadderPage({ params }: { params: { id: string } }) {
             className="w-full h-48 md:h-64 object-cover rounded-lg"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent rounded-lg" />
+         <div className="absolute top-4 right-4">
+            {canManage && (
+                <Button asChild>
+                    <Link href={`/dashboard/tournaments/${tournament.id}/edit`}>
+                        <Settings className="mr-2 h-4 w-4" /> Administrar
+                    </Link>
+                </Button>
+            )}
+        </div>
         <div className="absolute bottom-4 left-4 text-white">
             <h1 className="text-3xl md:text-5xl font-bold tracking-tight">{tournament.nombreTorneo}</h1>
             <p className="text-lg text-white/90">{tournament.descripcion || 'Clasificación de jugadores y estado de los desafíos.'}</p>
