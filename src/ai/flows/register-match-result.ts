@@ -32,50 +32,6 @@ const calculateElo = (playerRating: number, opponentRating: number, result: numb
   return playerRating + kFactor * (result - expectedScore);
 };
 
-async function updateLadderPositions(db: admin.firestore.Firestore, matchData: Match, winnerId: string) {
-  if (!matchData.challengeId || !matchData.tournamentId) {
-    return;
-  }
-
-  const batch = db.batch();
-  const challengeRef = db.collection("challenges").doc(matchData.challengeId);
-  const challengeDoc = await challengeRef.get();
-  
-  if (!challengeDoc.exists) {
-    console.warn(`[LADDER_UPDATE] Challenge ${matchData.challengeId} not found for match ${matchData.id}. Skipping update.`);
-    return;
-  }
-  
-  const challengeData = challengeDoc.data() as Challenge;
-  batch.update(challengeRef, { estado: 'Jugado' });
-
-  if (winnerId === challengeData.retadorId) {
-    const inscriptionsRef = db.collection(`tournaments/${matchData.tournamentId}/inscriptions`);
-    const retadorInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.retadorId).where('eventoId', '==', challengeData.eventoId).limit(1);
-    const desafiadoInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.desafiadoId).where('eventoId', '==', challengeData.eventoId).limit(1);
-
-    const [retadorSnapshot, desafiadoSnapshot] = await Promise.all([
-        retadorInscriptionQuery.get(),
-        desafiadoInscriptionQuery.get()
-    ]);
-    
-    if (retadorSnapshot.empty || desafiadoSnapshot.empty) {
-        console.error("[LADDER_UPDATE] Could not find inscriptions for one or both players.");
-        throw new Error("Could not find player inscriptions for position swap.");
-    }
-
-    const retadorInscriptionDoc = retadorSnapshot.docs[0];
-    const desafiadoInscriptionDoc = desafiadoSnapshot.docs[0];
-    const retadorPosition = retadorInscriptionDoc.data().posicionActual;
-    const desafiadoPosition = desafiadoInscriptionDoc.data().posicionActual;
-    
-    batch.update(retadorInscriptionDoc.ref, { posicionActual: desafiadoPosition });
-    batch.update(desafiadoInscriptionDoc.ref, { posicionActual: retadorPosition });
-  }
-
-  await batch.commit();
-}
-
 export const registerMatchResult = ai.defineFlow(
   {
     name: 'registerMatchResultFlow',
@@ -83,50 +39,58 @@ export const registerMatchResult = ai.defineFlow(
     outputSchema: RegisterMatchResultOutputSchema,
   },
   async ({ matchId, winnerId, score, isRetirement }) => {
+    console.log('[FLOW_START] registerMatchResultFlow initiated with matchId:', matchId);
     const db = getFirestore();
     
     try {
-      let matchForPostLogic: Match | null = null;
-      let tournamentForPostLogic: Tournament | null = null;
-      let needsLadderUpdate = false;
-
       await db.runTransaction(async (transaction) => {
+        console.log('[TRANSACTION_START] Firestore transaction started for matchId:', matchId);
         const matchRef = db.collection("matches").doc(matchId);
         const matchDoc = await transaction.get(matchRef);
+        console.log('[TRANSACTION_STEP] Got matchDoc.');
 
-        if (!matchDoc.exists) throw new Error("La partida no fue encontrada.");
+        if (!matchDoc.exists) {
+          console.error('[TRANSACTION_ERROR] Match not found for ID:', matchId);
+          throw new Error("La partida no fue encontrada.");
+        }
         
         const matchData = { id: matchDoc.id, ...matchDoc.data() } as Match;
-        matchForPostLogic = matchData;
-
-        if (matchData.status === 'Completado') throw new Error("Este resultado ya ha sido registrado.");
+        if (matchData.status === 'Completado') {
+          console.warn('[TRANSACTION_WARN] Match already completed for ID:', matchId);
+          throw new Error("Este resultado ya ha sido registrado.");
+        }
 
         const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
         const winnerRef = db.collection("users").doc(winnerId);
         const loserRef = db.collection("users").doc(loserId);
         const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
+        console.log('[TRANSACTION_STEP] Refs created for winner, loser, and tournament.');
 
         const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
             transaction.get(winnerRef),
             transaction.get(loserRef),
             transaction.get(tournamentRef)
         ]);
+        console.log('[TRANSACTION_STEP] Got winner, loser, and tournament docs.');
 
         if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) {
+            console.error('[TRANSACTION_ERROR] Could not find player or tournament data.');
             throw new Error("No se pudieron encontrar los datos del jugador o del torneo.");
         }
 
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
         const tournamentData = tournamentDoc.data() as Tournament;
-        tournamentForPostLogic = tournamentData;
+        console.log('[TRANSACTION_STEP] Data extracted from docs.');
         
         transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
+        console.log('[TRANSACTION_STEP] Match updated in transaction.');
         
         const newWinnerWins = (winnerData.globalWins || 0) + 1;
         const newLoserLosses = (loserData.globalLosses || 0) + 1;
         transaction.update(winnerRef, { globalWins: newWinnerWins });
         transaction.update(loserRef, { globalLosses: newLoserLosses });
+        console.log('[TRANSACTION_STEP] Player stats (wins/losses) updated in transaction.');
 
         if (tournamentData.isRanked) {
             const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
@@ -134,21 +98,19 @@ export const registerMatchResult = ai.defineFlow(
             
             transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
             transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
+            console.log('[TRANSACTION_STEP] ELO points updated in transaction.');
         }
         
-        if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
-            needsLadderUpdate = true;
-        }
+        console.log('[TRANSACTION_END] Transaction logic complete. Committing...');
       });
-
-      if (needsLadderUpdate && matchForPostLogic) {
-        await updateLadderPositions(db, matchForPostLogic, winnerId);
-      }
-
+      
+      console.log('[FLOW_SUCCESS] Transaction committed successfully for matchId:', matchId);
       return { success: true, message: "Resultado guardado exitosamente." };
+
     } catch (error: any) {
-      console.error("[REGISTER_RESULT] Error in registerMatchResultFlow: ", error);
-      return { success: false, message: error.message || "No se pudo guardar el resultado." };
+      console.error("[REGISTER_RESULT_ERROR] Critical error in registerMatchResultFlow: ", error);
+      // Ensure we return a valid output schema on error
+      return { success: false, message: error.message || "No se pudo guardar el resultado debido a un error interno." };
     }
   }
 );

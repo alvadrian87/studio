@@ -101,19 +101,20 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
 
   // Score validation logic (re-used from dashboard)
    useEffect(() => {
-    if (!isResultDialogOpen || isRetirement) {
-         if (isRetirement) {
-             setScoreError(null);
-             setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-        }
-        return;
-    };
+    if (!isResultDialogOpen) return;
 
+    if (isRetirement) {
+        setScoreError(null);
+        setScoreInputErrors([[false, false], [false, false], [false, false]]);
+        setIsWinnerRadioDisabled(false); // Allow manual winner selection
+        return;
+    }
+    
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
     
     const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
-    let p1SetsWon = 0; let p2SetsWon = 0; let localError: string | null = null;
+    let p1SetsWon = 0, p2SetsWon = 0; let localError: string | null = null;
     const newScoreInputErrors: boolean[][] = [ [false, false], [false, false], [false, false] ];
     const validateSet = (score1Str: string, score2Str: string, setIndex: number, isSuperTiebreak: boolean = false) => {
         const score1 = parseInt(score1Str, 10); const score2 = parseInt(score2Str, 10);
@@ -214,13 +215,18 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     }
     setIsSubmittingResult(true);
     const finalScore = formatScoreString();
+
+    const payload = {
+        matchId: selectedMatch.id,
+        winnerId: winnerId,
+        score: finalScore,
+        isRetirement: isRetirement
+    };
+
+    console.log('[FRONTEND] Calling registerMatchResult with payload:', payload);
+
     try {
-       const result = await registerMatchResult({
-            matchId: selectedMatch.id,
-            winnerId: winnerId,
-            score: finalScore,
-            isRetirement: isRetirement
-        });
+       const result = await registerMatchResult(payload);
 
         if (result.success) {
             toast({ title: "¡Resultado Guardado!", description: result.message });
@@ -330,7 +336,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
             
             <div className="space-y-2">
                 <Label>Ganador</Label>
-                <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled}>
+                <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled || isRetirement}>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value={p1InSelectedMatch?.uid || ''} id={`admin-p1-winner-${p1InSelectedMatch?.uid}`} />
                     <Label htmlFor={`admin-p1-winner-${p1InSelectedMatch?.uid}`}>{p1InSelectedMatch?.displayName}</Label>
@@ -344,8 +350,8 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
 
             <div className="flex items-center space-x-2 pt-2">
                 <Checkbox id="admin-retirement" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
-                <label htmlFor="admin-retirement" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    ¿El partido finalizó por retiro?
+                 <label htmlFor="admin-retirement" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                    ¿El partido finalizó por retiro? (Si se marca, el marcador es solo informativo, seleccione el ganador manualmente)
                 </label>
             </div>
 

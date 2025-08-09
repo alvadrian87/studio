@@ -99,13 +99,14 @@ export default function Dashboard() {
   }, [allPlayers, getPlayerById]);
 
   useEffect(() => {
-    if (!isResultDialogOpen || isRetirement) {
-        if (isRetirement) {
-             setScoreError(null);
-             setScoreInputErrors([ [false, false], [false, false], [false, false] ]);
-        }
+    if (!isResultDialogOpen) return;
+
+    if (isRetirement) {
+        setScoreError(null);
+        setScoreInputErrors([[false, false], [false, false], [false, false]]);
+        setIsWinnerRadioDisabled(false);
         return;
-    };
+    }
 
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
@@ -386,13 +387,17 @@ export default function Dashboard() {
     setIsSubmittingResult(true);
     const finalScore = formatScoreString();
 
+    const payload = {
+        matchId: selectedMatch.id,
+        winnerId: winnerId,
+        score: finalScore,
+        isRetirement: isRetirement
+    };
+
+    console.log('[FRONTEND] Calling registerMatchResult with payload:', payload);
+
     try {
-        const result = await registerMatchResult({
-            matchId: selectedMatch.id,
-            winnerId: winnerId,
-            score: finalScore,
-            isRetirement: isRetirement
-        });
+        const result = await registerMatchResult(payload);
 
         if (result.success) {
             toast({ title: "¡Resultado Guardado!", description: result.message });
@@ -620,7 +625,7 @@ export default function Dashboard() {
 
             <div className="space-y-2">
                 <Label>Ganador</Label>
-                <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled}>
+                <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled || isRetirement}>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value={p1InSelectedMatch?.uid || ''} id={`p1-winner-${p1InSelectedMatch?.uid}`} />
                     <Label htmlFor={`p1-winner-${p1InSelectedMatch?.uid}`}>{p1InSelectedMatch?.displayName}</Label>
@@ -635,7 +640,7 @@ export default function Dashboard() {
             <div className="flex items-center space-x-2 pt-2">
                 <Checkbox id="retirement" checked={isRetirement} onCheckedChange={(checked) => setIsRetirement(checked as boolean)} />
                 <label htmlFor="retirement" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                    ¿El partido finalizó por retiro?
+                    ¿El partido finalizó por retiro? (Si se marca, el marcador es solo informativo, seleccione el ganador manualmente)
                 </label>
             </div>
 
