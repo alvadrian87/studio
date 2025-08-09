@@ -3,7 +3,7 @@
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, Timestamp } from 'firebase-admin/firestore';
 import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
 import admin from 'firebase-admin';
 
@@ -34,6 +34,53 @@ const calculateElo = (playerRating: number, opponentRating: number, result: numb
     return playerRating + kFactor * (result - expectedScore);
 };
 
+async function updateLadderPositions(db: admin.firestore.Firestore, matchData: Match, winnerId: string) {
+    if (!matchData.challengeId) return;
+
+    const batch = db.batch();
+
+    // Update challenge status
+    const challengeRef = db.collection("challenges").doc(matchData.challengeId);
+    const challengeDoc = await challengeRef.get();
+    if (!challengeDoc.exists) {
+        console.warn(`Challenge ${matchData.challengeId} not found for match ${matchData.id}. Skipping ladder update.`);
+        return;
+    }
+    const challengeData = challengeDoc.data() as Challenge;
+    batch.update(challengeRef, { estado: 'Jugado' });
+    
+    // Position Swap Logic only if challenger wins
+    if (winnerId === challengeData.retadorId) {
+        const inscriptionsRef = db.collection(`tournaments/${matchData.tournamentId}/inscriptions`);
+        
+        const retadorInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.retadorId).where('eventoId', '==', challengeData.eventoId).limit(1);
+        const desafiadoInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.desafiadoId).where('eventoId', '==', challengeData.eventoId).limit(1);
+
+        const [retadorSnapshot, desafiadoSnapshot] = await Promise.all([
+            retadorInscriptionQuery.get(),
+            desafiadoInscriptionQuery.get()
+        ]);
+        
+        if (retadorSnapshot.empty || desafiadoSnapshot.empty) {
+            throw new Error("No se encontraron las inscripciones de los jugadores para el intercambio de posiciones.");
+        }
+
+        const retadorInscriptionDoc = retadorSnapshot.docs[0];
+        const desafiadoInscriptionDoc = desafiadoSnapshot.docs[0];
+        const retadorInscriptionData = retadorInscriptionDoc.data() as Inscription;
+        const desafiadoInscriptionData = desafiadoInscriptionDoc.data() as Inscription;
+        
+        const retadorPosition = retadorInscriptionData.posicionActual;
+        const desafiadoPosition = desafiadoInscriptionData.posicionActual;
+        
+        batch.update(retadorInscriptionDoc.ref, { posicionActual: desafiadoPosition });
+        batch.update(desafiadoInscriptionDoc.ref, { posicionActual: retadorPosition });
+    }
+
+    await batch.commit();
+}
+
+
 export const registerMatchResult = ai.defineFlow(
   {
     name: 'registerMatchResultFlow',
@@ -41,9 +88,12 @@ export const registerMatchResult = ai.defineFlow(
     outputSchema: RegisterMatchResultOutputSchema,
   },
   async ({ matchId, winnerId, score, isRetirement }) => {
+    const db = getFirestore();
+    let matchData: Match;
+    let tournamentData: Tournament;
+    let needsLadderUpdate = false;
+
     try {
-        const db = getFirestore();
-        
         await db.runTransaction(async (transaction) => {
             const matchRef = db.collection("matches").doc(matchId);
             const matchDoc = await transaction.get(matchRef);
@@ -51,17 +101,17 @@ export const registerMatchResult = ai.defineFlow(
             if (!matchDoc.exists) {
                 throw new Error("La partida no fue encontrada.");
             }
-            const matchData = matchDoc.data() as Match;
+            const localMatchData = matchDoc.data() as Match;
 
-            if (matchData.status === 'Completado') {
+            if (localMatchData.status === 'Completado') {
                 throw new Error("Este resultado ya ha sido registrado.");
             }
 
-            const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
+            const loserId = localMatchData.player1Id === winnerId ? localMatchData.player2Id : localMatchData.player1Id;
 
             const winnerRef = db.collection("users").doc(winnerId);
             const loserRef = db.collection("users").doc(loserId);
-            const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
+            const tournamentRef = db.collection("tournaments").doc(localMatchData.tournamentId);
 
             const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
                 transaction.get(winnerRef),
@@ -75,7 +125,9 @@ export const registerMatchResult = ai.defineFlow(
 
             const winnerData = winnerDoc.data() as Player;
             const loserData = loserDoc.data() as Player;
-            const tournamentData = tournamentDoc.data() as Tournament;
+            tournamentData = tournamentDoc.data() as Tournament; // Assign to outer scope
+            matchData = localMatchData; // Assign to outer scope
+
 
             // --- ALL WRITES ---
             transaction.update(matchRef, { winnerId: winnerId, status: "Completado", score: score });
@@ -94,48 +146,16 @@ export const registerMatchResult = ai.defineFlow(
                 transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
             }
 
+            // Decide if a ladder update is needed after the transaction
             if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
-                const challengeRef = db.collection("challenges").doc(matchData.challengeId);
-                const challengeDoc = await transaction.get(challengeRef);
-                
-                if(!challengeDoc.exists()) {
-                    // If the challenge doesn't exist, we can't proceed with the position swap.
-                    // This is a safeguard against inconsistent data.
-                    throw new Error("El desafío asociado a esta partida no fue encontrado. No se puede actualizar la clasificación de la escalera.");
-                }
-                const challengeData = challengeDoc.data() as Challenge;
-                
-                transaction.update(challengeRef, { estado: 'Jugado' });
-                
-                // Position Swap Logic
-                if (winnerId === challengeData.retadorId) {
-                    const inscriptionsRef = db.collection(`tournaments/${matchData.tournamentId}/inscriptions`);
-                    
-                    const retadorInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.retadorId).where('eventoId', '==', challengeData.eventoId).limit(1);
-                    const desafiadoInscriptionQuery = inscriptionsRef.where('jugadorId', '==', challengeData.desafiadoId).where('eventoId', '==', challengeData.eventoId).limit(1);
-
-                    const [retadorSnapshot, desafiadoSnapshot] = await Promise.all([
-                        transaction.get(retadorInscriptionQuery),
-                        transaction.get(desafiadoInscriptionQuery)
-                    ]);
-                    
-                    if (retadorSnapshot.empty || desafiadoSnapshot.empty) {
-                        throw new Error("No se encontraron las inscripciones de los jugadores para el intercambio de posiciones.");
-                    }
-
-                    const retadorInscriptionDoc = retadorSnapshot.docs[0];
-                    const desafiadoInscriptionDoc = desafiadoSnapshot.docs[0];
-                    const retadorInscriptionData = retadorInscriptionDoc.data() as Inscription;
-                    const desafiadoInscriptionData = desafiadoInscriptionDoc.data() as Inscription;
-                    
-                    const retadorPosition = retadorInscriptionData.posicionActual;
-                    const desafiadoPosition = desafiadoInscriptionData.posicionActual;
-                    
-                    transaction.update(retadorInscriptionDoc.ref, { posicionActual: desafiadoPosition });
-                    transaction.update(desafiadoInscriptionDoc.ref, { posicionActual: retadorPosition });
-                }
+                needsLadderUpdate = true;
             }
         });
+
+      // --- Post-Transaction Logic ---
+      if (needsLadderUpdate) {
+         await updateLadderPositions(db, matchData!, winnerId);
+      }
 
       return { success: true, message: "Resultado guardado exitosamente." };
     } catch (error: any) {
