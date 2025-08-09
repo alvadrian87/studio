@@ -41,17 +41,19 @@ export const registerMatchResult = ai.defineFlow(
     
     try {
       await db.runTransaction(async (transaction) => {
-        console.log('[TRANSACTION_START]');
+        console.log('[TRANSACTION_START] Starting transaction for match:', matchId);
 
         const matchRef = db.collection("matches").doc(matchId);
+        console.log('[DEBUG] Attempting to get match with ID:', matchId);
         const matchDoc = await transaction.get(matchRef);
 
         if (!matchDoc.exists) {
-          throw new Error("La partida no fue encontrada.");
+          throw new Error(`Partido con ID ${matchId} no encontrado.`);
         }
         
         console.log('[TRANSACTION_READ] Match document found.');
         const matchData = { id: matchDoc.id, ...matchDoc.data() } as Match;
+
         if (matchData.status === 'Completado') {
           throw new Error("Este resultado ya ha sido registrado.");
         }
@@ -61,17 +63,24 @@ export const registerMatchResult = ai.defineFlow(
         const loserRef = db.collection("users").doc(loserId);
         const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
 
-        console.log('[TRANSACTION_READ] Getting player and tournament documents...');
+        console.log('[DEBUG] Attempting to get winner (ID:', winnerId + '), loser (ID:', loserId + '), and tournament (ID:', matchData.tournamentId + ')');
         const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
             transaction.get(winnerRef),
             transaction.get(loserRef),
             transaction.get(tournamentRef)
         ]);
 
-        if (!winnerDoc.exists() || !loserDoc.exists() || !tournamentDoc.exists()) {
-            throw new Error("No se pudieron encontrar los datos del jugador o del torneo.");
+        if (!winnerDoc.exists()) {
+            throw new Error(`Jugador ganador con ID ${winnerId} no encontrado.`);
         }
-        console.log('[TRANSACTION_READ] Player and tournament documents retrieved.');
+        if (!loserDoc.exists()) {
+            throw new Error(`Jugador perdedor con ID ${loserId} no encontrado.`);
+        }
+        if (!tournamentDoc.exists()) {
+            throw new Error(`Torneo con ID ${matchData.tournamentId} no encontrado.`);
+        }
+
+        console.log('[TRANSACTION_READ] Player and tournament documents retrieved successfully.');
 
         const winnerData = winnerDoc.data() as Player;
         const loserData = loserDoc.data() as Player;
@@ -90,14 +99,14 @@ export const registerMatchResult = ai.defineFlow(
             const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
             const loserNewRating = calculateElo(loserData.rankPoints, winnerData.rankPoints, 0);
             
-            console.log('[TRANSACTION_WRITE] Updating ELO points...');
+            console.log('[TRANSACTION_WRITE] Updating ELO points for winner and loser.');
             transaction.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
             transaction.update(loserRef, { rankPoints: Math.round(loserNewRating) });
         }
-        console.log('[TRANSACTION_END]');
+        console.log('[TRANSACTION_END] All updates queued.');
       });
       
-      console.log('[FLOW_SUCCESS] Transaction completed successfully.');
+      console.log('[FLOW_SUCCESS] Transaction completed successfully for match:', matchId);
       return { success: true, message: "Resultado guardado exitosamente." };
 
     } catch (error: any) {
