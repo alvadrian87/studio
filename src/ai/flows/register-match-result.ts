@@ -97,10 +97,14 @@ export const registerMatchResult = ai.defineFlow(
             if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
                 const challengeRef = db.collection("challenges").doc(matchData.challengeId);
                 const challengeDoc = await transaction.get(challengeRef);
+                
+                if(!challengeDoc.exists()) {
+                    // If the challenge doesn't exist, we can't proceed with the position swap.
+                    // This is a safeguard against inconsistent data.
+                    throw new Error("El desafío asociado a esta partida no fue encontrado. No se puede actualizar la clasificación de la escalera.");
+                }
                 const challengeData = challengeDoc.data() as Challenge;
-
-                if(!challengeData) throw new Error("Challenge not found");
-
+                
                 transaction.update(challengeRef, { estado: 'Jugado' });
                 
                 // Position Swap Logic
