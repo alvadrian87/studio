@@ -8,45 +8,28 @@ declare global {
   var __FIREBASE_ADMIN_APP__: admin.app.App | undefined;
 }
 
-function getPrivateKey(): string | undefined {
-  const key = process.env.FIREBASE_ADMIN_PRIVATE_KEY;
-  if (!key) return undefined;
-  // Vercel/ENV suele guardar el \n escapado, lo normalizamos
-  return key.replace(/\\n/g, '\n');
-}
-
 if (!global.__FIREBASE_ADMIN_APP__) {
-  const PROJECT_ID = process.env.FIREBASE_ADMIN_PROJECT_ID;
-  const CLIENT_EMAIL = process.env.FIREBASE_ADMIN_CLIENT_EMAIL;
-  const PRIVATE_KEY = getPrivateKey();
-  const SA_JSON = process.env.FIREBASE_SERVICE_ACCOUNT; // opcional: JSON entero
+  const serviceAccountString = process.env.FIREBASE_SERVICE_ACCOUNT;
 
-  if (SA_JSON) {
-    // Opción A: variable con el JSON completo del service account
-    global.__FIREBASE_ADMIN_APP__ = admin.initializeApp({
-      credential: admin.credential.cert(JSON.parse(SA_JSON)),
-      projectId: PROJECT_ID,
-    });
-    console.log('[firebase-admin] init with FIREBASE_SERVICE_ACCOUNT');
-  } else if (PROJECT_ID && CLIENT_EMAIL && PRIVATE_KEY) {
-    // Opción B: 3 variables separadas (recomendado en Vercel)
-    global.__FIREBASE_ADMIN_APP__ = admin.initializeApp({
-      credential: admin.credential.cert({
-        projectId: PROJECT_ID,
-        clientEmail: CLIENT_EMAIL,
-        privateKey: PRIVATE_KEY,
-      }),
-      projectId: PROJECT_ID,
-    });
-    console.log('[firebase-admin] init with env (PROJECT_ID/CLIENT_EMAIL/PRIVATE_KEY)');
-  } else {
-    // Opción C: fallback a ADC (solo si estás en GCP con permisos)
-    console.warn('[firebase-admin] Attempting to initialize with Application Default Credentials (ADC). This is not recommended for production outside of GCP environments.');
+  if (serviceAccountString) {
     try {
+      const serviceAccount = JSON.parse(serviceAccountString);
+      global.__FIREBASE_ADMIN_APP__ = admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        projectId: serviceAccount.project_id,
+      });
+      console.log('[firebase-admin] Initialized with FIREBASE_SERVICE_ACCOUNT');
+    } catch (e: any) {
+      console.error('[firebase-admin] Failed to parse FIREBASE_SERVICE_ACCOUNT:', e.message);
+      console.error('[firebase-admin] Make sure the environment variable contains a valid JSON string.');
+    }
+  } else {
+     console.warn('[firebase-admin] FIREBASE_SERVICE_ACCOUNT is not set. Attempting to initialize with Application Default Credentials (ADC). This is not recommended for production outside of GCP environments.');
+     try {
         global.__FIREBASE_ADMIN_APP__ = admin.initializeApp();
         console.log('[firebase-admin] init with ADC (GOOGLE_APPLICATION_CREDENTIALS or GCP metadata)');
     } catch (e: any) {
-        console.error('[firebase-admin] ADC initialization failed. Please set FIREBASE_ADMIN_PROJECT_ID, FIREBASE_ADMIN_CLIENT_EMAIL, and FIREBASE_ADMIN_PRIVATE_KEY environment variables.', e);
+        console.error('[firebase-admin] ADC initialization failed. Please set FIREBASE_SERVICE_ACCOUNT environment variable.', e);
     }
   }
 }
