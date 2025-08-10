@@ -27,6 +27,7 @@ export default function SignupPage() {
   const { toast } = useToast();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -40,6 +41,14 @@ export default function SignupPage() {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password !== confirmPassword) {
+      toast({
+        variant: "destructive",
+        title: "Error de Registro",
+        description: "Las contraseñas no coinciden.",
+      });
+      return;
+    }
     if (!firstName || !lastName || !email || !password || !dateOfBirth || !gender || !phoneNumber || !residence) {
         toast({
             variant: "destructive",
@@ -131,8 +140,7 @@ export default function SignupPage() {
                   />
                 </div>
               </div>
-               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="grid gap-2">
+               <div className="grid gap-2">
                   <Label htmlFor="email">Correo electrónico</Label>
                   <Input
                     id="email"
@@ -143,6 +151,7 @@ export default function SignupPage() {
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="password">Contraseña</Label>
                   <Input 
@@ -151,6 +160,16 @@ export default function SignupPage() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="confirmPassword">Confirmar Contraseña</Label>
+                  <Input 
+                    id="confirmPassword" 
+                    type="password" 
+                    required
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
                   />
                 </div>
               </div>
