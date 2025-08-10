@@ -39,11 +39,13 @@ import { doc, updateDoc, addDoc, collection, writeBatch } from "firebase/firesto
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
+import { useRouter } from "next/navigation";
 
 
 export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
   
   const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
   const { data: allMatches, loading: loadingMatches } = useCollection<Match>('matches');
@@ -139,6 +141,7 @@ export default function Dashboard() {
             batch.update(invitationRef, { estado: 'aceptada' });
             await batch.commit();
             toast({ title: "¡Invitación Aceptada!", description: `Te has inscrito en ${invitation.nombreTorneo} junto a ${allPlayers?.find(p => p.uid === invitation.invitadorId)?.displayName}`});
+            router.push(`/dashboard/tournaments/${invitation.torneoId}/bracket`);
         } else {
             await updateDoc(invitationRef, { estado: 'rechazada' });
             toast({ title: "Invitación Rechazada" });
@@ -338,3 +341,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
