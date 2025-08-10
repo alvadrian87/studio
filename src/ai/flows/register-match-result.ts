@@ -1,7 +1,5 @@
-'use server';
 
-// IMPORTANT: force Node.js runtime (Admin SDK no funciona en Edge)
-// export const runtime = 'nodejs'; // This export is not allowed in a 'use server' file.
+'use server';
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
@@ -10,7 +8,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
 import { updateLadderPositions } from './update-ladder-positions';
 
-console.log('[FLOW_LOAD] register-match-result.ts loaded.');
+console.log('[FLOW_LOAD] register-match-result.ts loaded. NOTE: This flow is being deprecated in favor of a direct API route.');
 
 const RegisterMatchResultInputSchema = z.object({
   matchId: z.string().describe("The ID of the match to update."),
@@ -39,7 +37,7 @@ export const registerMatchResult = ai.defineFlow(
     outputSchema: RegisterMatchResultOutputSchema,
   },
   async ({ matchId, winnerId, score, isRetirement }) => {
-    console.log('[FLOW_START] registerMatchResultFlow started with payload:', { matchId, winnerId, score, isRetirement });
+    console.log('[FLOW_START] DEPRECATED registerMatchResultFlow started with payload:', { matchId, winnerId, score, isRetirement });
     
     try {
       // 1. VALIDATE DOCUMENTS EXISTENCE BEFORE THE TRANSACTION

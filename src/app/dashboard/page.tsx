@@ -53,7 +53,6 @@ import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
-import { registerMatchResult } from "@/ai/flows/register-match-result";
 
 
 export default function Dashboard() {
@@ -360,12 +359,18 @@ export default function Dashboard() {
         isRetirement: isRetirement
     };
 
-    console.log('[FRONTEND] Calling registerMatchResult with payload:', payload);
+    console.log('[FRONTEND] Calling API with payload:', payload);
 
     try {
-        const result = await registerMatchResult(payload);
+        const response = await fetch('/api/register-match-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        
+        const result = await response.json();
 
-        if (result.success) {
+        if (response.ok) {
             toast({ title: "¡Resultado Guardado!", description: result.message });
             setIsResultDialogOpen(false);
             setSelectedMatch(null);

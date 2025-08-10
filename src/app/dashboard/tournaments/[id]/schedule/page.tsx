@@ -26,7 +26,6 @@ import { Loader2, Swords } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
-import { registerMatchResult } from "@/ai/flows/register-match-result";
 
 // Re-using the result dialog logic
 import {
@@ -205,12 +204,18 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
         isRetirement: isRetirement,
     };
 
-    console.log('[FRONTEND] Calling registerMatchResult with payload:', payload);
+    console.log('[FRONTEND] Calling API with payload:', payload);
 
     try {
-       const result = await registerMatchResult(payload);
+       const response = await fetch('/api/register-match-result', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        
+        const result = await response.json();
 
-        if (result.success) {
+        if (response.ok) {
             toast({ title: "¡Resultado Guardado!", description: result.message });
             setIsResultDialogOpen(false);
         } else {
