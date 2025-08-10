@@ -13,8 +13,8 @@ console.log('[FLOW_LOAD] update-ladder-positions.ts loaded.');
 const UpdateLadderPositionsInputSchema = z.object({
   tournamentId: z.string(),
   eventId: z.string(),
-  winnerId: z.string().describe("The player ID of the challenger who won."),
-  loserId: z.string().describe("The player ID of the challenged player who lost."),
+  winnerId: z.string().describe("The inscription ID of the challenger who won."),
+  loserId: z.string().describe("The inscription ID of the challenged player who lost."),
 });
 export type UpdateLadderPositionsInput = z.infer<typeof UpdateLadderPositionsInputSchema>;
 
@@ -37,25 +37,21 @@ export const updateLadderPositions = ai.defineFlow(
     try {
       const inscriptionsRef = db.collection(`tournaments/${tournamentId}/inscriptions`);
       
-      // Get both inscriptions in one go
-      const winnerInscriptionQuery = inscriptionsRef.where('eventoId', '==', eventId).where('jugadorId', '==', winnerId).limit(1);
-      const loserInscriptionQuery = inscriptionsRef.where('eventoId', '==', eventId).where('jugadorId', '==', loserId).limit(1);
+      const winnerInscriptionDocRef = inscriptionsRef.doc(winnerId);
+      const loserInscriptionDocRef = inscriptionsRef.doc(loserId);
       
-      const [winnerSnapshots, loserSnapshots] = await Promise.all([
-        winnerInscriptionQuery.get(),
-        loserInscriptionQuery.get()
+      const [winnerInscriptionDoc, loserInscriptionDoc] = await Promise.all([
+        winnerInscriptionDocRef.get(),
+        loserInscriptionDocRef.get()
       ]);
 
-      if (winnerSnapshots.empty) {
+      if (!winnerInscriptionDoc.exists) {
         throw new Error(`No se encontró la inscripción para el ganador ${winnerId} en el evento ${eventId}.`);
       }
-      if (loserSnapshots.empty) {
+      if (!loserInscriptionDoc.exists) {
         throw new Error(`No se encontró la inscripción para el perdedor ${loserId} en el evento ${eventId}.`);
       }
 
-      const winnerInscriptionDoc = winnerSnapshots.docs[0];
-      const loserInscriptionDoc = loserSnapshots.docs[0];
-      
       const winnerInscriptionData = winnerInscriptionDoc.data() as Inscription;
       const loserInscriptionData = loserInscriptionDoc.data() as Inscription;
       
