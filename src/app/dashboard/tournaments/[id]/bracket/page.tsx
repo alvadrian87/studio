@@ -38,7 +38,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { UserPlus, Loader2, Info, Swords, Settings, Search } from "lucide-react"
+import { UserPlus, Loader2, Info, Swords, Settings, Search, CheckCircle } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
 import type { Player, Tournament, TournamentEvent, Inscription, Match, Invitation } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
@@ -93,30 +93,56 @@ export default function BracketPage({ params }: { params: { id: string } }) {
     }
   }, [tournament]);
 
-  const getPlayerDetails = (playerId: string) => {
-    return allPlayers?.find(p => p.uid === playerId);
+  const getInscriptionDetails = (inscriptionId: string | undefined | null): { inscription: Inscription | null, players: Player[], displayName: string, avatar?: string, fallback: string } => {
+    if (!inscriptionId || !inscriptions || !allPlayers) {
+        return { inscription: null, players: [], displayName: "Desconocido", fallback: "?" };
+    }
+    const inscription = inscriptions.find(i => i.id === inscriptionId) || null;
+    if (!inscription) {
+        return { inscription: null, players: [], displayName: "Desconocido", fallback: "?" };
+    }
+
+    const players = (inscription.jugadoresIds || []).map(pid => allPlayers.find(p => p.uid === pid)).filter(Boolean) as Player[];
+    const displayName = players.map(p => p.displayName).join(' / ');
+    const avatar = players.length === 1 ? players[0].avatar : undefined;
+    const fallback = players.map(p => p.firstName?.substring(0, 1)).join('') || '?';
+
+    return { inscription, players, displayName, avatar, fallback };
   };
-  
+
   const getEventInscriptions = (eventId: string) => {
     if (!inscriptions) return [];
     return inscriptions
       .filter(i => i.eventoId === eventId)
       .map(i => {
-        // Ensure jugadoresIds exists and is an array before mapping
-        const playerIds = Array.isArray(i.jugadoresIds) ? i.jugadoresIds : (i.jugadorId ? [i.jugadorId] : []);
-        const players = playerIds.map(getPlayerDetails).filter(Boolean) as Player[];
-        const displayName = players.map(p => p.displayName).join(' / ');
-        const playerDetails = players.length === 1 ? players[0] : null; // Keep for singles backward compatibility
-        const avatar = players.length === 1 ? players[0].avatar : undefined;
-        const fallback = players.map(p => p.firstName?.substring(0,1)).join('');
-
+        const { players, displayName, avatar, fallback } = getInscriptionDetails(i.id);
+        const playerDetails = players.length === 1 ? players[0] : null;
         return { ...i, players, displayName, playerDetails, avatar, fallback };
       });
   }
   
-  const getEventMatches = (eventId: string) => {
-    if (!matches || !tournament) return [];
-    return matches.filter(m => m.tournamentId === tournament.id);
+  const getEventMatchesByRound = (eventId: string) => {
+    if (!matches || !tournament) return {};
+    const eventMatches = matches.filter(m => m.eventoId === eventId && m.tournamentId === tournament.id);
+    const rounds: { [key: number]: Match[] } = {};
+    
+    eventMatches.forEach(match => {
+        if (!rounds[match.roundNumber]) {
+            rounds[match.roundNumber] = [];
+        }
+        rounds[match.roundNumber].push(match);
+    });
+    
+    return rounds;
+  }
+
+  const getRoundName = (roundNumber: number, totalRounds: number) => {
+    const roundsLeft = totalRounds - roundNumber + 1;
+    if (roundsLeft === 1) return "Final";
+    if (roundsLeft === 2) return "Semifinales";
+    if (roundsLeft === 3) return "Cuartos de Final";
+    if (roundsLeft === 4) return "Octavos de Final";
+    return `Ronda ${roundNumber}`;
   }
 
   const isUserEnrolledInEvent = (eventId: string) => {
@@ -248,7 +274,8 @@ export default function BracketPage({ params }: { params: { id: string } }) {
             </TabsList>
             {events.map((event) => {
                 const eventParticipants = getEventInscriptions(event.id!);
-                const eventMatches = getEventMatches(event.id!)
+                const rounds = getEventMatchesByRound(event.id!);
+                const totalRounds = Math.max(0, ...Object.keys(rounds).map(Number));
                 const enrolled = isUserEnrolledInEvent(event.id!);
                 
                 return (
@@ -270,44 +297,59 @@ export default function BracketPage({ params }: { params: { id: string } }) {
                             </CardHeader>
                             <CardContent>
                                 {event.status === 'En Curso' ? (
-                                    <div>
-                                        <h3 className="text-lg font-semibold mb-4">Partidos (Draw)</h3>
-                                        <div className="border rounded-lg">
-                                            <Table>
-                                                <TableHeader>
-                                                    <TableRow>
-                                                        <TableHead>Jugador 1</TableHead>
-                                                        <TableHead className="w-[50px] text-center"></TableHead>
-                                                        <TableHead>Jugador 2</TableHead>
-                                                        <TableHead className="text-right">Estado</TableHead>
-                                                    </TableRow>
-                                                </TableHeader>
-                                                <TableBody>
-                                                    {eventMatches.map(match => {
-                                                        const player1 = getPlayerDetails(match.player1Id);
-                                                        const player2 = getPlayerDetails(match.player2Id);
-                                                        return (
-                                                            <TableRow key={match.id}>
-                                                                <TableCell>
-                                                                    <div className="flex items-center gap-3">
-                                                                        <Avatar className="w-8 h-8"><AvatarImage src={player1?.avatar}/><AvatarFallback>{player1?.firstName?.substring(0,1)}{player1?.lastName?.substring(0,1)}</AvatarFallback></Avatar>
-                                                                        {player1?.displayName}
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell className="text-center font-bold"><Swords className="h-5 w-5 mx-auto text-muted-foreground"/></TableCell>
-                                                                <TableCell>
-                                                                    <div className="flex items-center gap-3">
-                                                                        <Avatar className="w-8 h-8"><AvatarImage src={player2?.avatar}/><AvatarFallback>{player2?.firstName?.substring(0,1)}{player2?.lastName?.substring(0,1)}</AvatarFallback></Avatar>
-                                                                        {player2?.displayName}
-                                                                    </div>
-                                                                </TableCell>
-                                                                <TableCell className="text-right">{match.status}</TableCell>
+                                    <div className="space-y-6">
+                                        {Object.keys(rounds).sort().map(roundNumberStr => {
+                                            const roundNumber = parseInt(roundNumberStr, 10);
+                                            const roundMatches = rounds[roundNumber];
+                                            return (
+                                            <div key={roundNumber}>
+                                                <h3 className="text-lg font-semibold mb-2">{getRoundName(roundNumber, totalRounds)}</h3>
+                                                <div className="border rounded-lg">
+                                                    <Table>
+                                                        <TableHeader>
+                                                            <TableRow>
+                                                                <TableHead>Jugador 1</TableHead>
+                                                                <TableHead className="w-[50px] text-center"></TableHead>
+                                                                <TableHead>Jugador 2</TableHead>
+                                                                <TableHead className="text-right">Estado</TableHead>
                                                             </TableRow>
-                                                        )
-                                                    })}
-                                                </TableBody>
-                                            </Table>
-                                        </div>
+                                                        </TableHeader>
+                                                        <TableBody>
+                                                            {roundMatches.map(match => {
+                                                                const p1 = getInscriptionDetails(match.player1Id);
+                                                                const p2 = getInscriptionDetails(match.player2Id);
+                                                                
+                                                                return (
+                                                                    <TableRow key={match.id}>
+                                                                        <TableCell>
+                                                                            <div className="flex items-center gap-3">
+                                                                                <Avatar className="w-8 h-8"><AvatarImage src={p1?.avatar}/><AvatarFallback>{p1?.fallback}</AvatarFallback></Avatar>
+                                                                                {p1?.displayName}
+                                                                            </div>
+                                                                        </TableCell>
+                                                                        <TableCell className="text-center font-bold">
+                                                                           {match.isBye ? <CheckCircle className="h-5 w-5 mx-auto text-green-500"/> : <Swords className="h-5 w-5 mx-auto text-muted-foreground"/>}
+                                                                        </TableCell>
+                                                                        <TableCell>
+                                                                             {p2?.inscription ? (
+                                                                                 <div className="flex items-center gap-3">
+                                                                                    <Avatar className="w-8 h-8"><AvatarImage src={p2?.avatar}/><AvatarFallback>{p2?.fallback}</AvatarFallback></Avatar>
+                                                                                    {p2?.displayName}
+                                                                                </div>
+                                                                             ) : match.isBye ? (
+                                                                                <span className="text-muted-foreground italic">BYE</span>
+                                                                             ) : "TBD"}
+                                                                        </TableCell>
+                                                                        <TableCell className="text-right">{match.status}</TableCell>
+                                                                    </TableRow>
+                                                                )
+                                                            })}
+                                                        </TableBody>
+                                                    </Table>
+                                                </div>
+                                            </div>
+                                            )
+                                        })}
                                     </div>
                                 ) : (
                                     <div>
@@ -415,5 +457,3 @@ export default function BracketPage({ params }: { params: { id: string } }) {
     </>
   )
 }
-
-    

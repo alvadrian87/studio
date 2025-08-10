@@ -26,7 +26,7 @@ export interface Player {
 export interface Match {
   id: string;
   player1Id: string; // Can be an inscription ID for doubles
-  player2Id: string; // Can be an inscription ID for doubles
+  player2Id: string | null; // Can be an inscription ID for doubles
   jugadoresIds: string[]; // Always store individual player UIDs here
   winnerId: string | null; // Can be an inscription ID for doubles, or a player ID
   status: 'Pendiente' | 'Completado' | 'En Progreso';
@@ -36,6 +36,7 @@ export interface Match {
   roundNumber: number;
   score: string | null;
   challengeId?: string; // To link back to the challenge for ladder logic
+  isBye?: boolean;
 }
 
 export interface Tournament {

@@ -90,30 +90,45 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
       return;
     }
 
-    // Simple random shuffle
     const shuffledParticipants = participants.sort(() => 0.5 - Math.random());
     
     const batch = writeBatch(db);
-    const matches: Partial<Match>[] = [];
+    const totalPlayers = shuffledParticipants.length;
+    const nextPowerOfTwo = Math.pow(2, Math.ceil(Math.log2(totalPlayers)));
+    const byes = nextPowerOfTwo - totalPlayers;
+    const firstRoundMatches = (totalPlayers - byes) / 2;
 
-    let hasBye = false;
-    let byePlayer: (typeof participants)[0] | undefined;
+    const playersWithBye = shuffledParticipants.slice(0, byes);
+    const playersInFirstRound = shuffledParticipants.slice(byes);
 
+    // Create matches for players with byes (they auto-win round 1)
+    playersWithBye.forEach(participant => {
+        const newMatch: Omit<Match, 'id'> = {
+            tournamentId: tournament.id,
+            eventoId: event.id!,
+            roundNumber: 1,
+            player1Id: participant.id,
+            player2Id: null, // No opponent
+            jugadoresIds: participant.jugadoresIds || [],
+            winnerId: participant.id, // Auto-win
+            status: 'Completado',
+            date: format(new Date(), "yyyy-MM-dd HH:mm"),
+            score: "BYE",
+            challengeId: '',
+            isBye: true,
+        };
+        const matchRef = doc(collection(db, "matches"));
+        batch.set(matchRef, newMatch);
+    });
 
-    if (shuffledParticipants.length % 2 !== 0) {
-      hasBye = true;
-      byePlayer = shuffledParticipants.pop(); 
-      // In a real scenario, the highest seed gets the bye. For now, it's random.
-       toast({ title: `Sorteo con Bye`, description: `El jugador ${byePlayer?.displayName} pasa a la siguiente ronda.` });
-    }
-
-    for (let i = 0; i < shuffledParticipants.length; i += 2) {
-        const player1 = shuffledParticipants[i];
-        const player2 = shuffledParticipants[i + 1];
+    // Create matches for the first round
+    for (let i = 0; i < firstRoundMatches; i++) {
+        const player1 = playersInFirstRound[i * 2];
+        const player2 = playersInFirstRound[i * 2 + 1];
 
         const newMatch: Omit<Match, 'id'> = {
             tournamentId: tournament.id,
-            eventoId: event.id,
+            eventoId: event.id!,
             roundNumber: 1,
             player1Id: player1.id,
             player2Id: player2.id,
@@ -285,5 +300,3 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
     </>
   )
 }
-
-    
