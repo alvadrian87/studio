@@ -2,7 +2,7 @@
 "use client";
 
 import { use, useEffect, useState, useCallback, useMemo } from "react";
-import type { Player, Tournament, Match } from "@/types";
+import type { Player, Tournament, Match, Inscription } from "@/types";
 import { useDocument, useCollection } from "@/hooks/use-firestore";
 import {
   Card,
@@ -26,6 +26,7 @@ import { Loader2, Swords } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
+import { auth } from "@/lib/firebase";
 
 // Re-using the result dialog logic
 import {
@@ -61,12 +62,12 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const { user, userRole } = useAuth();
   
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
-  const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
+  const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
   const { data: matches, loading: loadingMatches } = useCollection<Match>('matches');
 
   const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
-  const [winnerId, setWinnerId] = useState<string | null>(null);
+  const [winnerId, setWinnerId] = useState<string | null>(null); // This will be inscription ID
   const [isSubmittingResult, setIsSubmittingResult] = useState(false);
   const [scores, setScores] = useState([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
   const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
@@ -83,17 +84,39 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     }
   }, [tournament, userRole, user, loadingTournament, router]);
   
-  const getPlayerById = useCallback((id: string | undefined) => {
-    if (!id) return null;
-    return allPlayers?.find(p => p.uid === id);
-  }, [allPlayers]);
+  const getInscriptionById = useCallback((id: string | undefined) => {
+    if (!id || !inscriptions) return null;
+    return inscriptions.find(i => i.id === id);
+  }, [inscriptions]);
+  
+  const getPlayersFromInscription = (inscription: Inscription | null) => {
+    if (!inscription || !allPlayers) return [];
+    return (inscription.jugadoresIds || []).map(playerId => allPlayers.find(p => p.uid === playerId)).filter(Boolean) as Player[];
+  }
+
+  const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
 
   const getPlayersForMatch = useCallback((match: Match | null) => {
-    if (!match || !allPlayers) return { player1: null, player2: null };
-    const player1 = getPlayerById(match.player1Id);
-    const player2 = getPlayerById(match.player2Id);
-    return { player1, player2 };
-  }, [allPlayers, getPlayerById]);
+      if (!match || !inscriptions) return { player1: null, player2: null };
+      const inscription1 = getInscriptionById(match.player1Id);
+      const inscription2 = getInscriptionById(match.player2Id);
+      return { player1: inscription1, player2: inscription2 };
+  }, [inscriptions, getInscriptionById]);
+  
+  const getDisplayName = (inscription: Inscription | null) => {
+      if (!inscription) return 'Desconocido';
+      const players = getPlayersFromInscription(inscription);
+      return players.map(p => p.displayName).join(' / ');
+  }
+
+  const getAvatarInfo = (inscription: Inscription | null) => {
+      if (!inscription) return { src: undefined, fallback: '?' };
+      const players = getPlayersFromInscription(inscription);
+      if (players.length === 1) {
+          return { src: players[0].avatar, fallback: `${players[0].firstName?.substring(0,1)}${players[0].lastName?.substring(0,1)}`};
+      }
+      return { src: undefined, fallback: players.map(p => p.firstName?.substring(0,1)).join('')};
+  }
   
   const { player1: p1InSelectedMatch, player2: p2InSelectedMatch } = getPlayersForMatch(selectedMatch);
 
@@ -159,10 +182,10 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     }
     setScoreError(localError); setScoreInputErrors(newScoreInputErrors);
     if (!localError && (p1SetsWon >= 2 || p2SetsWon >= 2)) {
-        if (p1SetsWon >= 2) setWinnerId(p1.uid); else if (p2SetsWon >= 2) setWinnerId(p2.uid);
+        if (p1SetsWon >= 2) setWinnerId(p1.id); else if (p2SetsWon >= 2) setWinnerId(p2.id);
         setIsWinnerRadioDisabled(true);
     } else { setWinnerId(null); setIsWinnerRadioDisabled(false); }
-  }, [scores, selectedMatch, allPlayers, tournament, isResultDialogOpen, getPlayersForMatch]);
+  }, [scores, selectedMatch, tournament, isResultDialogOpen, getPlayersForMatch]);
 
   const handleOpenResultDialog = (match: Match) => {
     setSelectedMatch(match);
@@ -178,6 +201,9 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   
   const formatScoreString = () => {
     let scoreStr = scores.map(set => `${set.p1}-${set.p2}`).filter(setStr => setStr !== "-" && setStr !== "0-0" && setStr !== "" && !setStr.startsWith('-') && !setStr.endsWith('-')).join(', ');
+    if (isRetirement) {
+        scoreStr += ' (Ret.)';
+    }
     return scoreStr;
   };
 
@@ -190,8 +216,6 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const handleSaveResult = async () => {
     if (!selectedMatch || !winnerId) { toast({ variant: "destructive", title: "Error", description: "Debes seleccionar un ganador o el marcador está incompleto/inválido." }); return; }
     if (!user) { toast({ variant: "destructive", title: "Error de autenticación", description: "Debes estar conectado para guardar resultados." }); return; }
-    const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
-    if (!p1 || !p2) { toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los jugadores." }); return; }
     if (scoreError && !isRetirement) { toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError }); return; }
     
     setIsSubmittingResult(true);
@@ -204,12 +228,14 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
         isRetirement: isRetirement,
     };
 
-    console.log('[FRONTEND] Calling API with payload:', payload);
-
     try {
+       const idToken = await auth.currentUser?.getIdToken();
        const response = await fetch('/api/register-match-result', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`
+          },
           body: JSON.stringify(payload),
         });
         
@@ -228,7 +254,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   
   const tournamentMatches = matches?.filter(m => m.tournamentId === resolvedParams.id) || [];
   const canManage = userRole === 'admin' || tournament?.creatorId === user?.uid;
-  const loading = loadingTournament || loadingAllPlayers || loadingMatches;
+  const loading = loadingTournament || loadingAllPlayers || loadingMatches || loadingInscriptions;
   const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement);
 
   if (loading) {
@@ -251,30 +277,35 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Jugador 1</TableHead>
+                <TableHead>Jugador(es) 1</TableHead>
                 <TableHead className="w-[50px] text-center"></TableHead>
-                <TableHead>Jugador 2</TableHead>
+                <TableHead>Jugador(es) 2</TableHead>
                 <TableHead className="hidden md:table-cell">Estado</TableHead>
                 <TableHead className="text-right">Acción / Resultado</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {tournamentMatches.length > 0 ? tournamentMatches.map(match => {
-                const player1 = getPlayerById(match.player1Id);
-                const player2 = getPlayerById(match.player2Id);
+                const p1Inscription = getInscriptionById(match.player1Id);
+                const p2Inscription = getInscriptionById(match.player2Id);
+                const winnerInscription = getInscriptionById(match.winnerId || undefined);
+
+                const p1Avatar = getAvatarInfo(p1Inscription);
+                const p2Avatar = getAvatarInfo(p2Inscription);
+                
                 return (
                   <TableRow key={match.id}>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8"><AvatarImage src={player1?.avatar} /><AvatarFallback>{player1?.firstName?.substring(0, 1)}{player1?.lastName?.substring(0, 1)}</AvatarFallback></Avatar>
-                        {player1?.displayName}
+                        <Avatar className="w-8 h-8"><AvatarImage src={p1Avatar?.src} /><AvatarFallback>{p1Avatar?.fallback}</AvatarFallback></Avatar>
+                        {getDisplayName(p1Inscription)}
                       </div>
                     </TableCell>
                     <TableCell className="text-center font-bold"><Swords className="h-5 w-5 mx-auto text-muted-foreground" /></TableCell>
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8"><AvatarImage src={player2?.avatar} /><AvatarFallback>{player2?.firstName?.substring(0, 1)}{player2?.lastName?.substring(0, 1)}</AvatarFallback></Avatar>
-                        {player2?.displayName}
+                         <Avatar className="w-8 h-8"><AvatarImage src={p2Avatar?.src} /><AvatarFallback>{p2Avatar?.fallback}</AvatarFallback></Avatar>
+                        {getDisplayName(p2Inscription)}
                       </div>
                     </TableCell>
                     <TableCell className="hidden md:table-cell"><Badge variant={match.status === 'Completado' ? 'secondary' : 'default'}>{match.status}</Badge></TableCell>
@@ -283,8 +314,8 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
                         <Button variant="outline" size="sm" onClick={() => handleOpenResultDialog(match)}>Cargar Resultado</Button>
                       ) : (
                          <div className="flex flex-col items-end">
-                             <span className={`font-bold ${match.winnerId === player1?.uid ? 'text-primary' : (match.winnerId === player2?.uid ? 'text-destructive' : '')}`}>
-                                {getPlayerById(match.winnerId)?.displayName}
+                             <span className={`font-bold`}>
+                                {getDisplayName(winnerInscription)}
                              </span>
                              {match.score && <span className="text-xs text-muted-foreground">{match.score}</span>}
                          </div>
@@ -316,8 +347,8 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
              <div className="space-y-2">
                 <div className="flex justify-between items-center"><Label>Marcador</Label>{tournament && (<Badge variant="outline">{tournament.formatoScore || 'Sets estándar'}</Badge>)}</div>
                 <div className="flex justify-around items-center"><div className="w-1/3 text-center font-bold">Jugador</div><div className="flex-1 grid grid-cols-3 gap-2"><div className="text-center text-sm font-medium text-muted-foreground">SET 1</div><div className="text-center text-sm font-medium text-muted-foreground">SET 2</div><div className="text-center text-sm font-medium text-muted-foreground">SET 3</div></div></div>
-                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p1InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isThirdSetDisabled} /></div></div>
-                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{p2InSelectedMatch?.displayName}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isThirdSetDisabled}/></div></div>
+                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{getDisplayName(p1InSelectedMatch)}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][0] && 'border-destructive')} value={scores[0].p1} onChange={(e) => handleScoreChange(0, 'p1', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[1][0] && 'border-destructive')} value={scores[1].p1} onChange={(e) => handleScoreChange(1, 'p1', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[2][0] && 'border-destructive')} value={scores[2].p1} onChange={(e) => handleScoreChange(2, 'p1', e.target.value)} disabled={isThirdSetDisabled} /></div></div>
+                <div className="flex justify-around items-center gap-2"><div className="w-1/3 text-sm truncate">{getDisplayName(p2InSelectedMatch)}</div><div className="flex-1 grid grid-cols-3 gap-2"><Input className={cn("text-center", scoreInputErrors[0][1] && 'border-destructive')} value={scores[0].p2} onChange={(e) => handleScoreChange(0, 'p2', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[1][1] && 'border-destructive')} value={scores[1].p2} onChange={(e) => handleScoreChange(1, 'p2', e.target.value)} /><Input className={cn("text-center", scoreInputErrors[2][1] && 'border-destructive')} value={scores[2].p2} onChange={(e) => handleScoreChange(2, 'p2', e.target.value)} disabled={isThirdSetDisabled}/></div></div>
                 {scoreError && (<p className="text-sm font-medium text-destructive text-center pt-2">{scoreError}</p>)}
             </div>
             
@@ -325,15 +356,15 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
                 <Label>Ganador</Label>
                 <RadioGroup onValueChange={setWinnerId} value={winnerId || ''} disabled={isWinnerRadioDisabled}>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value={p1InSelectedMatch?.uid || ''} id={`admin-p1-winner-${p1InSelectedMatch?.uid}`} />
-                    <Label htmlFor={`admin-p1-winner-${p1InSelectedMatch?.uid}`}>{p1InSelectedMatch?.displayName}</Label>
+                    <RadioGroupItem value={p1InSelectedMatch?.id || ''} id={`admin-p1-winner-${p1InSelectedMatch?.id}`} />
+                    <Label htmlFor={`admin-p1-winner-${p1InSelectedMatch?.id}`}>{getDisplayName(p1InSelectedMatch)}</Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value={p2InSelectedMatch?.uid || ''} id={`admin-p2-winner-${p2InSelectedMatch?.uid}`} />
-                    <Label htmlFor={`admin-p2-winner-${p2InSelectedMatch?.uid}`}>{p2InSelectedMatch?.displayName}</Label>
+                    <RadioGroupItem value={p2InSelectedMatch?.id || ''} id={`admin-p2-winner-${p2InSelectedMatch?.id}`} />
+                    <Label htmlFor={`admin-p2-winner-${p2InSelectedMatch?.id}`}>{getDisplayName(p2InSelectedMatch)}</Label>
                   </div>
                 </RadioGroup>
-                <p className="text-xs text-muted-foreground">El ganador se selecciona automáticamente al ingresar un marcador válido. Puedes anularlo manualmente si es necesario.</p>
+                <p className="text-xs text-muted-foreground">El ganador se selecciona automáticamente al ingresar un marcador válido. Puedes anularlo manually si es necesario.</p>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -347,7 +378,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
                 <AlertDialogTrigger asChild><Button disabled={isSaveButtonDisabled}>Guardar Resultado</Button></AlertDialogTrigger>
                 <AlertDialogContent>
                     <AlertDialogHeader><AlertDialogTitle>Confirmar Resultado</AlertDialogTitle><AlertDialogDescription>¿Estás seguro? Esta acción no se puede deshacer.</AlertDialogDescription>
-                         <div className="py-4 font-medium text-foreground text-sm text-left"><div><strong>Ganador:</strong> {getPlayerById(winnerId)?.displayName}</div><div><strong>Marcador:</strong> {formatScoreString()}</div></div>
+                         <div className="py-4 font-medium text-foreground text-sm text-left"><div><strong>Ganador:</strong> {getDisplayName(getInscriptionById(winnerId))}</div><div><strong>Marcador:</strong> {formatScoreString()}</div></div>
                     </AlertDialogHeader>
                     <AlertDialogFooter><AlertDialogCancel>Cancelar</AlertDialogCancel><AlertDialogAction onClick={handleSaveResult} disabled={isSubmittingResult}>{isSubmittingResult && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Confirmar y Guardar</AlertDialogAction></AlertDialogFooter>
                 </AlertDialogContent>

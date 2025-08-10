@@ -1,5 +1,6 @@
 // src/lib/firebase-admin.ts
 import admin from 'firebase-admin';
+import 'dotenv/config'
 
 declare global {
   // evita re-init en dev hot-reload
