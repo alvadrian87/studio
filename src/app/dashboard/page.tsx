@@ -60,7 +60,7 @@ export default function Dashboard() {
     if (!allChallenges || !user || !allInscriptions) return [];
     
     // Find all inscriptions the current user is part of
-    const userInscriptionIds = allInscriptions.filter(i => i.jugadoresIds.includes(user.uid)).map(i => i.id);
+    const userInscriptionIds = allInscriptions.filter(i => (i.jugadoresIds || []).includes(user.uid)).map(i => i.id);
 
     // Filter challenges where the user's inscription is the one being challenged
     return allChallenges.filter(c => userInscriptionIds.includes(c.desafiadoId) && c.estado === 'Pendiente');
@@ -74,7 +74,7 @@ export default function Dashboard() {
 
   const getPlayersFromInscription = (inscription: Inscription | null) => {
     if (!inscription || !allPlayers) return [];
-    return inscription.jugadoresIds.map(playerId => allPlayers.find(p => p.uid === playerId)).filter(Boolean) as Player[];
+    return (inscription.jugadoresIds || []).map(playerId => allPlayers.find(p => p.uid === playerId)).filter(Boolean) as Player[];
   }
 
   const pendingPartnerInvitations = useMemo(() => {
@@ -95,10 +95,21 @@ export default function Dashboard() {
   }, [allPlayers, player]);
 
   const getOpponent = (match: Match) => {
-    if (!user || !allPlayers) return { name: 'Desconocido', avatar: undefined, fallback: '?' };
+    if (!user || !allPlayers || !allInscriptions) return { name: 'Desconocido', avatar: undefined, fallback: '?' };
     
-    const opponentIds = match.jugadoresIds.filter(id => id !== user.uid);
-    if (opponentIds.length === 0) return { name: 'Desconocido', avatar: undefined, fallback: '?' };
+    const userPlayerId = user.uid;
+    const allPlayerIdsInMatch = match.jugadoresIds || [];
+    
+    const userInscription = allInscriptions.find(i => 
+        (i.jugadoresIds || []).includes(userPlayerId) && 
+        (match.player1Id === i.id || match.player2Id === i.id)
+    );
+
+    const partnerIds = userInscription ? (userInscription.jugadoresIds || []).filter(id => id !== userPlayerId) : [];
+
+    const opponentIds = allPlayerIdsInMatch.filter(id => id !== userPlayerId && !partnerIds.includes(id));
+    
+    if (opponentIds.length === 0) return { name: 'Oponente no encontrado', avatar: undefined, fallback: '?' };
 
     if (opponentIds.length === 1) { // Singles
       const opponent = allPlayers.find(p => p.uid === opponentIds[0]);
@@ -137,7 +148,7 @@ export default function Dashboard() {
         batch.set(matchRef, {
           player1Id: challenge.retadorId, // inscription ID
           player2Id: challenge.desafiadoId, // inscription ID
-          jugadoresIds: [...retadorInscription.jugadoresIds, ...desafiadoInscription.jugadoresIds],
+          jugadoresIds: [...(retadorInscription.jugadoresIds || []), ...(desafiadoInscription.jugadoresIds || [])],
           winnerId: null,
           status: 'Pendiente',
           date: format(new Date(), "yyyy-MM-dd HH:mm"),
