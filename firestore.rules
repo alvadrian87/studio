@@ -1,59 +1,68 @@
-
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Users can read other user profiles but can only update their own.
-    match /users/{userId} {
-      allow read;
-      allow update: if request.auth.uid == userId;
+    // Helper functions
+    function isUserAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isUserAdmin() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
-    // Anyone authenticated can read tournaments, events, and matches.
-    // Only admins or the creator should be able to write.
-    // For simplicity now, we allow any authenticated user to create/update.
-    // This should be tightened in production.
-    match /tournaments/{tournamentId} {
-      allow read;
-      // TODO: Restrict write access to admins or tournament creator
-      allow write: if request.auth != null;
-
-      // Inscriptions can be created by authenticated users if they are one of the players.
-      // They can be read by any authenticated user.
-      match /inscriptions/{inscriptionId} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null && request.auth.uid in request.resource.data.jugadoresIds;
-        // Add update/delete rules if necessary, e.g., allow players to withdraw.
-      }
+    function isOwner(userId) {
+      return request.auth.uid == userId;
     }
 
+    // Rules for 'users' collection
+    match /users/{userId} {
+      allow read: if isUserAuthenticated();
+      // Allow user to create their own document, and admins to create any
+      allow create: if request.auth.uid == userId || isUserAdmin();
+      // Allow user to update their own document, and admins to update any
+      allow update: if isOwner(userId) || isUserAdmin();
+      allow delete: if isUserAdmin();
+    }
+
+    match /tournaments/{tournamentId} {
+      allow read: if isUserAuthenticated();
+      allow create, update, delete: if isUserAdmin();
+
+      // Rules for nested 'inscriptions' collection
+      match /inscriptions/{inscriptionId} {
+        allow read: if isUserAuthenticated();
+        // Allow creating an inscription if the user is one of the players being inscribed
+        allow create: if isUserAuthenticated() && request.auth.uid in request.resource.data.jugadoresIds;
+        allow update, delete: if isUserAdmin();
+      }
+    }
+    
     match /eventos/{eventId} {
-        allow read;
-        allow write: if request.auth != null;
+      allow read: if isUserAuthenticated();
+      allow create, update, delete: if isUserAdmin();
     }
 
     match /matches/{matchId} {
-        allow read;
-        allow write: if request.auth != null;
+        allow read: if isUserAuthenticated();
+        allow create, update, delete: if isUserAdmin();
     }
 
-    // Invitations logic
-    match /invitations/{invitationId} {
-      // Allow read if you are the inviter or the invitee
-      allow read: if request.auth != null && (request.auth.uid == resource.data.invitadorId || request.auth.uid == resource.data.invitadoId);
-      
-      // Allow creation if you are the inviter
-      allow create: if request.auth != null && request.auth.uid == request.resource.data.invitadorId;
-      
-      // Allow update (accept/reject) if you are the invitee
-      allow update: if request.auth != null && request.auth.uid == resource.data.invitadoId;
+    match /challenges/{challengeId} {
+        allow read: if isUserAuthenticated();
+        allow create: if isUserAuthenticated(); // Any authenticated user can create a challenge
+        allow update: if isUserAuthenticated(); // Logic should be handled in backend to see who can update
+        allow delete: if isUserAdmin();
     }
     
-    // Challenges can be created by any authenticated user for now.
-    match /challenges/{challengeId} {
-        allow create: if request.auth != null && request.auth.uid == request.resource.data.retadorId;
-        allow read, update: if request.auth != null; // Simplistic, should be refined
+    match /invitations/{invitationId} {
+      // Allow creation if the inviter is the one making the request
+      allow create: if isUserAuthenticated() && request.resource.data.invitadorId == request.auth.uid;
+      // Allow read if user is either the inviter or the invitee
+      allow read: if isUserAuthenticated() && (resource.data.invitadorId == request.auth.uid || resource.data.invitadoId == request.auth.uid);
+      // Allow update only by the invitee to change the status
+      allow update: if isUserAuthenticated() && resource.data.invitadoId == request.auth.uid;
+      allow delete: if isUserAuthenticated() && (resource.data.invitadorId == request.auth.uid || resource.data.invitadoId == request.auth.uid);
     }
   }
 }
