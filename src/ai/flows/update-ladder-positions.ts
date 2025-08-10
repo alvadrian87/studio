@@ -1,3 +1,4 @@
+
 'use server';
 
 // IMPORTANT: force Node.js runtime (Admin SDK no funciona en Edge)
@@ -76,3 +77,4 @@ export const updateLadderPositions = ai.defineFlow(
     }
   }
 );
+
