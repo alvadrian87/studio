@@ -36,7 +36,7 @@ export interface Match {
 }
 
 export interface Tournament {
-  id: string;
+  id:string;
   creatorId: string;
   status: 'Próximo' | 'En Curso' | 'Completado' | 'Borrador';
   // Step 1
@@ -144,11 +144,24 @@ export interface Inscription {
   torneoId: string;
   eventoId: string; // category or division
   jugadorId?: string; // for singles
-  equipoId?: string; // for doubles
+  equipoId?: string; // for doubles, refers to a Team document ID
+  jugadoresIds: string[]; // For doubles without a formal team, list of player UIDs
   fechaInscripcion: string;
   status: 'Confirmado' | 'En Espera';
   posicionInicial: number;
   posicionActual: number;
   indiceActividad: number;
   desafioPendienteId: string | null;
+}
+
+export interface Invitation {
+    id: string;
+    torneoId: string;
+    eventoId: string;
+    invitadorId: string; // player uid who sends the invitation
+    invitadoId: string; // player uid who receives the invitation
+    estado: 'pendiente' | 'aceptada' | 'rechazada';
+    fechaCreacion: string; // ISO string date
+    nombreTorneo: string; // Denormalized for easy display
+    nombreEvento: string; // Denormalized for easy display
 }

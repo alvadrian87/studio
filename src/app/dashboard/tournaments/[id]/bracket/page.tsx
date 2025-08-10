@@ -28,13 +28,25 @@ import {
   TabsList,
   TabsTrigger,
 } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { UserPlus, Loader2, Info, Swords, Settings } from "lucide-react"
+import { UserPlus, Loader2, Info, Swords, Settings, Search } from "lucide-react"
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import type { Player, Tournament, TournamentEvent, Inscription, Match } from "@/types";
+import type { Player, Tournament, TournamentEvent, Inscription, Match, Invitation } from "@/types";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 
 
 export default function BracketPage({ params }: { params: { id: string } }) {
@@ -44,8 +56,14 @@ export default function BracketPage({ params }: { params: { id: string } }) {
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
   const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
   const { data: matches, loading: loadingMatches } = useCollection<Match>(`matches`);
+  const { data: invitations, loading: loadingInvitations } = useCollection<Invitation>('invitations');
   const [events, setEvents] = useState<TournamentEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
+
+  const [isPartnerModalOpen, setIsPartnerModalOpen] = useState(false);
+  const [selectedEventForDoubles, setSelectedEventForDoubles] = useState<TournamentEvent | null>(null);
+  const [selectedPartner, setSelectedPartner] = useState<Player | null>(null);
+  const [isSendingInvite, setIsSendingInvite] = useState(false);
   
   const { user, userRole } = useAuth();
   const { toast } = useToast();
@@ -85,20 +103,27 @@ export default function BracketPage({ params }: { params: { id: string } }) {
 
   const isUserEnrolledInEvent = (eventId: string) => {
     if (!user || !inscriptions) return false;
-    return inscriptions.some(i => i.eventoId === eventId && i.jugadorId === user.uid);
+    return inscriptions.some(i => i.eventoId === eventId && (i.jugadorId === user.uid || (i.jugadoresIds && i.jugadoresIds.includes(user.uid))));
   }
 
-  const handleEnroll = async (eventId: string) => {
+  const handleEnroll = async (event: TournamentEvent) => {
     if (!user || !tournament) {
         toast({ variant: 'destructive', title: 'Error', description: 'Debes iniciar sesión para inscribirte.' });
+        return;
+    }
+
+    if (event.tipoDeJuego === 'Dobles') {
+        setSelectedEventForDoubles(event);
+        setIsPartnerModalOpen(true);
         return;
     }
     
     try {
         await addDoc(collection(db, `tournaments/${tournament.id}/inscriptions`), {
             torneoId: tournament.id,
-            eventoId: eventId,
+            eventoId: event.id,
             jugadorId: user.uid,
+            jugadoresIds: [user.uid],
             fechaInscripcion: new Date().toISOString(),
             status: 'Confirmado',
         });
@@ -110,8 +135,47 @@ export default function BracketPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const handleSendInvitation = async () => {
+    if (!user || !selectedPartner || !selectedEventForDoubles || !tournament) return;
+    setIsSendingInvite(true);
 
-  if (loadingTournament || loadingAllPlayers || loadingEvents || loadingInscriptions || loadingMatches) {
+    const existingInvitation = invitations?.find(inv => 
+      inv.eventoId === selectedEventForDoubles.id &&
+      ((inv.invitadorId === user.uid && inv.invitadoId === selectedPartner.uid) || 
+       (inv.invitadorId === selectedPartner.uid && inv.invitadoId === user.uid)) &&
+      inv.estado === 'pendiente'
+    );
+
+    if (existingInvitation) {
+        toast({ variant: "destructive", title: "Invitación ya existe", description: "Ya tienes una invitación pendiente con este jugador para este evento." });
+        setIsSendingInvite(false);
+        return;
+    }
+
+    try {
+      await addDoc(collection(db, 'invitations'), {
+        torneoId: tournament.id,
+        eventoId: selectedEventForDoubles.id,
+        invitadorId: user.uid,
+        invitadoId: selectedPartner.uid,
+        estado: 'pendiente',
+        fechaCreacion: new Date().toISOString(),
+        nombreTorneo: tournament.nombreTorneo,
+        nombreEvento: selectedEventForDoubles.nombre
+      });
+      toast({ title: '¡Invitación Enviada!', description: `Se ha enviado una invitación a ${selectedPartner.displayName}.` });
+      setIsPartnerModalOpen(false);
+      setSelectedPartner(null);
+    } catch (error) {
+      console.error("Error al enviar invitación:", error);
+      toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar la invitación.' });
+    } finally {
+      setIsSendingInvite(false);
+    }
+  }
+
+
+  if (loadingTournament || loadingAllPlayers || loadingEvents || loadingInscriptions || loadingMatches || loadingInvitations) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /> Cargando datos del torneo...</div>
   }
 
@@ -120,6 +184,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
   }
 
   const canManage = userRole === 'admin' || tournament.creatorId === user?.uid;
+  const availablePartners = allPlayers?.filter(p => p.uid !== user?.uid) || [];
 
   return (
     <>
@@ -180,7 +245,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
                                     </CardDescription>
                                 </div>
                                 {user && !enrolled && event.status !== 'En Curso' && (
-                                    <Button onClick={() => handleEnroll(event.id!)}><UserPlus className="mr-2 h-4 w-4" /> Inscribirse</Button>
+                                    <Button onClick={() => handleEnroll(event)}><UserPlus className="mr-2 h-4 w-4" /> Inscribirse</Button>
                                 )}
                                 {user && enrolled && (
                                     <Button variant="outline" disabled>Inscrito</Button>
@@ -240,7 +305,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
                                         <Table>
                                             <TableHeader>
                                                 <TableRow>
-                                                    <TableHead>Jugador</TableHead>
+                                                    <TableHead>Jugador/Pareja</TableHead>
                                                     <TableHead className="hidden md:table-cell">ELO</TableHead>
                                                     <TableHead className="hidden md:table-cell">Club</TableHead>
                                                 </TableRow>
@@ -280,8 +345,52 @@ export default function BracketPage({ params }: { params: { id: string } }) {
             })}
         </Tabs>
        )}
+       <Dialog open={isPartnerModalOpen} onOpenChange={setIsPartnerModalOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Seleccionar Compañero</DialogTitle>
+            <DialogDescription>
+              Busca y selecciona un jugador para enviarle una invitación de pareja para el evento de dobles.
+            </DialogDescription>
+          </DialogHeader>
+            <Command>
+              <CommandInput placeholder="Buscar jugador..." />
+              <CommandList>
+                <CommandEmpty>No se encontraron jugadores.</CommandEmpty>
+                <ScrollArea className="h-48">
+                <CommandGroup>
+                  {availablePartners.map((partner) => (
+                    <CommandItem
+                      key={partner.uid}
+                      value={partner.displayName}
+                      onSelect={() => {
+                        setSelectedPartner(partner);
+                      }}
+                       className={selectedPartner?.uid === partner.uid ? 'bg-accent' : ''}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-8 w-8">
+                            <AvatarImage src={partner.avatar} alt={partner.displayName}/>
+                            <AvatarFallback>{partner.firstName?.substring(0,1)}{partner.lastName?.substring(0,1)}</AvatarFallback>
+                        </Avatar>
+                        {partner.displayName}
+                      </div>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+                </ScrollArea>
+              </CommandList>
+            </Command>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setIsPartnerModalOpen(false); setSelectedPartner(null); }}>Cancelar</Button>
+            <Button onClick={handleSendInvitation} disabled={!selectedPartner || isSendingInvite}>
+              {isSendingInvite && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Enviar Invitación
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }
-
-    

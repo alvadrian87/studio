@@ -31,9 +31,9 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { BarChart, Check, Swords, Trophy, X, ShieldQuestion, Loader2 } from "lucide-react"
+import { BarChart, Check, Swords, Trophy, X, ShieldQuestion, Loader2, Users, Handshake } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth";
-import type { Player, Match, Challenge, Tournament } from "@/types";
+import type { Player, Match, Challenge, Tournament, Invitation, Inscription } from "@/types";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
 import { doc, updateDoc, addDoc, collection, writeBatch } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -45,18 +45,22 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { toast } = useToast();
   
-  // All hooks are now at the top
   const { data: player, loading: loadingPlayer } = useDocument<Player>(user ? `users/${user.uid}` : 'users/dummy');
   const { data: allMatches, loading: loadingMatches } = useCollection<Match>('matches');
   const { data: allChallenges, loading: loadingChallenges } = useCollection<Challenge>('challenges');
   const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
   const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
-  
+  const { data: allInvitations, loading: loadingInvitations } = useCollection<Invitation>('invitations');
 
   const pendingChallenges = useMemo(() => {
     if (!allChallenges || !user) return [];
     return allChallenges.filter(c => c.desafiadoId === user.uid && c.estado === 'Pendiente');
   }, [allChallenges, user]);
+
+  const pendingPartnerInvitations = useMemo(() => {
+    if (!allInvitations || !user) return [];
+    return allInvitations.filter(i => i.invitadoId === user.uid && i.estado === 'pendiente');
+  }, [allInvitations, user]);
 
   const userMatches = useMemo(() => {
     if (!allMatches || !user) return [];
@@ -85,7 +89,6 @@ export default function Dashboard() {
 
         const batch = writeBatch(db);
 
-        // Create the match
         const matchRef = doc(collection(db, "matches"));
         batch.set(matchRef, {
           player1Id: challenge.retadorId,
@@ -98,7 +101,6 @@ export default function Dashboard() {
           challengeId: challenge.id,
         });
 
-        // Update the challenge
         batch.update(challengeRef, { estado: "Aceptado" });
 
         await batch.commit();
@@ -114,8 +116,42 @@ export default function Dashboard() {
     }
   };
 
+  const handleInvitationResponse = async (invitation: Invitation, accepted: boolean) => {
+    const invitationRef = doc(db, "invitations", invitation.id);
+    try {
+        if (accepted) {
+            const batch = writeBatch(db);
+            const inscriptionCollectionRef = collection(db, `tournaments/${invitation.torneoId}/inscriptions`);
+            const newInscriptionRef = doc(inscriptionCollectionRef);
 
-  const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments;
+            const newInscription: Omit<Inscription, 'id'> = {
+                torneoId: invitation.torneoId,
+                eventoId: invitation.eventoId,
+                jugadoresIds: [invitation.invitadorId, invitation.invitadoId],
+                fechaInscripcion: new Date().toISOString(),
+                status: 'Confirmado',
+                posicionInicial: 0, // Should be calculated on the fly or by a function
+                posicionActual: 0,  // Should be calculated on the fly or by a function
+                indiceActividad: 0,
+                desafioPendienteId: null
+            };
+            batch.set(newInscriptionRef, newInscription);
+            batch.update(invitationRef, { estado: 'aceptada' });
+            await batch.commit();
+            toast({ title: "¡Invitación Aceptada!", description: `Te has inscrito en ${invitation.nombreTorneo} junto a ${allPlayers?.find(p => p.uid === invitation.invitadorId)?.displayName}`});
+        } else {
+            await updateDoc(invitationRef, { estado: 'rechazada' });
+            toast({ title: "Invitación Rechazada" });
+            // Here you could add a cloud function to notify the inviter.
+        }
+    } catch (error) {
+        console.error("Error al responder a la invitación:", error);
+        toast({ variant: "destructive", title: "Error", description: "No se pudo procesar la respuesta a la invitación." });
+    }
+  }
+
+
+  const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments || loadingInvitations;
 
 
   if (loading) {
@@ -185,7 +221,7 @@ export default function Dashboard() {
             <CardDescription>Un resumen de tus últimas partidas.</CardDescription>
           </CardHeader>
           <CardContent>
-            <Table>
+             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Oponente</TableHead>
@@ -237,35 +273,67 @@ export default function Dashboard() {
             </Table>
           </CardContent>
         </Card>
-        <Card className="lg:col-span-3">
-          <CardHeader>
-            <CardTitle>Desafíos Activos</CardTitle>
-            <CardDescription>Desafíos que esperan tu acción.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {pendingChallenges.length > 0 ? (
-              <ul className="space-y-4">
-                {pendingChallenges.map(challenge => (
-                  <li key={challenge.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                    <div>
-                      <p className="font-medium">{allPlayers?.find(p => p.uid === challenge.retadorId)?.displayName}</p>
-                      <p className="text-sm text-muted-foreground">Te ha desafiado en: <span className="font-semibold text-primary">{challenge.tournamentName}</span></p>
+        <div className="lg:col-span-3 space-y-4">
+            <Card>
+                <CardHeader>
+                    <CardTitle>Desafíos de Escalera</CardTitle>
+                    <CardDescription>Desafíos que esperan tu acción.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {pendingChallenges.length > 0 ? (
+                    <ul className="space-y-4">
+                        {pendingChallenges.map(challenge => (
+                        <li key={challenge.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                            <div>
+                            <p className="font-medium">{allPlayers?.find(p => p.uid === challenge.retadorId)?.displayName}</p>
+                            <p className="text-sm text-muted-foreground">Te ha desafiado en: <span className="font-semibold text-primary">{challenge.tournamentName}</span></p>
+                            </div>
+                            <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => handleChallengeResponse(challenge.id, false)}>Rechazar</Button>
+                            <Button size="sm" onClick={() => handleChallengeResponse(challenge.id, true)}>Aceptar</Button>
+                            </div>
+                        </li>
+                        ))}
+                    </ul>
+                    ) : (
+                    <div className="text-center py-4 text-muted-foreground flex flex-col items-center">
+                        <ShieldQuestion className="h-8 w-8 mb-2" />
+                        <p>No tienes desafíos pendientes.</p>
                     </div>
-                    <div className="flex gap-2">
-                       <Button size="sm" variant="outline" onClick={() => handleChallengeResponse(challenge.id, false)}>Rechazar</Button>
-                       <Button size="sm" onClick={() => handleChallengeResponse(challenge.id, true)}>Aceptar</Button>
+                    )}
+                </CardContent>
+            </Card>
+
+            <Card>
+                <CardHeader>
+                    <CardTitle>Invitaciones de Pareja</CardTitle>
+                    <CardDescription>Invitaciones para torneos de dobles.</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {pendingPartnerInvitations.length > 0 ? (
+                    <ul className="space-y-4">
+                        {pendingPartnerInvitations.map(invitation => (
+                        <li key={invitation.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                            <div>
+                            <p className="font-medium">{allPlayers?.find(p => p.uid === invitation.invitadorId)?.displayName}</p>
+                            <p className="text-sm text-muted-foreground">Torneo: <span className="font-semibold text-primary">{invitation.nombreTorneo}</span></p>
+                            </div>
+                            <div className="flex gap-2">
+                            <Button size="sm" variant="outline" onClick={() => handleInvitationResponse(invitation, false)}>Rechazar</Button>
+                            <Button size="sm" onClick={() => handleInvitationResponse(invitation, true)}>Aceptar</Button>
+                            </div>
+                        </li>
+                        ))}
+                    </ul>
+                    ) : (
+                    <div className="text-center py-4 text-muted-foreground flex flex-col items-center">
+                        <Handshake className="h-8 w-8 mb-2" />
+                        <p>No tienes invitaciones pendientes.</p>
                     </div>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <div className="text-center py-8 text-muted-foreground flex flex-col items-center">
-                <ShieldQuestion className="h-10 w-10 mb-2" />
-                <p>No tienes desafíos pendientes.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
       </div>
     </>
   )
