@@ -224,7 +224,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const tournamentMatches = matches?.filter(m => m.tournamentId === resolvedParams.id) || [];
   const canManage = userRole === 'admin' || tournament?.creatorId === user?.uid;
   const loading = loadingTournament || loadingAllPlayers || loadingMatches;
-  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (scoreError && !isRetirement);
+  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement);
 
   if (loading) {
     return <div className="flex items-center justify-center h-full"><Loader2 className="h-8 w-8 animate-spin" /> Cargando...</div>

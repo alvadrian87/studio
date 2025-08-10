@@ -345,7 +345,7 @@ export default function Dashboard() {
       return;
     }
     
-    if (scoreError) {
+    if (scoreError && !isRetirement) {
         toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError });
         return;
     }
@@ -382,7 +382,7 @@ export default function Dashboard() {
   };
 
   const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments;
-  const isSaveButtonDisabled = isSubmittingResult || !winnerId || !!scoreError;
+  const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement);
 
 
   if (loading) {
