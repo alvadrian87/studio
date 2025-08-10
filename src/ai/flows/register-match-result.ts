@@ -1,8 +1,7 @@
+'use server';
 
 // IMPORTANT: force Node.js runtime (Admin SDK no funciona en Edge)
-export const runtime = 'nodejs';
-
-'use server';
+// export const runtime = 'nodejs'; // This export is not allowed in a 'use server' file.
 
 import { ai } from '@/ai/genkit';
 import { z } from 'zod';
