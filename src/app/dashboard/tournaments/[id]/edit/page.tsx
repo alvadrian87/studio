@@ -67,10 +67,16 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
     if (!inscriptions) return [];
     return inscriptions
       .filter(i => i.eventoId === eventId)
-      .map(i => ({
-        ...i,
-        playerDetails: getPlayerDetails(i.jugadorId!)
-      }));
+      .map(i => {
+         const playerIds = Array.isArray(i.jugadoresIds) ? i.jugadoresIds : (i.jugadorId ? [i.jugadorId] : []);
+         const players = playerIds.map(getPlayerDetails).filter(Boolean) as Player[];
+         const displayName = players.map(p => p.displayName).join(' / ');
+        return {
+            ...i,
+            playerDetails: players.length === 1 ? players[0] : null,
+            displayName: displayName
+        }
+      });
   }
 
   const handleGenerateBracket = async (event: TournamentEvent) => {
@@ -91,13 +97,14 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
     const matches: Partial<Match>[] = [];
 
     let hasBye = false;
-    let byePlayer: Inscription | undefined;
+    let byePlayer: (typeof participants)[0] | undefined;
+
 
     if (shuffledParticipants.length % 2 !== 0) {
       hasBye = true;
       byePlayer = shuffledParticipants.pop(); 
       // In a real scenario, the highest seed gets the bye. For now, it's random.
-       toast({ title: `Sorteo con Bye`, description: `El jugador ${byePlayer?.playerDetails?.displayName} pasa a la siguiente ronda.` });
+       toast({ title: `Sorteo con Bye`, description: `El jugador ${byePlayer?.displayName} pasa a la siguiente ronda.` });
     }
 
     for (let i = 0; i < shuffledParticipants.length; i += 2) {
@@ -106,13 +113,16 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
 
         const newMatch: Omit<Match, 'id'> = {
             tournamentId: tournament.id,
-            player1Id: player1.jugadorId!,
-            player2Id: player2.jugadorId!,
+            eventoId: event.id,
+            roundNumber: 1,
+            player1Id: player1.id,
+            player2Id: player2.id,
+            jugadoresIds: [...(player1.jugadoresIds || []), ...(player2.jugadoresIds || [])],
             winnerId: null,
             status: 'Pendiente',
             date: format(new Date(), "yyyy-MM-dd HH:mm"),
             score: null,
-            // Add round information if needed in the future
+            challengeId: '',
         };
         const matchRef = doc(collection(db, "matches"));
         batch.set(matchRef, newMatch);
@@ -191,7 +201,7 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
             </Card>
             <div className="lg:col-span-2 space-y-6">
                 {events.length > 0 ? (
-                    <Tabs defaultValue={events[0].id}>
+                    <Tabs defaultValue={events.length > 0 ? events[0].id : ''}>
                         <TabsList>
                             {events.map((event) => (
                                 <TabsTrigger key={event.id} value={event.id!}>{event.nombre}</TabsTrigger>
@@ -230,21 +240,24 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
                                                 </TableHeader>
                                                 <TableBody>
                                                     {eventParticipants.length > 0 ? (
-                                                        eventParticipants.map(inscription => (
+                                                        eventParticipants.map(inscription => {
+                                                            const player = inscription.playerDetails;
+                                                            return (
                                                             <TableRow key={inscription.id}>
                                                                 <TableCell>
                                                                     <div className="flex items-center gap-3">
                                                                         <Avatar className="w-8 h-8">
-                                                                            <AvatarImage src={inscription.playerDetails?.avatar} alt={inscription.playerDetails?.displayName} />
-                                                                            <AvatarFallback>{inscription.playerDetails?.firstName?.substring(0,1)}{inscription.playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
+                                                                            <AvatarImage src={player?.avatar} alt={inscription?.displayName} />
+                                                                            <AvatarFallback>{player?.firstName?.substring(0,1)}{player?.lastName?.substring(0,1)}</AvatarFallback>
                                                                         </Avatar>
-                                                                        <span className="font-medium">{inscription.playerDetails?.displayName || 'Desconocido'}</span>
+                                                                        <span className="font-medium">{inscription.displayName || 'Desconocido'}</span>
                                                                     </div>
                                                                 </TableCell>
-                                                                <TableCell>{inscription.playerDetails?.rankPoints}</TableCell>
+                                                                <TableCell>{player?.rankPoints}</TableCell>
                                                                 <TableCell className="hidden md:table-cell">{new Date(inscription.fechaInscripcion).toLocaleDateString()}</TableCell>
                                                             </TableRow>
-                                                        ))
+                                                            )
+                                                        })
                                                     ) : (
                                                         <TableRow>
                                                             <TableCell colSpan={3} className="text-center h-24">

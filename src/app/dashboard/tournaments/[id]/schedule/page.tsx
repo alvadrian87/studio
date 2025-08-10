@@ -2,8 +2,9 @@
 "use client";
 
 import { use, useEffect, useState, useCallback, useMemo } from "react";
-import type { Player, Tournament, Match, Inscription } from "@/types";
+import type { Player, Tournament, Match, Inscription, TournamentEvent } from "@/types";
 import { useDocument, useCollection } from "@/hooks/use-firestore";
+import { collection, query, where, getDocs } from "firebase/firestore";
 import {
   Card,
   CardContent,
@@ -26,7 +27,7 @@ import { Loader2, Swords } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/use-auth";
 import { useRouter } from "next/navigation";
-import { auth } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 
 // Re-using the result dialog logic
 import {
@@ -65,6 +66,9 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
   const { data: matches, loading: loadingMatches } = useCollection<Match>('matches');
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
+  
+  const [events, setEvents] = useState<TournamentEvent[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
 
 
   useEffect(() => {
@@ -75,6 +79,20 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     }
   }, [tournament, userRole, user, loadingTournament, router]);
   
+  useEffect(() => {
+    if (tournament) {
+      const fetchEvents = async () => {
+        setLoadingEvents(true);
+        const eventsQuery = query(collection(db, "eventos"), where("torneoId", "==", tournament.id));
+        const eventsSnapshot = await getDocs(eventsQuery);
+        const tournamentEvents = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as TournamentEvent));
+        setEvents(tournamentEvents);
+        setLoadingEvents(false);
+      };
+      fetchEvents();
+    }
+  }, [tournament]);
+
   const getInscriptionById = useCallback((id: string | undefined) => {
     if (!id || !inscriptions) return null;
     return inscriptions.find(i => i.id === id);
@@ -252,7 +270,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   
   const tournamentMatches = matches?.filter(m => m.tournamentId === resolvedParams.id) || [];
   const canManage = userRole === 'admin' || tournament?.creatorId === user?.uid;
-  const loading = loadingTournament || loadingAllPlayers || loadingMatches || loadingInscriptions;
+  const loading = loadingTournament || loadingAllPlayers || loadingMatches || loadingInscriptions || loadingEvents;
   const isSaveButtonDisabled = isSubmittingResult || !winnerId || (!!scoreError && !isRetirement);
 
   if (loading) {
@@ -263,7 +281,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   }
 
   return (
-    <>
+    <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Partidos del Torneo</CardTitle>
@@ -272,64 +290,80 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Jugador(es) 1</TableHead>
-                <TableHead className="w-[50px] text-center"></TableHead>
-                <TableHead>Jugador(es) 2</TableHead>
-                <TableHead className="hidden md:table-cell">Estado</TableHead>
-                <TableHead className="text-right">Acción / Resultado</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tournamentMatches.length > 0 ? tournamentMatches.map(match => {
-                const p1Inscription = getInscriptionById(match.player1Id);
-                const p2Inscription = getInscriptionById(match.player2Id);
-                const winnerInscription = getInscriptionById(match.winnerId || undefined);
+          {events.length > 0 ? (
+            events.map(event => {
+              const eventMatches = tournamentMatches.filter(m => m.eventoId === event.id);
+              if (eventMatches.length === 0) return null;
 
-                const p1Avatar = getAvatarInfo(p1Inscription);
-                const p2Avatar = getAvatarInfo(p2Inscription);
-                
-                return (
-                  <TableRow key={match.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8"><AvatarImage src={p1Avatar?.src} /><AvatarFallback>{p1Avatar?.fallback}</AvatarFallback></Avatar>
-                        {getDisplayName(p1Inscription)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center font-bold"><Swords className="h-5 w-5 mx-auto text-muted-foreground" /></TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-3">
-                         <Avatar className="w-8 h-8"><AvatarImage src={p2Avatar?.src} /><AvatarFallback>{p2Avatar?.fallback}</AvatarFallback></Avatar>
-                        {getDisplayName(p2Inscription)}
-                      </div>
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell"><Badge variant={match.status === 'Completado' ? 'secondary' : 'default'}>{match.status}</Badge></TableCell>
-                    <TableCell className="text-right">
-                      {match.status === 'Pendiente' ? (
-                        <Button variant="outline" size="sm" onClick={() => handleOpenResultDialog(match)}>Cargar Resultado</Button>
-                      ) : (
-                         <div className="flex flex-col items-end">
-                             <span className={`font-bold`}>
-                                {getDisplayName(winnerInscription)}
-                             </span>
-                             {match.score && <span className="text-xs text-muted-foreground">{match.score}</span>}
-                         </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                )
-              }) : (
-                <TableRow>
-                  <TableCell colSpan={5} className="h-24 text-center">
-                    No hay partidos generados para este torneo aún.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              return (
+                <div key={event.id} className="mb-8">
+                  <h3 className="text-xl font-semibold mb-4 border-b pb-2">{event.nombre}</h3>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Jugador(es) 1</TableHead>
+                        <TableHead className="w-[50px] text-center"></TableHead>
+                        <TableHead>Jugador(es) 2</TableHead>
+                        <TableHead className="hidden md:table-cell">Estado</TableHead>
+                        <TableHead className="text-right">Acción / Resultado</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {eventMatches.map(match => {
+                        const p1Inscription = getInscriptionById(match.player1Id);
+                        const p2Inscription = getInscriptionById(match.player2Id);
+                        const winnerInscription = getInscriptionById(match.winnerId || undefined);
+
+                        const p1Avatar = getAvatarInfo(p1Inscription);
+                        const p2Avatar = getAvatarInfo(p2Inscription);
+                        
+                        return (
+                          <TableRow key={match.id}>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8"><AvatarImage src={p1Avatar?.src} /><AvatarFallback>{p1Avatar?.fallback}</AvatarFallback></Avatar>
+                                {getDisplayName(p1Inscription)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-center font-bold"><Swords className="h-5 w-5 mx-auto text-muted-foreground" /></TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8"><AvatarImage src={p2Avatar?.src} /><AvatarFallback>{p2Avatar?.fallback}</AvatarFallback></Avatar>
+                                {getDisplayName(p2Inscription)}
+                              </div>
+                            </TableCell>
+                            <TableCell className="hidden md:table-cell"><Badge variant={match.status === 'Completado' ? 'secondary' : 'default'}>{match.status}</Badge></TableCell>
+                            <TableCell className="text-right">
+                              {match.status === 'Pendiente' ? (
+                                <Button variant="outline" size="sm" onClick={() => handleOpenResultDialog(match)}>Cargar Resultado</Button>
+                              ) : (
+                                <div className="flex flex-col items-end">
+                                    <span className={`font-bold`}>
+                                        {getDisplayName(winnerInscription)}
+                                    </span>
+                                    {match.score && <span className="text-xs text-muted-foreground">{match.score}</span>}
+                                </div>
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+              );
+            })
+          ) : (
+             <Table>
+                <TableBody>
+                    <TableRow>
+                        <TableCell colSpan={5} className="h-24 text-center">
+                            No hay partidos generados para este torneo aún.
+                        </TableCell>
+                    </TableRow>
+                </TableBody>
+             </Table>
+          )}
         </CardContent>
       </Card>
       
@@ -384,7 +418,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </>
+    </div>
   )
 }
 
