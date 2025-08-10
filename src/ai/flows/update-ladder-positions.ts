@@ -1,4 +1,7 @@
 
+// IMPORTANT: force Node.js runtime (Admin SDK no funciona en Edge)
+export const runtime = 'nodejs';
+
 'use server';
 
 import { ai } from '@/ai/genkit';
