@@ -53,7 +53,7 @@ export default function Dashboard() {
   const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
   const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
   const { data: allInvitations, loading: loadingInvitations } = useCollection<Invitation>('invitations');
-  const { data: allInscriptions, loading: loadingInscriptions } = useCollection<Inscription>('inscriptions');
+  const { data: allInscriptions, loading: loadingInscriptions } = useCollection<Inscription>('inscriptions', true);
 
 
   const pendingChallenges = useMemo(() => {
@@ -84,7 +84,7 @@ export default function Dashboard() {
 
   const userMatches = useMemo(() => {
     if (!allMatches || !user) return [];
-    return allMatches.filter(m => m.jugadoresIds.includes(user.uid))
+    return allMatches.filter(m => Array.isArray(m.jugadoresIds) && m.jugadoresIds.includes(user.uid))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allMatches, user]);
   
@@ -124,21 +124,13 @@ export default function Dashboard() {
         const challenge = allChallenges?.find(c => c.id === challengeId);
         if (!challenge) throw new Error("Desafío no encontrado");
 
-        const retadorInscriptionRef = doc(db, `tournaments/${challenge.torneoId}/inscriptions/${challenge.retadorId}`);
-        const desafiadoInscriptionRef = doc(db, `tournaments/${challenge.torneoId}/inscriptions/${challenge.desafiadoId}`);
+        const retadorInscription = getInscriptionById(challenge.retadorId);
+        const desafiadoInscription = getInscriptionById(challenge.desafiadoId);
 
-        const [retadorInscriptionSnap, desafiadoInscriptionSnap] = await Promise.all([
-          getDoc(retadorInscriptionRef),
-          getDoc(desafiadoInscriptionSnap)
-        ]);
-
-        if (!retadorInscriptionSnap.exists() || !desafiadoInscriptionSnap.exists()) {
+        if (!retadorInscription || !desafiadoInscription) {
           throw new Error("No se pudieron encontrar las inscripciones de los jugadores.");
         }
-
-        const retadorInscription = retadorInscriptionSnap.data() as Inscription;
-        const desafiadoInscription = desafiadoInscriptionSnap.data() as Inscription;
-
+        
         const batch = writeBatch(db);
 
         const matchRef = doc(collection(db, "matches"));
@@ -174,6 +166,10 @@ export default function Dashboard() {
     try {
         if (accepted) {
             const batch = writeBatch(db);
+            
+            const eventInscriptions = allInscriptions?.filter(i => i.eventoId === invitation.eventoId) || [];
+            const newPosition = eventInscriptions.length + 1;
+
             const inscriptionCollectionRef = collection(db, `tournaments/${invitation.torneoId}/inscriptions`);
             const newInscriptionRef = doc(inscriptionCollectionRef);
 
@@ -183,8 +179,8 @@ export default function Dashboard() {
                 jugadoresIds: [invitation.invitadorId, invitation.invitadoId],
                 fechaInscripcion: new Date().toISOString(),
                 status: 'Confirmado',
-                posicionInicial: 0, // Should be calculated on the fly or by a function
-                posicionActual: 0,  // Should be calculated on the fly or by a function
+                posicionInicial: newPosition,
+                posicionActual: newPosition,
                 indiceActividad: 0,
                 desafioPendienteId: null
             };
@@ -192,7 +188,7 @@ export default function Dashboard() {
             batch.update(invitationRef, { estado: 'aceptada' });
             await batch.commit();
             toast({ title: "¡Invitación Aceptada!", description: `Te has inscrito en ${invitation.nombreTorneo} junto a ${allPlayers?.find(p => p.uid === invitation.invitadorId)?.displayName}`});
-            router.push(`/dashboard/tournaments/${invitation.torneoId}/bracket`);
+            router.push(`/dashboard/tournaments/${invitation.torneoId}/ladder`);
         } else {
             await updateDoc(invitationRef, { estado: 'rechazada' });
             toast({ title: "Invitación Rechazada" });
@@ -397,3 +393,5 @@ export default function Dashboard() {
     </>
   )
 }
+
+    
