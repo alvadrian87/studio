@@ -190,7 +190,7 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   
   const handleSaveResult = async () => {
     if (!selectedMatch || !winnerId) { toast({ variant: "destructive", title: "Error", description: "Debes seleccionar un ganador o el marcador está incompleto/inválido." }); return; }
-    if (!user) { toast({ variant: "destructive", title: "Error de autenticación" }); return; }
+    if (!user) { toast({ variant: "destructive", title: "Error de autenticación", description: "Debes estar conectado para guardar resultados." }); return; }
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) { toast({ variant: "destructive", title: "Error", description: "No se pudieron cargar los jugadores." }); return; }
     if (scoreError && !isRetirement) { toast({ variant: "destructive", title: "Marcador Inválido", description: scoreError }); return; }

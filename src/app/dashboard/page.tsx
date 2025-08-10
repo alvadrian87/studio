@@ -101,9 +101,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (!isResultDialogOpen) return;
 
-    // This logic now only validates scores and automatically determines the winner.
-    // The manual "retirement" logic has been removed.
-
     const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
     if (!p1 || !p2) return;
     
@@ -321,7 +318,6 @@ export default function Dashboard() {
       .filter(setStr => setStr !== "-" && setStr !== "0-0" && setStr !== "" && !setStr.startsWith('-') && !setStr.endsWith('-') )
       .join(', ');
     
-    // The retirement logic has been removed from here as it's no longer a state
     return scoreStr;
   };
 
@@ -361,7 +357,7 @@ export default function Dashboard() {
         matchId: selectedMatch.id,
         winnerId: winnerId,
         score: finalScore,
-        isRetirement: isRetirement // This is now always false as we removed the logic
+        isRetirement: isRetirement
     };
 
     console.log('[FRONTEND] Calling registerMatchResult with payload:', payload);
