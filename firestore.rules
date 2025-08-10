@@ -2,52 +2,61 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-  
-    // Helper function to check for admin role
-    function isAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+    // Regla general de seguridad: denegar todo por defecto
+    match /{document=**} {
+      allow read, write: if false;
     }
 
-    // Rules for the 'users' collection
+    // Los usuarios pueden leer perfiles de otros, pero solo escribir en el suyo
     match /users/{userId} {
-      allow create; // Allow anyone to create a user account (signup)
-      allow read: if request.auth != null; // Allow any authenticated user to read public profile data
-      
-      // Allow a user to update their own document, or an admin to update any user document.
-      // Additionally, allow any authenticated user to update only the specific statistic fields.
-      allow update: if request.auth.uid == userId || isAdmin() || 
-                      (request.auth != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['globalWins', 'globalLosses', 'rankPoints']));
-                      
-      allow delete: if isAdmin(); // Only admins can delete users
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && request.auth.uid == userId;
     }
     
-    // Rules for the 'tournaments' collection
+    // Cualquiera autenticado puede leer torneos, eventos, partidos e inscripciones
     match /tournaments/{tournamentId} {
       allow read: if request.auth != null;
-      allow create, update, delete: if isAdmin(); // Only admins can manage tournaments
-      
-       // Rules for any subcollection within a tournament (like 'inscriptions')
-      match /{allPaths=**} {
-        allow read, write: if request.auth != null;
-      }
+      // Solo el creador o un admin puede escribir/borrar (simplificado, se puede usar un campo 'admins' o roles)
+      allow write, delete: if request.auth != null && (resource.data.creatorId == request.auth.uid || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin');
     }
 
-    // Rules for the 'eventos' collection (categories/divisions)
     match /eventos/{eventId} {
        allow read: if request.auth != null;
-       allow create, update, delete: if isAdmin(); // Only admins can manage events
+       allow write, delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
-    
-    // Rules for the 'challenges' collection
-    match /challenges/{challengeId} {
-      allow read, create, update: if request.auth != null;
-      allow delete: if isAdmin();
+
+    match /tournaments/{tournamentId}/inscriptions/{inscriptionId} {
+       allow read: if request.auth != null;
+       // La escritura se maneja a través de lógica del servidor/backend
+       allow write: if request.auth != null;
     }
-    
-    // Rules for the 'matches' collection
+
     match /matches/{matchId} {
-      allow read, create, update: if request.auth != null;
-      allow delete: if isAdmin();
+        allow read: if request.auth != null;
+        // Solo admins/lógica de servidor pueden actualizar partidos
+        allow write: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Reglas para Desafíos
+    match /challenges/{challengeId} {
+      allow read: if request.auth != null;
+      // Cualquiera autenticado puede crear un desafío (la lógica de negocio se valida en el cliente/servidor)
+      allow create: if request.auth != null;
+      // Solo el desafiado puede actualizar (aceptar/rechazar)
+      allow update: if request.auth != null && request.auth.uid == resource.data.desafiadoId;
+    }
+
+    // Reglas para Invitaciones de Dobles
+    match /invitations/{invitationId} {
+      // Leer si eres el que invita o el invitado
+      allow read: if request.auth != null && (request.auth.uid == resource.data.invitadorId || request.auth.uid == resource.data.invitadoId);
+      
+      // Crear si eres el que invita y el estado es 'pendiente'
+      allow create: if request.auth != null && request.auth.uid == request.resource.data.invitadorId && request.resource.data.estado == 'pendiente';
+      
+      // Actualizar si eres el invitado y solo cambias el estado
+      allow update: if request.auth != null && request.auth.uid == resource.data.invitadoId && request.resource.data.keys().hasOnly(['estado']);
     }
   }
 }

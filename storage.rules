@@ -1,0 +1,14 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Las imágenes de avatar pueden ser leídas por cualquiera
+    // Solo el usuario autenticado puede escribir en su propia carpeta de avatar
+    match /avatars/{userId}/{allPaths=**} {
+      allow read;
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Otras rutas pueden necesitar sus propias reglas
+  }
+}
