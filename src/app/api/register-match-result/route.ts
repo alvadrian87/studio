@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authAdmin, db } from "@/lib/firebase-admin";
 import type { Match, Player, Inscription, Tournament, Challenge } from "@/types";
 import { updateLadderPositions } from "@/ai/flows/update-ladder-positions";
+import admin from 'firebase-admin'; // Importar el admin SDK
 
 // Constantes para el cálculo de ELO
 const K_FACTOR_DEFAULT = 32;
@@ -123,12 +124,16 @@ export async function POST(request: Request) {
 
             // Solo intercambiar si el ganador fue el retador
             if (challenge.retadorId === winnerInscriptionId) {
-                await updateLadderPositions({
+                const flowResult = await updateLadderPositions({
                     tournamentId: match.tournamentId,
                     eventId: challenge.eventoId,
                     winnerId: winnerInscriptionId,
                     loserId: loserInscriptionId,
                 });
+                if (!flowResult.success) {
+                  // Log the error from the flow but don't block the main process
+                  console.error("Flow Error: ", flowResult.message)
+                }
             }
         }
         
