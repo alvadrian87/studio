@@ -64,6 +64,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
   const [selectedEventForDoubles, setSelectedEventForDoubles] = useState<TournamentEvent | null>(null);
   const [selectedPartner, setSelectedPartner] = useState<Player | null>(null);
   const [isSendingInvite, setIsSendingInvite] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   
   const { user, userRole } = useAuth();
   const { toast } = useToast();
@@ -184,7 +185,17 @@ export default function BracketPage({ params }: { params: { id: string } }) {
   }
 
   const canManage = userRole === 'admin' || tournament.creatorId === user?.uid;
-  const availablePartners = allPlayers?.filter(p => p.uid !== user?.uid) || [];
+  
+  const filteredPartners = useMemo(() => {
+    if (!allPlayers || searchQuery.length < 3) {
+      return [];
+    }
+    return allPlayers.filter(p =>
+      p.uid !== user?.uid &&
+      p.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [allPlayers, searchQuery, user]);
+
 
   return (
     <>
@@ -354,12 +365,16 @@ export default function BracketPage({ params }: { params: { id: string } }) {
             </DialogDescription>
           </DialogHeader>
             <Command>
-              <CommandInput placeholder="Buscar jugador..." />
+              <CommandInput 
+                placeholder="Buscar jugador (mín. 3 letras)..." 
+                value={searchQuery}
+                onValueChange={setSearchQuery}
+              />
               <CommandList>
-                <CommandEmpty>No se encontraron jugadores.</CommandEmpty>
+                <CommandEmpty>{searchQuery.length < 3 ? "Escribe al menos 3 letras para buscar." : "No se encontraron jugadores."}</CommandEmpty>
                 <ScrollArea className="h-48">
                 <CommandGroup>
-                  {availablePartners.map((partner) => (
+                  {filteredPartners.map((partner) => (
                     <CommandItem
                       key={partner.uid}
                       value={partner.displayName}
