@@ -55,9 +55,9 @@ export const registerMatchResult = ai.defineFlow(
 
       const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
       
-      console.log(`[DEBUG] Looking for winner: ${winnerId}`);
+      console.log(`[DEBUG] Looking for winner: ${winnerId} in 'users' collection`);
       const winnerRef = db.collection("users").doc(winnerId);
-      console.log(`[DEBUG] Looking for loser: ${loserId}`);
+      console.log(`[DEBUG] Looking for loser: ${loserId} in 'users' collection`);
       const loserRef = db.collection("users").doc(loserId);
       console.log(`[DEBUG] Looking for tournament: ${matchData.tournamentId}`);
       const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
