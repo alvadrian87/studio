@@ -41,6 +41,7 @@ export const registerMatchResult = ai.defineFlow(
     
     try {
       // 1. VALIDATE DOCUMENTS EXISTENCE BEFORE THE TRANSACTION
+      console.log(`[DEBUG] Looking for match: ${matchId}`);
       const matchRef = db.collection("matches").doc(matchId);
       const matchDoc = await matchRef.get();
       if (!matchDoc.exists) {
@@ -53,11 +54,14 @@ export const registerMatchResult = ai.defineFlow(
       }
 
       const loserId = matchData.player1Id === winnerId ? matchData.player2Id : matchData.player1Id;
+      
+      console.log(`[DEBUG] Looking for winner: ${winnerId}`);
       const winnerRef = db.collection("users").doc(winnerId);
+      console.log(`[DEBUG] Looking for loser: ${loserId}`);
       const loserRef = db.collection("users").doc(loserId);
+      console.log(`[DEBUG] Looking for tournament: ${matchData.tournamentId}`);
       const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
 
-      console.log('[DEBUG] Pre-fetching documents for validation...');
       const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
           winnerRef.get(),
           loserRef.get(),
@@ -68,7 +72,7 @@ export const registerMatchResult = ai.defineFlow(
       if (!loserDoc.exists) throw new Error(`Jugador perdedor con ID ${loserId} no encontrado.`);
       if (!tournamentDoc.exists()) throw new Error(`Torneo con ID ${matchData.tournamentId} no encontrado.`);
       
-      console.log('[DEBUG] All documents exist. Proceeding to transaction.');
+      console.log('[DEBUG] All primary documents exist. Proceeding to transaction.');
 
       const winnerData = winnerDoc.data() as Player;
       const loserData = loserDoc.data() as Player;
@@ -108,9 +112,10 @@ export const registerMatchResult = ai.defineFlow(
       
       // B) Update ladder positions if it's a ladder tournament and the challenger won
       if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
-         console.log('[POST_TRANSACTION] Handling ladder logic...');
+         console.log(`[POST_TRANSACTION] Handling ladder logic for challenge: ${matchData.challengeId}`);
          const challengeRef = db.collection('challenges').doc(matchData.challengeId);
          const challengeDoc = await challengeRef.get();
+
          if(challengeDoc.exists) {
             const challengeData = challengeDoc.data() as Challenge;
             
@@ -130,6 +135,8 @@ export const registerMatchResult = ai.defineFlow(
             }
             // Update challenge status to 'Jugado' after the match is completed
             postTransactionPromises.push(challengeRef.update({ estado: 'Jugado' }).then(() => console.log('[POST_TRANSACTION] Challenge status updated to Jugado.')));
+         } else {
+            console.warn(`[POST_TRANSACTION_WARNING] Challenge document with ID ${matchData.challengeId} not found, but match was completed.`);
          }
       }
 
