@@ -90,26 +90,27 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
       return;
     }
 
+    // TODO: Implement seeding based on ELO
     const shuffledParticipants = participants.sort(() => 0.5 - Math.random());
     
     const batch = writeBatch(db);
     const totalPlayers = shuffledParticipants.length;
     const nextPowerOfTwo = Math.pow(2, Math.ceil(Math.log2(totalPlayers)));
     const byes = nextPowerOfTwo - totalPlayers;
-    const firstRoundMatches = (totalPlayers - byes) / 2;
+    const firstRoundMatchesCount = (totalPlayers - byes) / 2;
 
     const playersWithBye = shuffledParticipants.slice(0, byes);
     const playersInFirstRound = shuffledParticipants.slice(byes);
 
-    // Create matches for players with byes (they auto-win round 1)
+    // Create matches for players with byes (they auto-win round 1 and advance to round 2)
     playersWithBye.forEach(participant => {
         const newMatch: Omit<Match, 'id'> = {
             tournamentId: tournament.id,
-            eventoId: event.id!,
+            eventoId: event.id,
             roundNumber: 1,
             player1Id: participant.id,
             player2Id: null, // No opponent
-            jugadoresIds: participant.jugadoresIds || [],
+            jugadoresIds: participant.jugadoresIds,
             winnerId: participant.id, // Auto-win
             status: 'Completado',
             date: format(new Date(), "yyyy-MM-dd HH:mm"),
@@ -122,13 +123,13 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
     });
 
     // Create matches for the first round
-    for (let i = 0; i < firstRoundMatches; i++) {
+    for (let i = 0; i < firstRoundMatchesCount; i++) {
         const player1 = playersInFirstRound[i * 2];
         const player2 = playersInFirstRound[i * 2 + 1];
 
         const newMatch: Omit<Match, 'id'> = {
             tournamentId: tournament.id,
-            eventoId: event.id!,
+            eventoId: event.id,
             roundNumber: 1,
             player1Id: player1.id,
             player2Id: player2.id,
@@ -138,6 +139,7 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
             date: format(new Date(), "yyyy-MM-dd HH:mm"),
             score: null,
             challengeId: '',
+            isBye: false,
         };
         const matchRef = doc(collection(db, "matches"));
         batch.set(matchRef, newMatch);
