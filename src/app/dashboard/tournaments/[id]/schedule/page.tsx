@@ -64,18 +64,9 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
   const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
   const { data: matches, loading: loadingMatches } = useCollection<Match>('matches');
+  const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
 
-  const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
-  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
-  const [winnerId, setWinnerId] = useState<string | null>(null); // This will be inscription ID
-  const [isSubmittingResult, setIsSubmittingResult] = useState(false);
-  const [scores, setScores] = useState([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
-  const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
-  const [isThirdSetDisabled, setIsThirdSetDisabled] = useState(true);
-  const [scoreError, setScoreError] = useState<string | null>(null);
-  const [scoreInputErrors, setScoreInputErrors] = useState<boolean[][]>([ [false, false], [false, false], [false, false] ]);
-  const [isRetirement, setIsRetirement] = useState(false);
-  
+
   useEffect(() => {
     if (!loadingTournament && tournament) {
         if (userRole && userRole !== 'admin' && tournament.creatorId !== user?.uid) {
@@ -89,44 +80,51 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     return inscriptions.find(i => i.id === id);
   }, [inscriptions]);
   
-  const getPlayersFromInscription = (inscription: Inscription | null) => {
+  const getPlayersFromInscription = useCallback((inscription: Inscription | null) => {
     if (!inscription || !allPlayers) return [];
     return (inscription.jugadoresIds || []).map(playerId => allPlayers.find(p => p.uid === playerId)).filter(Boolean) as Player[];
-  }
+  }, [allPlayers]);
 
-  const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
 
-  const getPlayersForMatch = useCallback((match: Match | null) => {
-      if (!match || !inscriptions) return { player1: null, player2: null };
-      const inscription1 = getInscriptionById(match.player1Id);
-      const inscription2 = getInscriptionById(match.player2Id);
-      return { player1: inscription1, player2: inscription2 };
-  }, [inscriptions, getInscriptionById]);
-  
-  const getDisplayName = (inscription: Inscription | null) => {
+  const getDisplayName = useCallback((inscription: Inscription | null) => {
       if (!inscription) return 'Desconocido';
       const players = getPlayersFromInscription(inscription);
+      if (players.length === 0) return 'Jugadores no encontrados';
       return players.map(p => p.displayName).join(' / ');
-  }
+  }, [getPlayersFromInscription]);
 
-  const getAvatarInfo = (inscription: Inscription | null) => {
+
+  const getAvatarInfo = useCallback((inscription: Inscription | null) => {
       if (!inscription) return { src: undefined, fallback: '?' };
       const players = getPlayersFromInscription(inscription);
+      if (players.length === 0) return { src: undefined, fallback: '?' };
       if (players.length === 1) {
           return { src: players[0].avatar, fallback: `${players[0].firstName?.substring(0,1)}${players[0].lastName?.substring(0,1)}`};
       }
       return { src: undefined, fallback: players.map(p => p.firstName?.substring(0,1)).join('')};
-  }
+  }, [getPlayersFromInscription]);
+
+
+  const [isResultDialogOpen, setIsResultDialogOpen] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
+  const [winnerId, setWinnerId] = useState<string | null>(null); // This will be inscription ID
+  const [isSubmittingResult, setIsSubmittingResult] = useState(false);
+  const [scores, setScores] = useState([ { p1: '', p2: '' }, { p1: '', p2: '' }, { p1: '', p2: '' } ]);
+  const [isWinnerRadioDisabled, setIsWinnerRadioDisabled] = useState(false);
+  const [isThirdSetDisabled, setIsThirdSetDisabled] = useState(true);
+  const [scoreError, setScoreError] = useState<string | null>(null);
+  const [scoreInputErrors, setScoreInputErrors] = useState<boolean[][]>([ [false, false], [false, false], [false, false] ]);
+  const [isRetirement, setIsRetirement] = useState(false);
   
-  const { player1: p1InSelectedMatch, player2: p2InSelectedMatch } = getPlayersForMatch(selectedMatch);
+  const p1InSelectedMatch = useMemo(() => getInscriptionById(selectedMatch?.player1Id), [selectedMatch, getInscriptionById]);
+  const p2InSelectedMatch = useMemo(() => getInscriptionById(selectedMatch?.player2Id), [selectedMatch, getInscriptionById]);
 
 
   // Score validation logic (re-used from dashboard)
    useEffect(() => {
     if (!isResultDialogOpen) return;
 
-    const { player1: p1, player2: p2 } = getPlayersForMatch(selectedMatch);
-    if (!p1 || !p2) return;
+    if (!p1InSelectedMatch || !p2InSelectedMatch) return;
     
     const isSuperTiebreakFormat = tournament?.formatoScore === '2 Sets + Super Tiebreak';
     let p1SetsWon = 0, p2SetsWon = 0; let localError: string | null = null;
@@ -182,10 +180,10 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     }
     setScoreError(localError); setScoreInputErrors(newScoreInputErrors);
     if (!localError && (p1SetsWon >= 2 || p2SetsWon >= 2)) {
-        if (p1SetsWon >= 2) setWinnerId(p1.id); else if (p2SetsWon >= 2) setWinnerId(p2.id);
+        if (p1SetsWon >= 2) setWinnerId(p1InSelectedMatch.id); else if (p2SetsWon >= 2) setWinnerId(p2InSelectedMatch.id);
         setIsWinnerRadioDisabled(true);
     } else { setWinnerId(null); setIsWinnerRadioDisabled(false); }
-  }, [scores, selectedMatch, tournament, isResultDialogOpen, getPlayersForMatch]);
+  }, [scores, p1InSelectedMatch, p2InSelectedMatch, tournament, isResultDialogOpen]);
 
   const handleOpenResultDialog = (match: Match) => {
     setSelectedMatch(match);
@@ -389,3 +387,5 @@ export default function SchedulePage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    
