@@ -57,15 +57,15 @@ export const registerMatchResult = ai.defineFlow(
       const loserRef = db.collection("users").doc(loserId);
       const tournamentRef = db.collection("tournaments").doc(matchData.tournamentId);
 
-      console.log('[DEBUG] Pre-fetching documents...');
+      console.log('[DEBUG] Pre-fetching documents for validation...');
       const [winnerDoc, loserDoc, tournamentDoc] = await Promise.all([
           winnerRef.get(),
           loserRef.get(),
           tournamentRef.get()
       ]);
 
-      if (!winnerDoc.exists()) throw new Error(`Jugador ganador con ID ${winnerId} no encontrado.`);
-      if (!loserDoc.exists()) throw new Error(`Jugador perdedor con ID ${loserId} no encontrado.`);
+      if (!winnerDoc.exists) throw new Error(`Jugador ganador con ID ${winnerId} no encontrado.`);
+      if (!loserDoc.exists) throw new Error(`Jugador perdedor con ID ${loserId} no encontrado.`);
       if (!tournamentDoc.exists()) throw new Error(`Torneo con ID ${matchData.tournamentId} no encontrado.`);
       
       console.log('[DEBUG] All documents exist. Proceeding to transaction.');
@@ -91,7 +91,7 @@ export const registerMatchResult = ai.defineFlow(
       });
       console.log('[TRANSACTION_SUCCESS] Minimal transaction completed successfully.');
 
-      // 3. POST-TRANSACTION OPERATIONS
+      // 3. POST-TRANSACTION OPERATIONS (non-atomic)
       const postTransactionPromises = [];
 
       // A) Update ELO if ranked
@@ -108,13 +108,15 @@ export const registerMatchResult = ai.defineFlow(
       
       // B) Update ladder positions if it's a ladder tournament and the challenger won
       if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
-         console.log('[POST_TRANSACTION] Triggering ladder position update...');
+         console.log('[POST_TRANSACTION] Handling ladder logic...');
          const challengeRef = db.collection('challenges').doc(matchData.challengeId);
          const challengeDoc = await challengeRef.get();
          if(challengeDoc.exists) {
             const challengeData = challengeDoc.data() as Challenge;
+            
             // Only swap if the challenger (retador) is the winner
             if (challengeData.retadorId === winnerId) {
+                console.log('[POST_TRANSACTION] Challenger won. Triggering ladder position update...');
                 postTransactionPromises.push(
                     updateLadderPositions({
                         tournamentId: matchData.tournamentId,
@@ -124,10 +126,10 @@ export const registerMatchResult = ai.defineFlow(
                     }).then(() => console.log('[POST_TRANSACTION] Ladder position update completed.'))
                 );
             } else {
-                 console.log('[POST_TRANSACTION] Winner was the challenged player. No position change.');
+                 console.log('[POST_TRANSACTION] Winner was the challenged player. No position change needed.');
             }
-            // Update challenge status regardless
-            await challengeRef.update({ estado: 'Jugado' });
+            // Update challenge status to 'Jugado' after the match is completed
+            postTransactionPromises.push(challengeRef.update({ estado: 'Jugado' }).then(() => console.log('[POST_TRANSACTION] Challenge status updated to Jugado.')));
          }
       }
 

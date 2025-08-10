@@ -11,14 +11,17 @@ console.log('[FLOW_LOAD] update-ladder-positions.ts loaded.');
 const UpdateLadderPositionsInputSchema = z.object({
   tournamentId: z.string(),
   eventId: z.string(),
-  winnerId: z.string(), // Challenger who won
-  loserId: z.string(),  // Challenged player who lost
+  winnerId: z.string().describe("The player ID of the challenger who won."),
+  loserId: z.string().describe("The player ID of the challenged player who lost."),
 });
+export type UpdateLadderPositionsInput = z.infer<typeof UpdateLadderPositionsInputSchema>;
 
 const UpdateLadderPositionsOutputSchema = z.object({
   success: z.boolean(),
   message: z.string(),
 });
+export type UpdateLadderPositionsOutput = z.infer<typeof UpdateLadderPositionsOutputSchema>;
+
 
 export const updateLadderPositions = ai.defineFlow(
   {
