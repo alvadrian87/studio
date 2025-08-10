@@ -70,7 +70,7 @@ export const registerMatchResult = ai.defineFlow(
 
       if (!winnerDoc.exists) throw new Error(`Jugador ganador con ID ${winnerId} no encontrado.`);
       if (!loserDoc.exists) throw new Error(`Jugador perdedor con ID ${loserId} no encontrado.`);
-      if (!tournamentDoc.exists()) throw new Error(`Torneo con ID ${matchData.tournamentId} no encontrado.`);
+      if (!tournamentDoc.exists) throw new Error(`Torneo con ID ${matchData.tournamentId} no encontrado.`);
       
       console.log('[DEBUG] All primary documents exist. Proceeding to transaction.');
 
