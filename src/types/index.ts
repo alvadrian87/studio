@@ -25,9 +25,10 @@ export interface Player {
 
 export interface Match {
   id: string;
-  player1Id: string;
-  player2Id: string;
-  winnerId: string | null;
+  player1Id: string; // Can be an inscription ID for doubles
+  player2Id: string; // Can be an inscription ID for doubles
+  jugadoresIds: string[]; // Always store individual player UIDs here
+  winnerId: string | null; // Can be an inscription ID for doubles, or a player ID
   status: 'Pendiente' | 'Completado' | 'En Progreso';
   date: string;
   tournamentId: string;
@@ -107,8 +108,8 @@ export interface Challenge {
     id: string;
     torneoId: string;
     eventoId: string;
-    retadorId: string; // player or team id
-    desafiadoId: string; // player or team id
+    retadorId: string; // inscription ID of the challenger (player or team)
+    desafiadoId: string; // inscription ID of the challenged (player or team)
     fechaDesafio: string;
     fechaLimiteAceptacion: string;
     fechaLimitePartido?: string;
@@ -145,7 +146,7 @@ export interface Inscription {
   eventoId: string; // category or division
   jugadorId?: string; // for singles
   equipoId?: string; // for doubles, refers to a Team document ID
-  jugadoresIds: string[]; // For doubles without a formal team, list of player UIDs
+  jugadoresIds: string[]; // For doubles and singles, list of player UIDs
   fechaInscripcion: string;
   status: 'Confirmado' | 'En Espera';
   posicionInicial: number;

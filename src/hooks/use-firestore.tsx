@@ -3,20 +3,22 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, DocumentData, QueryDocumentSnapshot, FirestoreError, query, where } from 'firebase/firestore';
+import { collection, onSnapshot, doc, DocumentData, QueryDocumentSnapshot, FirestoreError, query, where, collectionGroup } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Player, Match, Tournament, TournamentEvent, Challenge, Result, Team, Inscription } from '@/types';
 
 
 // Hook to get a collection
-export function useCollection<T extends DocumentData>(collectionPath: string) {
+export function useCollection<T extends DocumentData>(collectionPath: string, useCollectionGroup: boolean = false) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | null>(null);
 
   useEffect(() => {
     // This allows passing a path like 'tournaments/xyz/inscriptions'
-    const ref = collection(db, collectionPath);
+    const ref = useCollectionGroup 
+        ? collectionGroup(db, collectionPath) 
+        : collection(db, collectionPath);
     
     const unsubscribe = onSnapshot(ref, (querySnapshot) => {
       const documents: T[] = [];
@@ -31,7 +33,7 @@ export function useCollection<T extends DocumentData>(collectionPath: string) {
     });
 
     return () => unsubscribe();
-  }, [collectionPath]);
+  }, [collectionPath, useCollectionGroup]);
 
   return { data, loading, error };
 }
@@ -66,5 +68,3 @@ export function useDocument<T extends DocumentData>(docPath: string) {
 
   return { data, loading, error };
 }
-
-    

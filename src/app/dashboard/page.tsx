@@ -35,7 +35,7 @@ import { BarChart, Check, Swords, Trophy, X, ShieldQuestion, Loader2, Users, Han
 import { useAuth } from "@/hooks/use-auth";
 import type { Player, Match, Challenge, Tournament, Invitation, Inscription } from "@/types";
 import { useCollection, useDocument } from "@/hooks/use-firestore";
-import { doc, updateDoc, addDoc, collection, writeBatch } from "firebase/firestore";
+import { doc, updateDoc, addDoc, collection, writeBatch, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
@@ -53,11 +53,29 @@ export default function Dashboard() {
   const { data: allPlayers, loading: loadingPlayers } = useCollection<Player>('users');
   const { data: allTournaments, loading: loadingTournaments } = useCollection<Tournament>('tournaments');
   const { data: allInvitations, loading: loadingInvitations } = useCollection<Invitation>('invitations');
+  const { data: allInscriptions, loading: loadingInscriptions } = useCollection<Inscription>('inscriptions');
+
 
   const pendingChallenges = useMemo(() => {
-    if (!allChallenges || !user) return [];
-    return allChallenges.filter(c => c.desafiadoId === user.uid && c.estado === 'Pendiente');
-  }, [allChallenges, user]);
+    if (!allChallenges || !user || !allInscriptions) return [];
+    
+    // Find all inscriptions the current user is part of
+    const userInscriptionIds = allInscriptions.filter(i => i.jugadoresIds.includes(user.uid)).map(i => i.id);
+
+    // Filter challenges where the user's inscription is the one being challenged
+    return allChallenges.filter(c => userInscriptionIds.includes(c.desafiadoId) && c.estado === 'Pendiente');
+  }, [allChallenges, user, allInscriptions]);
+
+
+  const getInscriptionById = (inscriptionId: string) => {
+    if (!allInscriptions) return null;
+    return allInscriptions.find(i => i.id === inscriptionId);
+  }
+
+  const getPlayersFromInscription = (inscription: Inscription | null) => {
+    if (!inscription || !allPlayers) return [];
+    return inscription.jugadoresIds.map(playerId => allPlayers.find(p => p.uid === playerId)).filter(Boolean) as Player[];
+  }
 
   const pendingPartnerInvitations = useMemo(() => {
     if (!allInvitations || !user) return [];
@@ -66,7 +84,7 @@ export default function Dashboard() {
 
   const userMatches = useMemo(() => {
     if (!allMatches || !user) return [];
-    return allMatches.filter(m => m.player1Id === user.uid || m.player2Id === user.uid)
+    return allMatches.filter(m => m.jugadoresIds.includes(user.uid))
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [allMatches, user]);
   
@@ -77,9 +95,26 @@ export default function Dashboard() {
   }, [allPlayers, player]);
 
   const getOpponent = (match: Match) => {
-    if (!user || !allPlayers) return null;
-    const opponentId = match.player1Id === user.uid ? match.player2Id : match.player1Id;
-    return allPlayers.find(p => p.uid === opponentId);
+    if (!user || !allPlayers) return { name: 'Desconocido', avatar: undefined, fallback: '?' };
+    
+    const opponentIds = match.jugadoresIds.filter(id => id !== user.uid);
+    if (opponentIds.length === 0) return { name: 'Desconocido', avatar: undefined, fallback: '?' };
+
+    if (opponentIds.length === 1) { // Singles
+      const opponent = allPlayers.find(p => p.uid === opponentIds[0]);
+      return {
+        name: opponent?.displayName || 'Desconocido',
+        avatar: opponent?.avatar,
+        fallback: `${opponent?.firstName?.substring(0,1)}${opponent?.lastName?.substring(0,1)}`
+      };
+    } else { // Doubles
+      const opponents = opponentIds.map(id => allPlayers.find(p => p.uid === id));
+      return {
+        name: opponents.map(p => p?.displayName || '?').join(' / '),
+        avatar: undefined, // No avatar for doubles pair
+        fallback: opponents.map(p => p?.firstName?.substring(0,1)).join('')
+      }
+    }
   }
   
   const handleChallengeResponse = async (challengeId: string, accepted: boolean) => {
@@ -89,12 +124,28 @@ export default function Dashboard() {
         const challenge = allChallenges?.find(c => c.id === challengeId);
         if (!challenge) throw new Error("Desafío no encontrado");
 
+        const retadorInscriptionRef = doc(db, `tournaments/${challenge.torneoId}/inscriptions/${challenge.retadorId}`);
+        const desafiadoInscriptionRef = doc(db, `tournaments/${challenge.torneoId}/inscriptions/${challenge.desafiadoId}`);
+
+        const [retadorInscriptionSnap, desafiadoInscriptionSnap] = await Promise.all([
+          getDoc(retadorInscriptionRef),
+          getDoc(desafiadoInscriptionSnap)
+        ]);
+
+        if (!retadorInscriptionSnap.exists() || !desafiadoInscriptionSnap.exists()) {
+          throw new Error("No se pudieron encontrar las inscripciones de los jugadores.");
+        }
+
+        const retadorInscription = retadorInscriptionSnap.data() as Inscription;
+        const desafiadoInscription = desafiadoInscriptionSnap.data() as Inscription;
+
         const batch = writeBatch(db);
 
         const matchRef = doc(collection(db, "matches"));
         batch.set(matchRef, {
-          player1Id: challenge.retadorId,
-          player2Id: challenge.desafiadoId,
+          player1Id: challenge.retadorId, // inscription ID
+          player2Id: challenge.desafiadoId, // inscription ID
+          jugadoresIds: [...retadorInscription.jugadoresIds, ...desafiadoInscription.jugadoresIds],
           winnerId: null,
           status: 'Pendiente',
           date: format(new Date(), "yyyy-MM-dd HH:mm"),
@@ -154,7 +205,7 @@ export default function Dashboard() {
   }
 
 
-  const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments || loadingInvitations;
+  const loading = loadingPlayer || loadingMatches || loadingChallenges || loadingPlayers || loadingTournaments || loadingInvitations || loadingInscriptions;
 
 
   if (loading) {
@@ -241,10 +292,10 @@ export default function Dashboard() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                            <Avatar>
-                              <AvatarImage src={opponent?.avatar} alt={opponent?.displayName} />
-                              <AvatarFallback>{opponent?.firstName?.substring(0,1)}{opponent?.lastName?.substring(0,1)}</AvatarFallback>
+                              <AvatarImage src={opponent?.avatar} alt={opponent?.name} />
+                              <AvatarFallback>{opponent?.fallback}</AvatarFallback>
                            </Avatar>
-                           <span className="font-medium">{opponent?.displayName || 'Desconocido'}</span>
+                           <span className="font-medium">{opponent?.name || 'Desconocido'}</span>
                         </div>
                       </TableCell>
                        <TableCell className="hidden md:table-cell">
@@ -285,18 +336,23 @@ export default function Dashboard() {
                 <CardContent>
                     {pendingChallenges.length > 0 ? (
                     <ul className="space-y-4">
-                        {pendingChallenges.map(challenge => (
-                        <li key={challenge.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
-                            <div>
-                            <p className="font-medium">{allPlayers?.find(p => p.uid === challenge.retadorId)?.displayName}</p>
-                            <p className="text-sm text-muted-foreground">Te ha desafiado en: <span className="font-semibold text-primary">{challenge.tournamentName}</span></p>
-                            </div>
-                            <div className="flex gap-2">
-                            <Button size="sm" variant="outline" onClick={() => handleChallengeResponse(challenge.id, false)}>Rechazar</Button>
-                            <Button size="sm" onClick={() => handleChallengeResponse(challenge.id, true)}>Aceptar</Button>
-                            </div>
-                        </li>
-                        ))}
+                        {pendingChallenges.map(challenge => {
+                           const retadorInscription = getInscriptionById(challenge.retadorId);
+                           const retadorPlayers = getPlayersFromInscription(retadorInscription);
+
+                           return (
+                             <li key={challenge.id} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                                <div>
+                                <p className="font-medium">{retadorPlayers.map(p => p.displayName).join(' / ')}</p>
+                                <p className="text-sm text-muted-foreground">Te ha desafiado en: <span className="font-semibold text-primary">{challenge.tournamentName}</span></p>
+                                </div>
+                                <div className="flex gap-2">
+                                <Button size="sm" variant="outline" onClick={() => handleChallengeResponse(challenge.id, false)}>Rechazar</Button>
+                                <Button size="sm" onClick={() => handleChallengeResponse(challenge.id, true)}>Aceptar</Button>
+                                </div>
+                            </li>
+                           )
+                        })}
                     </ul>
                     ) : (
                     <div className="text-center py-4 text-muted-foreground flex flex-col items-center">
@@ -341,5 +397,3 @@ export default function Dashboard() {
     </>
   )
 }
-
-    

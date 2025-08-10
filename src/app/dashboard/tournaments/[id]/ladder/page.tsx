@@ -106,13 +106,13 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     const eventInscriptions = inscriptions
       .filter(i => i.eventoId === eventId)
       .map(i => {
-        if(i.jugadoresIds && i.jugadoresIds.length > 1) {
-            const player1 = getPlayerDetails(i.jugadoresIds[0]);
-            const player2 = getPlayerDetails(i.jugadoresIds[1]);
-            return { ...i, displayName: `${player1?.displayName} / ${player2?.displayName}` }
-        }
-        const player = getPlayerDetails(i.jugadorId!);
-        return { ...i, playerDetails: player, displayName: player?.displayName };
+        const players = i.jugadoresIds.map(getPlayerDetails).filter(Boolean) as Player[];
+        const displayName = players.map(p => p.displayName).join(' / ');
+        const playerDetails = players.length === 1 ? players[0] : null;
+        const avatar = players.length === 1 ? players[0].avatar : undefined;
+        const fallback = players.map(p => p.firstName?.substring(0,1)).join('');
+
+        return { ...i, players, displayName, playerDetails, avatar, fallback };
       })
       .sort((a, b) => a.posicionActual - b.posicionActual);
     return eventInscriptions;
@@ -120,12 +120,12 @@ export default function LadderPage({ params }: { params: { id: string } }) {
 
   const isUserEnrolledInEvent = (eventId: string) => {
     if (!user || !inscriptions) return false;
-    return inscriptions.some(i => i.eventoId === eventId && (i.jugadorId === user.uid || (i.jugadoresIds && i.jugadoresIds.includes(user.uid))));
+    return inscriptions.some(i => i.eventoId === eventId && (i.jugadoresIds.includes(user.uid)));
   }
   
   const userInscription = (eventId: string) => {
       if (!user || !inscriptions) return null;
-      return inscriptions.find(i => i.eventoId === eventId && (i.jugadorId === user.uid || (i.jugadoresIds && i.jugadoresIds.includes(user.uid))));
+      return inscriptions.find(i => i.eventoId === eventId && i.jugadoresIds.includes(user.uid));
   }
 
   const handleEnroll = async (event: TournamentEvent) => {
@@ -147,7 +147,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         await addDoc(collection(db, `tournaments/${tournament.id}/inscriptions`), {
             torneoId: tournament.id,
             eventoId: event.id,
-            jugadorId: user.uid,
+            jugadorId: user.uid, // Still useful for quick lookups
             jugadoresIds: [user.uid],
             fechaInscripcion: new Date().toISOString(),
             status: 'Confirmado',
@@ -203,12 +203,12 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     }
   }
 
-
   const hasPendingChallenge = (challengerInscription: Inscription | null | undefined, eventId: string) => {
       if (!challengerInscription || !allChallenges) return false;
+      
       return allChallenges.some(c => 
         c.eventoId === eventId &&
-        (c.retadorId === challengerInscription.jugadorId || c.desafiadoId === challengerInscription.jugadorId) && 
+        (c.retadorId === challengerInscription.id || c.desafiadoId === challengerInscription.id) && 
         (c.estado === 'Pendiente' || c.estado === 'Aceptado')
     );
   }
@@ -244,8 +244,8 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   };
 
   const handleChallenge = async (challengedInscription: Inscription) => {
-    if (!user || !inscriptions) return;
-    setChallengingPlayerId(challengedInscription.jugadorId!);
+    if (!user || !inscriptions || !tournament) return;
+    setChallengingPlayerId(challengedInscription.id);
 
     const challengerInscription = userInscription(challengedInscription.eventoId);
     if (!challengerInscription) {
@@ -257,19 +257,20 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     try {
         const challengeCollectionRef = collection(db, "challenges");
         const newChallengeDoc: Omit<Challenge, 'id'> = {
-            torneoId: tournament!.id,
+            torneoId: tournament.id,
             eventoId: challengedInscription.eventoId,
-            retadorId: challengerInscription.jugadorId!,
-            desafiadoId: challengedInscription.jugadorId!,
+            retadorId: challengerInscription.id, // Inscription ID
+            desafiadoId: challengedInscription.id, // Inscription ID
             fechaDesafio: new Date().toISOString(),
             fechaLimiteAceptacion: add(new Date(), { hours: tournament?.tiempos?.tiempoLimiteAceptarDesafio || 48 }).toISOString(),
             estado: 'Pendiente',
-            tournamentName: tournament!.nombreTorneo, // Denormalized for easier display
+            tournamentName: tournament.nombreTorneo, // Denormalized for easier display
         };
 
         await addDoc(challengeCollectionRef, newChallengeDoc);
-
-        toast({ title: '¡Desafío Enviado!', description: `Has desafiado a ${getPlayerDetails(challengedInscription.jugadorId!)?.displayName}.` });
+        
+        const challengedPlayers = (getEventInscriptions(challengedInscription.eventoId).find(i => i.id === challengedInscription.id))?.displayName
+        toast({ title: '¡Desafío Enviado!', description: `Has desafiado a ${challengedPlayers}.` });
     } catch (error) {
         console.error("Error al crear el desafío: ", error);
         toast({ variant: 'destructive', title: 'Error', description: 'No se pudo enviar el desafío.' });
@@ -372,7 +373,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead className="w-[50px]">Pos.</TableHead>
-                                            <TableHead>Jugador</TableHead>
+                                            <TableHead>Jugador / Pareja</TableHead>
                                             <TableHead className="hidden md:table-cell">ELO</TableHead>
                                             <TableHead className="text-right">Acción</TableHead>
                                         </TableRow>
@@ -380,20 +381,21 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                     <TableBody>
                                         {eventParticipants.length > 0 ? (
                                         eventParticipants.map((inscription) => {
-                                            const isSelf = user?.uid === inscription.jugadorId;
+                                            const isSelf = inscription.jugadoresIds.includes(user?.uid || '');
                                             const isChallengable = canChallenge(currentUserInscription, inscription);
-                                            const isChallenging = challengingPlayerId === inscription.jugadorId;
+                                            const isChallenging = challengingPlayerId === inscription.id;
                                             
                                             const activeChallenge = allChallenges?.find(c => 
                                                 c.eventoId === event.id &&
-                                                (c.retadorId === inscription.jugadorId || c.desafiadoId === inscription.jugadorId) &&
+                                                (c.retadorId === inscription.id || c.desafiadoId === inscription.id) &&
                                                 (c.estado === 'Pendiente' || c.estado === 'Aceptado')
                                             );
                                             
                                             const getOpponentName = () => {
                                                 if (!activeChallenge) return '';
-                                                const opponentId = activeChallenge.retadorId === inscription.jugadorId ? activeChallenge.desafiadoId : activeChallenge.retadorId;
-                                                return getPlayerDetails(opponentId)?.displayName || 'Desconocido';
+                                                const opponentInscriptionId = activeChallenge.retadorId === inscription.id ? activeChallenge.desafiadoId : activeChallenge.retadorId;
+                                                const opponentInscription = eventParticipants.find(i => i.id === opponentInscriptionId);
+                                                return opponentInscription?.displayName || 'Desconocido';
                                             }
 
 
@@ -403,20 +405,20 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                             <TableCell>
                                                 <div className="flex items-center gap-3">
                                                     <Avatar>
-                                                        <AvatarImage src={(inscription as any).playerDetails?.avatar} alt={(inscription as any).displayName} />
-                                                        <AvatarFallback>{(inscription as any).playerDetails?.firstName?.substring(0,1)}{(inscription as any).playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
+                                                        <AvatarImage src={inscription.avatar} alt={inscription.displayName} />
+                                                        <AvatarFallback>{inscription.fallback}</AvatarFallback>
                                                     </Avatar>
-                                                    <span className="font-medium">{(inscription as any).displayName || 'Desconocido'}</span>
+                                                    <span className="font-medium">{inscription.displayName || 'Desconocido'}</span>
                                                 </div>
                                             </TableCell>
-                                            <TableCell className="hidden md:table-cell">{(inscription as any).playerDetails?.rankPoints || 'N/A'}</TableCell>
+                                            <TableCell className="hidden md:table-cell">{inscription.playerDetails?.rankPoints || 'N/A'}</TableCell>
                                             <TableCell className="text-right">
                                                 {isLadderTournament && !isSelf && enrolled && (
                                                    activeChallenge ? (
                                                         <Badge variant={activeChallenge.estado === 'Aceptado' ? 'default' : 'secondary'}>
                                                           <ShieldQuestion className="mr-2 h-4 w-4"/>
                                                             {activeChallenge.estado === 'Pendiente' && (
-                                                                activeChallenge.retadorId === inscription.jugadorId 
+                                                                activeChallenge.retadorId === inscription.id 
                                                                     ? `Desafiaste a ${getOpponentName()}` 
                                                                     : `Desafiado por ${getOpponentName()}`
                                                             )}
