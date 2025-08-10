@@ -32,6 +32,8 @@ export interface Match {
   status: 'Pendiente' | 'Completado' | 'En Progreso';
   date: string;
   tournamentId: string;
+  eventoId: string;
+  roundNumber: number;
   score: string | null;
   challengeId?: string; // To link back to the challenge for ladder logic
 }

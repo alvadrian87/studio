@@ -4,6 +4,7 @@ import { authAdmin, db } from "@/lib/firebase-admin";
 import type { Match, Player, Inscription, Tournament, Challenge } from "@/types";
 import { updateLadderPositions } from "@/ai/flows/update-ladder-positions";
 import admin from 'firebase-admin'; // Importar el admin SDK
+import { format } from "date-fns";
 
 // Constantes para el cálculo de ELO
 const K_FACTOR_DEFAULT = 32;
@@ -15,6 +16,78 @@ function calculateNewElo(playerElo: number, opponentElo: number, score: 1 | 0 | 
     const kFactor = playerElo > 2400 ? K_FACTOR_PRO : K_FACTOR_DEFAULT;
     return playerElo + kFactor * (score - expectedScore);
 }
+
+async function createNextRoundMatch(batch: admin.firestore.WriteBatch, currentMatch: Match, winnerInscriptionId: string) {
+    const matchesRef = db.collection('matches');
+    
+    // 1. Find other completed matches in the same round and event
+    const roundMatchesQuery = matchesRef
+        .where('tournamentId', '==', currentMatch.tournamentId)
+        .where('eventoId', '==', currentMatch.eventoId)
+        .where('roundNumber', '==', currentMatch.roundNumber)
+        .where('status', '==', 'Completado');
+        
+    const roundMatchesSnapshot = await roundMatchesQuery.get();
+    
+    // 2. Find a winner who doesn't have a next-round match yet
+    let opponentWinnerInscriptionId: string | null = null;
+    
+    for (const doc of roundMatchesSnapshot.docs) {
+        const matchData = doc.data() as Match;
+        if (matchData.id === currentMatch.id) continue; // Skip current match
+        if (!matchData.winnerId) continue;
+        
+        // Check if this winner already has a match in the next round
+        const nextRoundMatchQuery = matchesRef
+            .where('tournamentId', '==', currentMatch.tournamentId)
+            .where('eventoId', '==', currentMatch.eventoId)
+            .where('roundNumber', '==', currentMatch.roundNumber + 1)
+            .where('jugadoresIds', 'array-contains', matchData.winnerId);
+            
+        const nextRoundMatchSnapshot = await nextRoundMatchQuery.get();
+        
+        if (nextRoundMatchSnapshot.empty) {
+            // This winner is available
+            opponentWinnerInscriptionId = matchData.winnerId;
+            break;
+        }
+    }
+    
+    if (opponentWinnerInscriptionId) {
+        // 3. We found a pair, create the next match
+        const [p1InscriptionDoc, p2InscriptionDoc] = await Promise.all([
+            db.doc(`tournaments/${currentMatch.tournamentId}/inscriptions/${winnerInscriptionId}`).get(),
+            db.doc(`tournaments/${currentMatch.tournamentId}/inscriptions/${opponentWinnerInscriptionId}`).get()
+        ]);
+
+        if (!p1InscriptionDoc.exists || !p2InscriptionDoc.exists) {
+            console.error("Could not find inscriptions for next round match");
+            return;
+        }
+
+        const p1Inscription = p1InscriptionDoc.data() as Inscription;
+        const p2Inscription = p2InscriptionDoc.data() as Inscription;
+
+        const nextMatchRef = matchesRef.doc();
+        const nextMatch: Omit<Match, 'id'> = {
+            tournamentId: currentMatch.tournamentId,
+            eventoId: currentMatch.eventoId,
+            roundNumber: currentMatch.roundNumber + 1,
+            player1Id: winnerInscriptionId,
+            player2Id: opponentWinnerInscriptionId,
+            jugadoresIds: [...(p1Inscription.jugadoresIds || []), ...(p2Inscription.jugadoresIds || [])],
+            status: 'Pendiente',
+            winnerId: null,
+            score: null,
+            date: format(new Date(), "yyyy-MM-dd HH:mm"),
+        };
+        batch.set(nextMatchRef, nextMatch);
+        console.log(`[BRACKET_ADVANCE] Created next round match for round ${currentMatch.roundNumber + 1}`);
+    } else {
+        console.log(`[BRACKET_ADVANCE] Winner of match ${currentMatch.id} is waiting for an opponent for round ${currentMatch.roundNumber + 1}.`);
+    }
+}
+
 
 export async function POST(request: Request) {
     try {
@@ -137,6 +210,11 @@ export async function POST(request: Request) {
             }
         }
         
+        // 4. If it's a bracket tournament, try to create the next match
+        if (tournament.tipoTorneo === 'Evento por Llaves') {
+            await createNextRoundMatch(batch, match, winnerInscriptionId);
+        }
+
         await batch.commit();
 
         return NextResponse.json({ message: "Resultado guardado y estadísticas actualizadas." }, { status: 200 });

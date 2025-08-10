@@ -113,6 +113,8 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
 
         const newMatch: Omit<Match, 'id'> = {
             tournamentId: tournament.id,
+            eventoId: event.id,
+            roundNumber: 1,
             player1Id: player1.id,
             player2Id: player2.id,
             jugadoresIds: [...player1.jugadoresIds, ...player2.jugadoresIds],
