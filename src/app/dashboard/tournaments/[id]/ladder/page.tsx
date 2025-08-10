@@ -71,6 +71,16 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   
   const { user, userRole } = useAuth();
   const { toast } = useToast();
+  
+  const filteredPartners = useMemo(() => {
+    if (!allPlayers || searchQuery.length < 3) {
+      return [];
+    }
+    return allPlayers.filter(p =>
+      p.uid !== user?.uid &&
+      p.displayName.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [allPlayers, searchQuery, user]);
 
   useEffect(() => {
     if (tournament) {
@@ -280,15 +290,6 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const isLadderTournament = tournament.tipoTorneo === 'Evento tipo Escalera';
   const canManage = userRole === 'admin' || tournament.creatorId === user?.uid;
   
-  const filteredPartners = useMemo(() => {
-    if (!allPlayers || searchQuery.length < 3) {
-      return [];
-    }
-    return allPlayers.filter(p =>
-      p.uid !== user?.uid &&
-      p.displayName.toLowerCase().includes(searchQuery.toLowerCase())
-    );
-  }, [allPlayers, searchQuery, user]);
 
   return (
     <>
