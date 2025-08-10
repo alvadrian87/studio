@@ -5,7 +5,8 @@ import { ai } from '@/ai/genkit';
 import { z } from 'zod';
 import { db } from '@/lib/firebase-admin'; 
 import { FieldValue } from 'firebase-admin/firestore';
-import type { Player, Match, Tournament } from '@/types';
+import type { Player, Match, Tournament, Challenge, Inscription } from '@/types';
+import { updateLadderPositions } from './update-ladder-positions';
 
 console.log('[FLOW_LOAD] register-match-result.ts loaded.');
 
@@ -63,15 +64,10 @@ export const registerMatchResult = ai.defineFlow(
           tournamentRef.get()
       ]);
 
-      if (!winnerDoc.exists()) {
-          throw new Error(`Jugador ganador con ID ${winnerId} no encontrado.`);
-      }
-      if (!loserDoc.exists()) {
-          throw new Error(`Jugador perdedor con ID ${loserId} no encontrado.`);
-      }
-      if (!tournamentDoc.exists()) {
-          throw new Error(`Torneo con ID ${matchData.tournamentId} no encontrado.`);
-      }
+      if (!winnerDoc.exists()) throw new Error(`Jugador ganador con ID ${winnerId} no encontrado.`);
+      if (!loserDoc.exists()) throw new Error(`Jugador perdedor con ID ${loserId} no encontrado.`);
+      if (!tournamentDoc.exists()) throw new Error(`Torneo con ID ${matchData.tournamentId} no encontrado.`);
+      
       console.log('[DEBUG] All documents exist. Proceeding to transaction.');
 
       const winnerData = winnerDoc.data() as Player;
@@ -96,6 +92,9 @@ export const registerMatchResult = ai.defineFlow(
       console.log('[TRANSACTION_SUCCESS] Minimal transaction completed successfully.');
 
       // 3. POST-TRANSACTION OPERATIONS
+      const postTransactionPromises = [];
+
+      // A) Update ELO if ranked
       if (tournamentData.isRanked) {
           console.log('[POST_TRANSACTION] Calculating and updating ELO...');
           const winnerNewRating = calculateElo(winnerData.rankPoints, loserData.rankPoints, 1);
@@ -104,9 +103,35 @@ export const registerMatchResult = ai.defineFlow(
           const batch = db.batch();
           batch.update(winnerRef, { rankPoints: Math.round(winnerNewRating) });
           batch.update(loserRef, { rankPoints: Math.round(loserNewRating) });
-          await batch.commit();
-          console.log('[POST_TRANSACTION] ELO points updated successfully.');
+          postTransactionPromises.push(batch.commit().then(() => console.log('[POST_TRANSACTION] ELO points updated successfully.')));
       }
+      
+      // B) Update ladder positions if it's a ladder tournament and the challenger won
+      if (tournamentData.tipoTorneo === 'Evento tipo Escalera' && matchData.challengeId) {
+         console.log('[POST_TRANSACTION] Triggering ladder position update...');
+         const challengeRef = db.collection('challenges').doc(matchData.challengeId);
+         const challengeDoc = await challengeRef.get();
+         if(challengeDoc.exists) {
+            const challengeData = challengeDoc.data() as Challenge;
+            // Only swap if the challenger (retador) is the winner
+            if (challengeData.retadorId === winnerId) {
+                postTransactionPromises.push(
+                    updateLadderPositions({
+                        tournamentId: matchData.tournamentId,
+                        eventId: challengeData.eventoId,
+                        winnerId: winnerId,
+                        loserId: loserId,
+                    }).then(() => console.log('[POST_TRANSACTION] Ladder position update completed.'))
+                );
+            } else {
+                 console.log('[POST_TRANSACTION] Winner was the challenged player. No position change.');
+            }
+            // Update challenge status regardless
+            await challengeRef.update({ estado: 'Jugado' });
+         }
+      }
+
+      await Promise.all(postTransactionPromises);
       
       console.log('[FLOW_SUCCESS] Flow completed successfully for match:', matchId);
       return { success: true, message: "Resultado guardado exitosamente." };
