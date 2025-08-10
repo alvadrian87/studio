@@ -3,24 +3,26 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { collection, onSnapshot, doc, DocumentData, QueryDocumentSnapshot, FirestoreError, query, where, collectionGroup } from 'firebase/firestore';
+import { collection, onSnapshot, doc, DocumentData, QueryDocumentSnapshot, FirestoreError, query, where, collectionGroup, QueryConstraint } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { Player, Match, Tournament, TournamentEvent, Challenge, Result, Team, Inscription } from '@/types';
 
 
 // Hook to get a collection
-export function useCollection<T extends DocumentData>(collectionPath: string, useCollectionGroup: boolean = false) {
+export function useCollection<T extends DocumentData>(collectionPath: string, useCollectionGroup: boolean = false, queryConstraints: QueryConstraint[] = []) {
   const [data, setData] = useState<T[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<FirestoreError | null>(null);
 
   useEffect(() => {
     // This allows passing a path like 'tournaments/xyz/inscriptions'
-    const ref = useCollectionGroup 
+    const baseRef = useCollectionGroup 
         ? collectionGroup(db, collectionPath) 
         : collection(db, collectionPath);
     
-    const unsubscribe = onSnapshot(ref, (querySnapshot) => {
+    const finalQuery = query(baseRef, ...queryConstraints);
+    
+    const unsubscribe = onSnapshot(finalQuery, (querySnapshot) => {
       const documents: T[] = [];
       querySnapshot.forEach((doc: QueryDocumentSnapshot<DocumentData>) => {
         documents.push({ id: doc.id, ...doc.data() } as T);
@@ -33,7 +35,8 @@ export function useCollection<T extends DocumentData>(collectionPath: string, us
     });
 
     return () => unsubscribe();
-  }, [collectionPath, useCollectionGroup]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collectionPath, useCollectionGroup, JSON.stringify(queryConstraints)]);
 
   return { data, loading, error };
 }

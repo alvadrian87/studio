@@ -55,7 +55,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
   const { data: tournament, loading: loadingTournament } = useDocument<Tournament>(`tournaments/${resolvedParams.id}`);
   const { data: allPlayers, loading: loadingAllPlayers } = useCollection<Player>('users');
   const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
-  const { data: matches, loading: loadingMatches } = useCollection<Match>(`matches`);
+  const { data: matches, loading: loadingMatches } = useCollection<Match>(`matches`, false, [where("tournamentId", "==", resolvedParams.id)]);
   const { data: invitations, loading: loadingInvitations } = useCollection<Invitation>('invitations');
   const [events, setEvents] = useState<TournamentEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
