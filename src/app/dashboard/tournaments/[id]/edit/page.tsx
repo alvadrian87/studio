@@ -74,7 +74,8 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
         return {
             ...i,
             playerDetails: players.length === 1 ? players[0] : null,
-            displayName: displayName
+            displayName: displayName,
+            jugadoresIds: playerIds,
         }
       });
   }
@@ -110,7 +111,7 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
             roundNumber: 1,
             player1Id: participant.id,
             player2Id: null, // No opponent
-            jugadoresIds: participant.jugadoresIds,
+            jugadoresIds: participant.jugadoresIds || [],
             winnerId: participant.id, // Auto-win
             status: 'Completado',
             date: format(new Date(), "yyyy-MM-dd HH:mm"),
@@ -159,9 +160,9 @@ export default function EditTournamentPage({ params }: { params: { id: string } 
       setEvents(prevEvents => prevEvents.map(e => e.id === event.id ? { ...e, status: "En Curso" } : e));
 
       toast({ title: "¡Bracket Generado!", description: `Se han creado los partidos para la categoría ${event.nombre}.` });
-    } catch(error) {
+    } catch(error: any) {
       console.error("Error al generar el bracket: ", error);
-      toast({ variant: "destructive", title: "Error", description: "No se pudo generar el bracket." });
+      toast({ variant: "destructive", title: "Error", description: error.message || "No se pudo generar el bracket." });
     } finally {
       setGeneratingBracket(null);
     }
