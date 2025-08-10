@@ -59,10 +59,10 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   const { data: allChallenges, loading: loadingAllChallenges } = useCollection<Challenge>('challenges');
   const { data: inscriptions, loading: loadingInscriptions } = useCollection<Inscription>(`tournaments/${resolvedParams.id}/inscriptions`);
   const { data: invitations, loading: loadingInvitations } = useCollection<Invitation>('invitations');
+  
   const [events, setEvents] = useState<TournamentEvent[]>([]);
   const [loadingEvents, setLoadingEvents] = useState(true);
   const [challengingPlayerId, setChallengingPlayerId] = useState<string | null>(null);
-
   const [isPartnerModalOpen, setIsPartnerModalOpen] = useState(false);
   const [selectedEventForDoubles, setSelectedEventForDoubles] = useState<TournamentEvent | null>(null);
   const [selectedPartner, setSelectedPartner] = useState<Player | null>(null);
@@ -106,7 +106,6 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     const eventInscriptions = inscriptions
       .filter(i => i.eventoId === eventId)
       .map(i => {
-        // Ensure jugadoresIds exists and is an array before mapping
         const playerIds = Array.isArray(i.jugadoresIds) ? i.jugadoresIds : [];
         const players = playerIds.map(getPlayerDetails).filter(Boolean) as Player[];
         const displayName = players.map(p => p.displayName).join(' / ');
@@ -127,7 +126,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
   
   const userInscription = (eventId: string) => {
       if (!user || !inscriptions) return null;
-      return inscriptions.find(i => i.eventoId === eventId && i.jugadoresIds.includes(user.uid));
+      return inscriptions.find(i => i.eventoId === eventId && (Array.isArray(i.jugadoresIds) && i.jugadoresIds.includes(user.uid)));
   }
 
   const handleEnroll = async (event: TournamentEvent) => {
@@ -149,7 +148,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         await addDoc(collection(db, `tournaments/${tournament.id}/inscriptions`), {
             torneoId: tournament.id,
             eventoId: event.id,
-            jugadorId: user.uid, // Still useful for quick lookups
+            jugadorId: user.uid,
             jugadoresIds: [user.uid],
             fechaInscripcion: new Date().toISOString(),
             status: 'Confirmado',
@@ -261,12 +260,12 @@ export default function LadderPage({ params }: { params: { id: string } }) {
         const newChallengeDoc: Omit<Challenge, 'id'> = {
             torneoId: tournament.id,
             eventoId: challengedInscription.eventoId,
-            retadorId: challengerInscription.id, // Inscription ID
-            desafiadoId: challengedInscription.id, // Inscription ID
+            retadorId: challengerInscription.id,
+            desafiadoId: challengedInscription.id,
             fechaDesafio: new Date().toISOString(),
             fechaLimiteAceptacion: add(new Date(), { hours: tournament?.tiempos?.tiempoLimiteAceptarDesafio || 48 }).toISOString(),
             estado: 'Pendiente',
-            tournamentName: tournament.nombreTorneo, // Denormalized for easier display
+            tournamentName: tournament.nombreTorneo,
         };
 
         await addDoc(challengeCollectionRef, newChallengeDoc);
@@ -383,7 +382,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
                                     <TableBody>
                                         {eventParticipants.length > 0 ? (
                                         eventParticipants.map((inscription) => {
-                                            const isSelf = inscription.jugadoresIds.includes(user?.uid || '');
+                                            const isSelf = (inscription.jugadoresIds || []).includes(user?.uid || '');
                                             const isChallengable = canChallenge(currentUserInscription, inscription);
                                             const isChallenging = challengingPlayerId === inscription.id;
                                             
@@ -520,5 +519,3 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
-
-    
