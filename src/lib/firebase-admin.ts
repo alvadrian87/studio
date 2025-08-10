@@ -1,11 +1,11 @@
 
 import admin from 'firebase-admin';
-import { getApps } from 'firebase-admin/app';
 
-// This configuration ensures that the SDK is initialized only once.
-// It will use Application Default Credentials (ADC) on the server,
-// which is the recommended approach for App Hosting and handles auth securely.
-if (!getApps().length) {
+// Initialize the SDK if it hasn't been already.
+// This pattern ensures that we don't try to initialize the app more than once.
+// In a serverless environment like App Hosting, this will use Application Default Credentials (ADC)
+// to securely authenticate with Firebase and other Google Cloud services.
+if (!admin.apps.length) {
   admin.initializeApp();
 }
 
