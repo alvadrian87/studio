@@ -101,10 +101,17 @@ export default function BracketPage({ params }: { params: { id: string } }) {
     if (!inscriptions) return [];
     return inscriptions
       .filter(i => i.eventoId === eventId)
-      .map(i => ({
-        ...i,
-        playerDetails: getPlayerDetails(i.jugadorId!)
-      }));
+      .map(i => {
+        // Ensure jugadoresIds exists and is an array before mapping
+        const playerIds = Array.isArray(i.jugadoresIds) ? i.jugadoresIds : (i.jugadorId ? [i.jugadorId] : []);
+        const players = playerIds.map(getPlayerDetails).filter(Boolean) as Player[];
+        const displayName = players.map(p => p.displayName).join(' / ');
+        const playerDetails = players.length === 1 ? players[0] : null; // Keep for singles backward compatibility
+        const avatar = players.length === 1 ? players[0].avatar : undefined;
+        const fallback = players.map(p => p.firstName?.substring(0,1)).join('');
+
+        return { ...i, players, displayName, playerDetails, avatar, fallback };
+      });
   }
   
   const getEventMatches = (eventId: string) => {
@@ -114,7 +121,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
 
   const isUserEnrolledInEvent = (eventId: string) => {
     if (!user || !inscriptions) return false;
-    return inscriptions.some(i => i.eventoId === eventId && (i.jugadorId === user.uid || (i.jugadoresIds && i.jugadoresIds.includes(user.uid))));
+    return inscriptions.some(i => i.eventoId === eventId && (Array.isArray(i.jugadoresIds) && i.jugadoresIds.includes(user.uid)));
   }
 
   const handleEnroll = async (event: TournamentEvent) => {
@@ -133,7 +140,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
         await addDoc(collection(db, `tournaments/${tournament.id}/inscriptions`), {
             torneoId: tournament.id,
             eventoId: event.id,
-            jugadorId: user.uid,
+            jugadorId: user.uid, // Keep for backward compatibility / easy queries
             jugadoresIds: [user.uid],
             fechaInscripcion: new Date().toISOString(),
             status: 'Confirmado',
@@ -233,7 +240,7 @@ export default function BracketPage({ params }: { params: { id: string } }) {
             </CardContent>
         </Card>
        ) : (
-        <Tabs defaultValue={events[0].id}>
+        <Tabs defaultValue={events.length > 0 ? events[0].id : ''}>
              <TabsList>
                  {events.map((event) => (
                     <TabsTrigger key={event.id} value={event.id!}>{event.nombre}</TabsTrigger>
@@ -327,10 +334,10 @@ export default function BracketPage({ params }: { params: { id: string } }) {
                                                     <TableCell>
                                                         <div className="flex items-center gap-3">
                                                             <Avatar>
-                                                                <AvatarImage src={inscription.playerDetails?.avatar} alt={inscription.playerDetails?.displayName} />
-                                                                <AvatarFallback>{inscription.playerDetails?.firstName?.substring(0,1)}{inscription.playerDetails?.lastName?.substring(0,1)}</AvatarFallback>
+                                                                <AvatarImage src={inscription.avatar} alt={inscription.displayName} />
+                                                                <AvatarFallback>{inscription.fallback}</AvatarFallback>
                                                             </Avatar>
-                                                            <span className="font-medium">{inscription.playerDetails?.displayName || 'Desconocido'}</span>
+                                                            <span className="font-medium">{inscription.displayName || 'Desconocido'}</span>
                                                         </div>
                                                     </TableCell>
                                                     <TableCell className="hidden md:table-cell">{inscription.playerDetails?.rankPoints || 'N/A'}</TableCell>
@@ -408,3 +415,5 @@ export default function BracketPage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    

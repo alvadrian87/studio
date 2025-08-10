@@ -106,7 +106,9 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     const eventInscriptions = inscriptions
       .filter(i => i.eventoId === eventId)
       .map(i => {
-        const players = i.jugadoresIds.map(getPlayerDetails).filter(Boolean) as Player[];
+        // Ensure jugadoresIds exists and is an array before mapping
+        const playerIds = Array.isArray(i.jugadoresIds) ? i.jugadoresIds : [];
+        const players = playerIds.map(getPlayerDetails).filter(Boolean) as Player[];
         const displayName = players.map(p => p.displayName).join(' / ');
         const playerDetails = players.length === 1 ? players[0] : null;
         const avatar = players.length === 1 ? players[0].avatar : undefined;
@@ -120,7 +122,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
 
   const isUserEnrolledInEvent = (eventId: string) => {
     if (!user || !inscriptions) return false;
-    return inscriptions.some(i => i.eventoId === eventId && (i.jugadoresIds.includes(user.uid)));
+    return inscriptions.some(i => i.eventoId === eventId && (Array.isArray(i.jugadoresIds) && i.jugadoresIds.includes(user.uid)));
   }
   
   const userInscription = (eventId: string) => {
@@ -329,7 +331,7 @@ export default function LadderPage({ params }: { params: { id: string } }) {
             </CardContent>
         </Card>
        ) : (
-         <Tabs defaultValue={events[0].id}>
+         <Tabs defaultValue={events.length > 0 ? events[0].id : ''}>
             <TabsList>
                  {events.map((event) => (
                     <TabsTrigger key={event.id} value={event.id!}>{event.nombre}</TabsTrigger>
@@ -518,3 +520,5 @@ export default function LadderPage({ params }: { params: { id: string } }) {
     </>
   )
 }
+
+    
