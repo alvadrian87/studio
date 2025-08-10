@@ -1,68 +1,64 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-
+    
     // Helper functions
     function isUserAuthenticated() {
       return request.auth != null;
-    }
-
-    function isUserAdmin() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
     
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
 
-    // Rules for 'users' collection
+    // Users collection
     match /users/{userId} {
       allow read: if isUserAuthenticated();
-      // Allow user to create their own document, and admins to create any
-      allow create: if request.auth.uid == userId || isUserAdmin();
-      // Allow user to update their own document, and admins to update any
-      allow update: if isOwner(userId) || isUserAdmin();
-      allow delete: if isUserAdmin();
+      allow create: if request.auth.uid == userId;
+      allow update: if isOwner(userId);
     }
-
+    
+    // Tournaments, Events, Inscriptions
     match /tournaments/{tournamentId} {
       allow read: if isUserAuthenticated();
-      allow create, update, delete: if isUserAdmin();
-
-      // Rules for nested 'inscriptions' collection
+      allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      
+      // Inscriptions subcollection
       match /inscriptions/{inscriptionId} {
         allow read: if isUserAuthenticated();
-        // Allow creating an inscription if the user is one of the players being inscribed
         allow create: if isUserAuthenticated() && request.auth.uid in request.resource.data.jugadoresIds;
-        allow update, delete: if isUserAdmin();
+        allow update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
       }
     }
     
     match /eventos/{eventId} {
-      allow read: if isUserAuthenticated();
-      allow create, update, delete: if isUserAdmin();
+       allow read: if isUserAuthenticated();
+       allow create, update, delete: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    match /matches/{matchId} {
-        allow read: if isUserAuthenticated();
-        allow create, update, delete: if isUserAdmin();
-    }
-
+    // Challenges
     match /challenges/{challengeId} {
-        allow read: if isUserAuthenticated();
-        allow create: if isUserAuthenticated(); // Any authenticated user can create a challenge
-        allow update: if isUserAuthenticated(); // Logic should be handled in backend to see who can update
-        allow delete: if isUserAdmin();
+      allow read: if isUserAuthenticated();
+      allow create: if isUserAuthenticated();
+      // Allow the challenged player to update (accept/reject)
+      allow update: if isUserAuthenticated() && get(/databases/$(database)/documents/tournaments/$(resource.data.torneoId)/inscriptions/$(resource.data.desafiadoId)).data.jugadoresIds.hasAny([request.auth.uid]);
     }
     
+    // Matches
+    match /matches/{matchId} {
+      allow read: if isUserAuthenticated();
+      // Allow creation if the user is part of the match
+      allow create: if isUserAuthenticated() && request.auth.uid in request.resource.data.jugadoresIds;
+      // Only admins can update results for now
+      allow update: if get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
+    // Invitations
     match /invitations/{invitationId} {
-      // Allow creation if the inviter is the one making the request
-      allow create: if isUserAuthenticated() && request.resource.data.invitadorId == request.auth.uid;
-      // Allow read if user is either the inviter or the invitee
-      allow read: if isUserAuthenticated() && (resource.data.invitadorId == request.auth.uid || resource.data.invitadoId == request.auth.uid);
-      // Allow update only by the invitee to change the status
-      allow update: if isUserAuthenticated() && resource.data.invitadoId == request.auth.uid;
-      allow delete: if isUserAuthenticated() && (resource.data.invitadorId == request.auth.uid || resource.data.invitadoId == request.auth.uid);
+      allow read: if isUserAuthenticated() && (request.auth.uid == resource.data.invitadorId || request.auth.uid == resource.data.invitadoId);
+      allow create: if isUserAuthenticated() && request.auth.uid == request.resource.data.invitadorId;
+      allow update: if isUserAuthenticated() && request.auth.uid == resource.data.invitadoId;
     }
   }
 }
